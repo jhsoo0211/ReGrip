@@ -79,7 +79,19 @@ button.retro-shadow:active:not(:disabled) {
   border-radius: 50%;
   border: 2px solid var(--ink);
   object-fit: cover;
+  overflow: hidden;
   box-shadow: 2px 2px 0px var(--ink);
+}
+
+/* ── Circular icon clipping ── */
+.circle-clip {
+  overflow: hidden;
+  border-radius: 50%;
+}
+.circle-clip img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 #nav-sidebar .nav-user-name  { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 14px; }
