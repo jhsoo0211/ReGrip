@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ReGrip — 풍선 게임</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=DM+Sans:wght@400;500;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="shared.css"/>
+<script id="tailwind-config">
+tailwind.config = {
+  theme: { extend: {
+    colors: {
+      primary: '#994626', surface: '#FFF8F6', 'surface-container': '#FFE9E3',
+      'surface-container-high': '#fae3dc', 'on-surface': '#251915',
+      'on-surface-variant': '#58423a', 'background-sky': '#F0F9FF',
+      'ink-black': '#0F172A', 'mint-green': '#10B981',
+    },
+    fontFamily: { display: ['Space Grotesk'], body: ['DM Sans'] },
+  }}
+};
+</script>
+<style>
+  #game-viewport { background: linear-gradient(180deg, #BAE6FD 0%, #E0F2FE 60%, #FFF1ED 100%); }
+
+  /* Balloon */
+  #balloon-wrap { position: absolute; left: 50%; transform: translateX(-50%); transition: bottom 0.08s linear; }
+
+  /* Target zone */
+  #target-zone {
+    position: absolute; left: 0; right: 0;
+    background: rgba(16,185,129,0.15);
+    border-top: 3px dashed #10B981;
+    border-bottom: 3px dashed #10B981;
+  }
+  #target-zone.holding { background: rgba(16,185,129,0.35); }
+
+  /* Pop particles */
+  .particle {
+    position: absolute;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    animation: popParticle 0.5s ease-out forwards;
+    pointer-events: none;
+  }
+  @keyframes popParticle {
+    0%   { transform: translate(0,0) scale(1); opacity: 1; }
+    100% { transform: translate(var(--dx), var(--dy)) scale(0); opacity: 0; }
+  }
+
+  /* Hold arc (SVG timer) */
+  #hold-arc { stroke-dasharray: 157; stroke-dashoffset: 157; transition: stroke-dashoffset 0.1s linear; }
+
+  /* Result overlay */
+  #result-overlay { display: none; }
+  #result-overlay.open { display: flex; }
+
+  /* Cloud float */
+  .cloud { animation: cloudDrift linear infinite; }
+  @keyframes cloudDrift {
+    0%   { transform: translateX(-120px); }
+    100% { transform: translateX(calc(100vw + 120px)); }
+  }
+
+  /* Gauge */
+  #gauge-fill { transition: height 0.08s linear; }
+</style>
+</head>
+<body class="bg-ink-black text-on-surface" style="background:#1a0a05;">
+
+<!-- ══ GAME SCREEN ══════════════════════════════════════════════════════════ -->
+<div id="game-screen" class="min-h-screen flex flex-col">
+
+  <!-- Header (minimal) -->
+  <header class="flex items-center justify-between px-6 py-3" style="background:#FFF8F6;border-bottom:4px solid #0F172A;">
+    <div class="font-display text-xl font-bold text-primary italic">ReGrip</div>
+    <div class="flex items-center gap-4">
+      <!-- Sim hint -->
+      <div class="font-display text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full text-on-surface-variant animate-pulse" style="background:#FFE9E3;border:2px solid #dfc0b6;">
+        SPACE / 클릭 홀드
+      </div>
+      <!-- Sensor status -->
+      <div id="sensor-badge" class="font-display text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full flex items-center gap-2" style="background:#DCFCE7;border:2px solid #0F172A;">
+        <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse inline-block"></span>
+        시뮬레이션
+      </div>
+      <button onclick="confirmExit()" class="font-display font-bold text-sm uppercase tracking-wider px-4 py-2 rounded" style="background:#FFF8F6;border:2px solid #0F172A;box-shadow:2px 2px 0 #0F172A;">
+        종료
+      </button>
+    </div>
+  </header>
+
+  <!-- Game Layout -->
+  <div class="flex-1 flex gap-0">
+
+    <!-- Left HUD -->
+    <aside class="w-56 p-5 flex flex-col gap-4 flex-shrink-0" style="background:#FFF8F6;border-right:4px solid #0F172A;">
+      <!-- Timer -->
+      <div class="rounded-xl p-4" style="background:#fff;border:4px solid #0F172A;box-shadow:4px 4px 0 #0F172A;border-top:6px solid #994626;">
+        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">남은 시간</div>
+        <div id="timer-display" class="font-display text-5xl font-bold text-primary">2:00</div>
+      </div>
+      <!-- Score -->
+      <div class="rounded-xl p-4" style="background:#fff;border:4px solid #0F172A;box-shadow:4px 4px 0 #0F172A;border-top:6px solid #10B981;">
+        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">터뜨린 풍선</div>
+        <div id="score-display" class="font-display text-5xl font-bold" style="color:#10B981;">0</div>
+      </div>
+      <!-- Hold progress -->
+      <div class="rounded-xl p-4" style="background:#fff;border:2px solid #0F172A;">
+        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-2">목표 유지</div>
+        <div class="flex items-center gap-2">
+          <svg width="40" height="40" viewBox="0 0 50 50">
+            <circle cx="25" cy="25" r="20" stroke="#FFE9E3" stroke-width="6" fill="none"/>
+            <circle id="hold-arc" cx="25" cy="25" r="20" stroke="#10B981" stroke-width="6" fill="none"
+                    stroke-linecap="round" transform="rotate(-90 25 25)"/>
+          </svg>
+          <div>
+            <div id="hold-secs" class="font-display text-lg font-bold text-on-surface">0.0s</div>
+            <div class="font-display text-xs text-on-surface-variant">/ 3.0s</div>
+          </div>
+        </div>
+      </div>
+      <!-- Instructions -->
+      <div class="mt-auto rounded-lg p-4 text-sm" style="background:#EFF6FF;border:2px dashed #0F172A;">
+        <strong class="text-primary block mb-1 font-display text-xs uppercase tracking-wider">훈련 방법</strong>
+        손을 쥐어 풍선을 올리세요. 초록 구간에서 3초간 유지하면 팝!
+      </div>
+    </aside>
+
+    <!-- Center Viewport -->
+    <div id="game-viewport" class="flex-1 relative overflow-hidden select-none">
+      <!-- Clouds (decorative) -->
+      <div class="cloud absolute" style="top:8%;animation-duration:18s;animation-delay:0s;">
+        <div class="flex items-end gap-0">
+          <div class="w-20 h-10 bg-white rounded-full opacity-80"></div>
+          <div class="w-12 h-7 bg-white rounded-full opacity-80 -ml-3"></div>
+        </div>
+      </div>
+      <div class="cloud absolute" style="top:20%;animation-duration:24s;animation-delay:-8s;">
+        <div class="w-28 h-9 bg-white rounded-full opacity-60"></div>
+      </div>
+
+      <!-- Target Zone (positioned by JS) -->
+      <div id="target-zone"></div>
+      <div id="target-label" class="absolute z-10 font-display text-xs font-bold tracking-widest uppercase text-mint-green pointer-events-none"
+           style="left:50%;transform:translateX(-50%);">
+        ▲ TARGET ZONE ▲
+      </div>
+
+      <!-- Balloon -->
+      <div id="balloon-wrap" style="bottom:10%;">
+        <svg id="balloon-svg" width="90" height="120" viewBox="0 0 90 120" fill="none">
+          <ellipse id="balloon-body" cx="45" cy="48" rx="36" ry="44" fill="#F472B6" stroke="#0F172A" stroke-width="3.5"/>
+          <ellipse cx="32" cy="30" rx="11" ry="16" fill="rgba(255,255,255,0.35)" transform="rotate(-20 32 30)"/>
+          <path d="M38 92 Q45 104 52 92" stroke="#0F172A" stroke-width="2.5" fill="none"/>
+          <path id="balloon-string" d="M45 96 Q50 108 45 120" stroke="#251915" stroke-width="2" fill="none"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Right Gauge -->
+    <aside class="w-28 p-4 flex flex-col items-center flex-shrink-0" style="background:#FFF8F6;border-left:4px solid #0F172A;">
+      <div class="font-display text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-3 text-center">악력</div>
+
+      <div class="relative flex items-center justify-center mb-2">
+        <div class="font-display text-sm text-on-surface-variant">100%</div>
+      </div>
+      <div class="flex-1 w-10 relative rounded-full overflow-hidden" style="background:#F0F9FF;border:2px solid #0F172A;">
+        <!-- Target zone indicator on gauge -->
+        <div id="gauge-target" class="absolute left-0 right-0 pointer-events-none" style="background:rgba(16,185,129,0.2);border-top:2px solid #10B981;border-bottom:2px solid #10B981;"></div>
+        <div id="gauge-fill" class="absolute bottom-0 left-0 right-0 rounded-full" style="height:0%;background:#994626;"></div>
+      </div>
+      <div class="mt-2 mb-1 font-display text-sm text-on-surface-variant">0%</div>
+      <div id="force-pct" class="font-display text-2xl font-bold text-primary mt-2">0%</div>
+    </aside>
+
+  </div>
+
+</div>
+
+
+<!-- ══ RESULT OVERLAY ══════════════════════════════════════════════════════ -->
+<div id="result-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-6" style="background:rgba(15,23,42,0.75);">
+  <div class="w-full max-w-md overflow-hidden" style="background:#FFF8F6;border:4px solid #0F172A;box-shadow:8px 8px 0 #0F172A;border-radius:16px;">
+    <!-- Banner -->
+    <div class="p-8 flex flex-col items-center gap-3 text-center" style="background:#FFB38E;">
+      <div class="w-16 h-16 rounded-full flex items-center justify-center" style="background:#fff;border:3px solid #0F172A;">
+        <span class="material-symbols-outlined text-3xl text-primary" style="font-variation-settings:'FILL' 1">celebration</span>
+      </div>
+      <h2 class="font-display text-3xl font-bold uppercase tracking-tight text-ink-black">게임 완료!</h2>
+      <div id="result-stars" class="flex gap-1"></div>
+    </div>
+    <!-- Stats -->
+    <div class="p-6 grid grid-cols-2 gap-3">
+      <div class="rounded-xl p-4 text-center" style="background:#FFE9E3;border:2px solid #0F172A;">
+        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">풍선 팝</div>
+        <div id="res-score" class="font-display text-3xl font-bold text-primary">0</div>
+      </div>
+      <div class="rounded-xl p-4 text-center" style="background:#FFE9E3;border:2px solid #0F172A;">
+        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">최대 악력</div>
+        <div id="res-max" class="font-display text-3xl font-bold text-primary">0%</div>
+      </div>
+      <div class="rounded-xl p-4 text-center" style="background:#FFE9E3;border:2px solid #0F172A;">
+        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">평균 악력</div>
+        <div id="res-avg" class="font-display text-3xl font-bold text-primary">0%</div>
+      </div>
+      <div class="rounded-xl p-4 text-center" style="background:#FFE9E3;border:2px solid #0F172A;">
+        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">플레이 시간</div>
+        <div id="res-time" class="font-display text-3xl font-bold text-primary">2분</div>
+      </div>
+    </div>
+    <!-- Actions -->
+    <div class="px-6 pb-6 flex gap-3">
+      <button onclick="restartGame()" class="flex-1 font-display font-bold uppercase tracking-wider py-3 rounded text-white flex items-center justify-center gap-2" style="background:#994626;border:2px solid #0F172A;box-shadow:3px 3px 0 #0F172A;">
+        <span class="material-symbols-outlined text-base">replay</span> 다시 플레이
+      </button>
+      <button onclick="saveAndHistory()" class="flex-1 font-display font-bold uppercase tracking-wider py-3 rounded flex items-center justify-center gap-2" style="background:#FFF8F6;border:2px solid #0F172A;box-shadow:3px 3px 0 #0F172A;">
+        <span class="material-symbols-outlined text-base">save</span> 저장
+      </button>
+      <button onclick="window.location.href='index.html'" class="font-display font-bold uppercase tracking-wider py-3 px-4 rounded" style="background:#FFF1ED;border:2px solid #0F172A;">
+        <span class="material-symbols-outlined text-base">home</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+
+<script src="shared.js"></script>
+<script>
+// ── Constants ──────────────────────────────────────────────────────────────
+const GAME_DURATION  = 120;  // seconds
+const TARGET_LO      = 0.15; // top 15% of viewport
+const TARGET_HI      = 0.30; // top 30%
+const TARGET_HOLD    = 3.0;  // seconds to pop
+const BALLOON_COLORS = ['#F472B6','#FBBF24','#34D399','#60A5FA','#A78BFA'];
+
+// ── State ──────────────────────────────────────────────────────────────────
+let balloonPct  = 10;     // 0=bottom, 100=top
+let gripForce   = 0;      // 0-100
+let pressActive = false;
+let holdTime    = 0;
+let score       = 0;
+let timeLeft    = GAME_DURATION;
+let running     = true;
+let colorIndex  = 0;
+let forceSamples = [];
+let maxForce    = 0;
+let sessionStart = Date.now();
+
+// ── DOM refs ───────────────────────────────────────────────────────────────
+const balloonWrap  = document.getElementById('balloon-wrap');
+const balloonBody  = document.getElementById('balloon-body');
+const targetZone   = document.getElementById('target-zone');
+const targetLabel  = document.getElementById('target-label');
+const gaugeFill    = document.getElementById('gauge-fill');
+const gaugeTarget  = document.getElementById('gauge-target');
+const holdArc      = document.getElementById('hold-arc');
+const holdSecsEl   = document.getElementById('hold-secs');
+const timerEl      = document.getElementById('timer-display');
+const scoreEl      = document.getElementById('score-display');
+const forcePctEl   = document.getElementById('force-pct');
+const viewport     = document.getElementById('game-viewport');
+
+// ── Target zone positioning ────────────────────────────────────────────────
+function layoutTarget() {
+  const h = viewport.clientHeight;
+  targetZone.style.top    = (TARGET_LO * 100) + '%';
+  targetZone.style.height = ((TARGET_HI - TARGET_LO) * 100) + '%';
+  targetLabel.style.top   = (TARGET_HI * 100 + 1) + '%';
+
+  // Gauge target indicator (inverted: high force = high on gauge)
+  // Balloon at top (100%) = force ~60-80% to hold zone
+  // We show gauge zone for 50-70% roughly
+  gaugeTarget.style.bottom = '50%';
+  gaugeTarget.style.height = '20%';
+}
+layoutTarget();
+window.addEventListener('resize', layoutTarget);
+
+// ── Input handling ─────────────────────────────────────────────────────────
+function startPress() { pressActive = true; }
+function stopPress()  { pressActive = false; }
+
+document.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); startPress(); } });
+document.addEventListener('keyup',   e => { if (e.code === 'Space') stopPress(); });
+document.addEventListener('mousedown', startPress);
+document.addEventListener('mouseup',   stopPress);
+document.addEventListener('touchstart', e => { e.preventDefault(); startPress(); }, {passive:false});
+document.addEventListener('touchend',   stopPress);
+
+// ── Sensor integration ─────────────────────────────────────────────────────
+SensorService.onForceUpdate(f => { gripForce = f; });
+
+// ── Balloon color ──────────────────────────────────────────────────────────
+function nextColor() {
+  colorIndex = (colorIndex + 1) % BALLOON_COLORS.length;
+  balloonBody.setAttribute('fill', BALLOON_COLORS[colorIndex]);
+}
+
+// ── Pop animation ──────────────────────────────────────────────────────────
+function popBalloon() {
+  score++;
+  scoreEl.textContent = score;
+
+  // Particles
+  const rect = balloonWrap.getBoundingClientRect();
+  const vpRect = viewport.getBoundingClientRect();
+  const cx = rect.left - vpRect.left + rect.width / 2;
+  const cy = rect.top  - vpRect.top  + rect.height / 2;
+
+  const colors = ['#F472B6','#FBBF24','#34D399','#60A5FA','#F97316'];
+  for (let i = 0; i < 12; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    p.style.left   = cx + 'px';
+    p.style.top    = cy + 'px';
+    p.style.background = colors[i % colors.length];
+    const angle = (i / 12) * 2 * Math.PI;
+    const dist  = 60 + Math.random() * 60;
+    p.style.setProperty('--dx', Math.cos(angle) * dist + 'px');
+    p.style.setProperty('--dy', Math.sin(angle) * dist + 'px');
+    viewport.appendChild(p);
+    setTimeout(() => p.remove(), 600);
+  }
+
+  // Reset balloon
+  nextColor();
+  balloonPct = 5;
+  holdTime   = 0;
+  targetZone.classList.remove('holding');
+}
+
+// ── Timer (counts down every second) ──────────────────────────────────────
+const timerInterval = setInterval(() => {
+  if (!running) return;
+  timeLeft--;
+  const m = Math.floor(timeLeft / 60);
+  const s = timeLeft % 60;
+  timerEl.textContent = `${m}:${String(s).padStart(2,'0')}`;
+  if (timeLeft <= 0) endGame();
+}, 1000);
+
+// ── Game loop (rAF) ────────────────────────────────────────────────────────
+let lastTick = Date.now();
+
+function gameTick() {
+  if (!running) return;
+
+  const now = Date.now();
+  const dt  = (now - lastTick) / 1000;
+  lastTick  = now;
+
+  // Update simulated grip via press
+  if (SensorService.getMode() === 'simulation') {
+    if (pressActive) {
+      gripForce = Math.min(100, gripForce + 55 * dt);
+    } else {
+      gripForce = Math.max(0, gripForce - 45 * dt);
+    }
+    SensorService.setSimulatedForce(gripForce);
+  }
+
+  forceSamples.push(gripForce);
+  if (gripForce > maxForce) maxForce = gripForce;
+
+  // Balloon physics: force drives velocity
+  const velocity = (gripForce - 30) * 0.08;  // neutral at 30%
+  balloonPct = Math.max(2, Math.min(98, balloonPct + velocity * dt * 60));
+
+  // Check if balloon is in target zone
+  // Balloon "top" percent ≈ 100 - balloonPct (because bottom=0 = floor)
+  const viewH    = viewport.clientHeight;
+  const balloonTopRatio = 1 - (balloonPct / 100);
+  const inZone   = balloonTopRatio >= TARGET_LO && balloonTopRatio <= TARGET_HI;
+
+  if (inZone) {
+    holdTime += dt;
+    targetZone.classList.add('holding');
+  } else {
+    holdTime = Math.max(0, holdTime - dt * 0.5);
+    targetZone.classList.remove('holding');
+  }
+
+  if (holdTime >= TARGET_HOLD) popBalloon();
+
+  // Update visuals
+  balloonWrap.style.bottom = balloonPct + '%';
+  gaugeFill.style.height   = gripForce + '%';
+  forcePctEl.textContent   = Math.round(gripForce) + '%';
+
+  const arcCirc = 157;
+  holdArc.style.strokeDashoffset = arcCirc * (1 - Math.min(holdTime / TARGET_HOLD, 1));
+  holdSecsEl.textContent = holdTime.toFixed(1) + 's';
+
+  requestAnimationFrame(gameTick);
+}
+
+// ── End game ───────────────────────────────────────────────────────────────
+function endGame() {
+  running = false;
+  clearInterval(timerInterval);
+
+  const avgF = forceSamples.length
+    ? Math.round(forceSamples.reduce((a,b) => a+b, 0) / forceSamples.length)
+    : 0;
+  const stars = score >= 10 ? 3 : score >= 5 ? 2 : 1;
+
+  document.getElementById('res-score').textContent = score;
+  document.getElementById('res-max').textContent   = Math.round(maxForce) + '%';
+  document.getElementById('res-avg').textContent   = avgF + '%';
+  document.getElementById('res-time').textContent  = Math.round((Date.now() - sessionStart) / 60000) + '분';
+  document.getElementById('result-stars').innerHTML =
+    [1,2,3].map(i => `<span class="material-symbols-outlined text-3xl ${i<=stars?'text-yellow-400':'text-on-surface-variant'}"
+      style="font-variation-settings:'FILL' ${i<=stars?1:0}">star</span>`).join('');
+
+  window._sessionResult = {
+    date:       new Date().toISOString(),
+    label:      '풍선 게임',
+    durationMin: Math.round((Date.now() - sessionStart) / 60000) || 2,
+    sets:       score,
+    avgForce:   avgF,
+    maxForce:   Math.round(maxForce),
+    stars,
+  };
+
+  document.getElementById('result-overlay').classList.add('open');
+}
+
+function restartGame() {
+  window.location.reload();
+}
+
+function saveAndHistory() {
+  if (window._sessionResult) DataService.saveSession(window._sessionResult);
+  window.location.href = 'history.html';
+}
+
+function confirmExit() {
+  if (confirm('게임을 종료하고 나가시겠습니까?')) window.location.href = 'training.html';
+}
+
+// ── Start ──────────────────────────────────────────────────────────────────
+injectFeedbackModal();
+seedMockData();
+nextColor();   // set initial color
+requestAnimationFrame(gameTick);
+</script>
+</body>
+</html>

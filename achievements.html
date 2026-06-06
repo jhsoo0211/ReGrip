@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ReGrip — 나의 업적</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=DM+Sans:wght@400;500;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="shared.css"/>
+<script id="tailwind-config">
+tailwind.config = {
+  theme: { extend: {
+    colors: {
+      primary: '#994626', 'primary-container': '#e8825e', 'on-primary': '#ffffff',
+      'on-primary-container': '#621e02', surface: '#FFF8F6', 'surface-warm': '#FFF1ED',
+      'surface-container': '#FFE9E3', 'surface-container-high': '#fae3dc',
+      'surface-container-highest': '#f5ded7', 'on-surface': '#251915',
+      'on-surface-variant': '#58423a', 'outline-variant': '#dfc0b6',
+      'background-sky': '#F0F9FF', 'ink-black': '#0F172A',
+      secondary: '#006c49', 'secondary-container': '#6cf8bb', 'mint-green': '#10B981',
+    },
+    fontFamily: { display: ['Space Grotesk'], body: ['DM Sans'] },
+    boxShadow: { retro: '4px 4px 0px #0F172A', 'retro-sm': '2px 2px 0px #0F172A' },
+  }}
+};
+</script>
+</head>
+<body class="bg-background-sky text-on-surface">
+
+<div class="app-shell">
+  <div id="nav-sidebar"></div>
+
+  <main class="app-main w-full">
+    <div class="max-w-[1100px] mx-auto px-8 py-8 flex flex-col gap-6">
+
+      <!-- Header -->
+      <section class="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 border-b-4 border-ink-black pb-6">
+        <div>
+          <h1 class="font-display text-4xl md:text-5xl font-bold text-on-surface uppercase tracking-tight mb-2 flex items-center gap-3">
+            <span class="material-symbols-outlined text-4xl text-primary" style="font-variation-settings:'FILL' 1">emoji_events</span>
+            나의 업적
+          </h1>
+          <p class="text-on-surface-variant text-lg">게임 목표를 달성하고 보상을 잠금 해제하세요.</p>
+        </div>
+        <div class="bg-surface-container-high retro-border retro-shadow px-6 py-4 rounded-xl flex flex-col items-center min-w-[130px]">
+          <span class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">총 획득 배지</span>
+          <span class="font-display text-2xl font-bold text-primary">3 / 5</span>
+        </div>
+      </section>
+
+      <!-- Achievements Grid -->
+      <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+        <!-- Earned 1 -->
+        <article class="bg-white retro-border retro-shadow rounded-xl p-6 flex flex-col items-center text-center relative overflow-hidden hover:-translate-y-1 transition-transform">
+          <div class="absolute top-0 left-0 w-full h-2 bg-secondary-container border-b-2 border-ink-black"></div>
+          <div class="w-28 h-28 mb-5 rounded-full retro-border bg-surface-container flex items-center justify-center p-2 shadow-inner mt-2">
+            <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAr50qpgbrUtxV0UbPCpxiQjh4RzrsxH2axw7Ac5USq3HpiCpPEPfzNqhQ6CQOCzok8tjKsXAPPcJ6P4qxtyMDTlEb7gNnNpR4DBsBPleJkO9qKyZt_uLV7KYTaJts2If4vGBpABk3R1OVaTaHyjpLzEYxZC4sbliiIDbAdC579yhzuX5cG6pPnpWWkuB7QgwEOhYa6uUqjTqLVvNeDW_eeqHuK_SLaO-fL2IVSKZ-e1uAk1j2msodHF_vWp22_jITwteGMtUpuHE0" alt="첫 번째 캡슐" class="w-full h-full object-contain drop-shadow-md"/>
+          </div>
+          <h3 class="font-display text-lg font-bold mb-2">첫 번째 캡슐</h3>
+          <p class="text-on-surface-variant text-sm mb-4 flex-1">크레인을 조작하여 첫 번째 보상 캡슐을 성공적으로 수집했습니다.</p>
+          <div class="w-full border-t-2 border-ink-black pt-4 flex justify-between items-center">
+            <span class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">획득일</span>
+            <span class="font-display text-sm font-bold">2023.10.12</span>
+          </div>
+        </article>
+
+        <!-- Earned 2 -->
+        <article class="bg-white retro-border retro-shadow rounded-xl p-6 flex flex-col items-center text-center relative overflow-hidden hover:-translate-y-1 transition-transform">
+          <div class="absolute top-0 left-0 w-full h-2 bg-secondary-container border-b-2 border-ink-black"></div>
+          <div class="w-28 h-28 mb-5 rounded-full retro-border bg-surface-container flex items-center justify-center p-2 shadow-inner mt-2">
+            <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAa99xLJU4p1iWwcUqU6STPNiaKU5pG9Te__iNTw7WOnSEAzvegvFMFN2fHscEdrOqVeqZGnoTtP7DzpSXZkUX5flpIfHMxjqIEvZASnFWKkoMMcQ1EV5HKsDLVXG1E95y2i1J7r270zw9RGSgzzQlGSGo3iDYHAxp28-LfWOXm1h8oYsC4mEqO2WjokXtvgI3UG8ECANJu2Zglb1FZBtKxYL2ZdFSO80Mk7ysrb87LfSm984RdizC5G_AECy5gm2bptGe1TrQSD5o" alt="강력한 악력" class="w-full h-full object-contain drop-shadow-md"/>
+          </div>
+          <h3 class="font-display text-lg font-bold mb-2">강력한 악력</h3>
+          <p class="text-on-surface-variant text-sm mb-4 flex-1">악력 측정기에서 80% 이상의 목표 파워를 5회 연속 달성했습니다.</p>
+          <div class="w-full border-t-2 border-ink-black pt-4 flex justify-between items-center">
+            <span class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">획득일</span>
+            <span class="font-display text-sm font-bold">2023.10.15</span>
+          </div>
+        </article>
+
+        <!-- Earned 3 -->
+        <article class="bg-white retro-border retro-shadow rounded-xl p-6 flex flex-col items-center text-center relative overflow-hidden hover:-translate-y-1 transition-transform">
+          <div class="absolute top-0 left-0 w-full h-2 bg-secondary-container border-b-2 border-ink-black"></div>
+          <div class="w-28 h-28 mb-5 rounded-full retro-border bg-surface-container flex items-center justify-center p-2 shadow-inner mt-2">
+            <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuBbE2ktvXPHSxGjsTe1qhkGNh_T1v-Xa0Fzva4XyxyIMlgAkgpSdbT0l7ZY20jP4b6eheLrZ8Nv-shTncX71TKHU5ejtt-Zn4WN4m9ge8KWuJiVCyfvLVLE4IL9SZ3bMEQfTZQ67MFqy5RMMe09BdG5Giq_PSejib6vuYXXb30FEyraFIVCR0NQ1uCdSDhTWJTezAx7Ycql0N180FhrMJ-_EzQlhQ_en3OypTNDw4vFfKiLmEb9MzxHoYtQZK5iNtHb6IlBpHuqON0" alt="꾸준함의 왕" class="w-full h-full object-contain drop-shadow-md"/>
+          </div>
+          <h3 class="font-display text-lg font-bold mb-2">꾸준함의 왕</h3>
+          <p class="text-on-surface-variant text-sm mb-4 flex-1">7일 연속으로 훈련 세션에 로그인하고 완료했습니다.</p>
+          <div class="w-full border-t-2 border-ink-black pt-4 flex justify-between items-center">
+            <span class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">획득일</span>
+            <span class="font-display text-sm font-bold">2023.10.22</span>
+          </div>
+        </article>
+
+        <!-- Locked 1 -->
+        <article class="bg-surface-container-high retro-border rounded-xl p-6 opacity-75 flex flex-col items-center text-center relative" style="border-color:#dfc0b6;">
+          <div class="absolute top-0 left-0 w-full h-2 rounded-t-xl" style="background:#dfc0b6;"></div>
+          <div class="w-28 h-28 mb-5 rounded-full bg-white flex items-center justify-center relative mt-2" style="border:2px solid #dfc0b6;">
+            <span class="material-symbols-outlined text-5xl absolute z-10 text-on-surface-variant" style="font-variation-settings:'FILL' 1">lock</span>
+            <div class="w-full h-full rounded-full bg-surface-container-highest opacity-60"></div>
+          </div>
+          <h3 class="font-display text-lg font-bold mb-2 text-on-surface-variant">명사수</h3>
+          <p class="text-on-surface-variant text-sm mb-4 flex-1">타겟 슈팅 미니게임에서 95% 이상의 정확도를 달성하세요.</p>
+          <div class="w-full pt-4" style="border-top:2px solid #dfc0b6;">
+            <div class="flex justify-between items-center mb-2">
+              <span class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">진행률</span>
+              <span class="font-display text-sm font-bold">82%</span>
+            </div>
+            <div class="w-full h-3 rounded-full overflow-hidden" style="background:#f5ded7;border:2px solid #dfc0b6;">
+              <div class="h-full bg-on-surface-variant w-[82%]"></div>
+            </div>
+          </div>
+        </article>
+
+        <!-- Locked 2 -->
+        <article class="bg-surface-container-high retro-border rounded-xl p-6 opacity-75 flex flex-col items-center text-center relative" style="border-color:#dfc0b6;">
+          <div class="absolute top-0 left-0 w-full h-2 rounded-t-xl" style="background:#dfc0b6;"></div>
+          <div class="w-28 h-28 mb-5 rounded-full bg-white flex items-center justify-center relative mt-2" style="border:2px solid #dfc0b6;">
+            <span class="material-symbols-outlined text-5xl absolute z-10 text-on-surface-variant" style="font-variation-settings:'FILL' 1">lock</span>
+            <div class="w-full h-full rounded-full bg-surface-container-highest opacity-60"></div>
+          </div>
+          <h3 class="font-display text-lg font-bold mb-2 text-on-surface-variant">목표의 절반</h3>
+          <p class="text-on-surface-variant text-sm mb-4 flex-1">누적 보상 캡슐 500개를 수집하세요. 계속 힘내세요!</p>
+          <div class="w-full pt-4" style="border-top:2px solid #dfc0b6;">
+            <div class="flex justify-between items-center mb-2">
+              <span class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">진행률</span>
+              <span class="font-display text-sm font-bold">245 / 500</span>
+            </div>
+            <div class="w-full h-3 rounded-full overflow-hidden" style="background:#f5ded7;border:2px solid #dfc0b6;">
+              <div class="h-full bg-on-surface-variant w-[49%]"></div>
+            </div>
+          </div>
+        </article>
+
+        <!-- Coming Soon -->
+        <article class="bg-surface-container-high rounded-xl p-6 opacity-50 flex flex-col items-center text-center relative" style="border:2px dashed #dfc0b6;">
+          <div class="w-28 h-28 mb-5 rounded-full bg-white flex items-center justify-center mt-2" style="border:2px dashed #dfc0b6;">
+            <span class="material-symbols-outlined text-5xl text-on-surface-variant">more_horiz</span>
+          </div>
+          <h3 class="font-display text-lg font-bold mb-2 text-on-surface-variant">더 많은 업적</h3>
+          <p class="text-on-surface-variant text-sm">훈련을 계속하면 새로운 업적이 잠금 해제됩니다.</p>
+        </article>
+
+      </section>
+    </div>
+  </main>
+
+  <div id="nav-bottom"></div>
+</div>
+
+<script src="shared.js"></script>
+<script>initPage('achievements');</script>
+</body>
+</html>

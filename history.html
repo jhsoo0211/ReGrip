@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ReGrip — 기록 및 통계</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=DM+Sans:wght@400;500;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="shared.css"/>
+<script id="tailwind-config">
+tailwind.config = {
+  theme: { extend: {
+    colors: {
+      primary: '#994626', 'primary-container': '#e8825e', 'on-primary': '#ffffff',
+      'on-primary-container': '#621e02', surface: '#FFF8F6', 'surface-warm': '#FFF1ED',
+      'surface-container': '#FFE9E3', 'surface-container-high': '#fae3dc',
+      'surface-container-highest': '#f5ded7', 'on-surface': '#251915',
+      'on-surface-variant': '#58423a', 'outline-variant': '#dfc0b6',
+      'background-sky': '#F0F9FF', 'ink-black': '#0F172A',
+      secondary: '#006c49', 'mint-green': '#10B981',
+    },
+    fontFamily: { display: ['Space Grotesk'], body: ['DM Sans'] },
+    boxShadow: { retro: '4px 4px 0px #0F172A', 'retro-sm': '2px 2px 0px #0F172A' },
+  }}
+};
+</script>
+<style>
+  .tab-btn { transition: background 0.15s, color 0.15s, box-shadow 0.1s; }
+  .tab-btn.active {
+    background: #994626;
+    color: #fff;
+    border-color: #0F172A;
+    box-shadow: 3px 3px 0px #0F172A;
+  }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* CSS bar chart */
+  .bar-col { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; }
+  .bar-track { width: 100%; background: #FFE9E3; border: 2px solid #0F172A; border-radius: 4px; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; }
+  .bar-fill  { background: #994626; border-radius: 2px; transition: height 0.6s ease; }
+  .bar-label { font-family: 'Space Grotesk', sans-serif; font-size: 11px; font-weight: 700; color: #58423a; text-align: center; }
+  .bar-val   { font-family: 'Space Grotesk', sans-serif; font-size: 12px; font-weight: 700; color: #251915; }
+</style>
+</head>
+<body class="bg-background-sky text-on-surface">
+
+<div class="app-shell">
+  <div id="nav-sidebar"></div>
+
+  <main class="app-main w-full">
+    <div class="max-w-[1100px] mx-auto px-8 py-8 flex flex-col gap-6">
+
+      <!-- Header -->
+      <section class="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 border-b-4 border-ink-black pb-6">
+        <div>
+          <h1 class="font-display text-4xl md:text-5xl font-bold uppercase tracking-tight mb-2 flex items-center gap-3">
+            <span class="material-symbols-outlined text-4xl text-primary" style="font-variation-settings:'FILL' 1">timeline</span>
+            기록 및 통계
+          </h1>
+          <p class="text-on-surface-variant text-lg">훈련 세션 기록과 악력 발전 추세를 확인하세요.</p>
+        </div>
+        <!-- Total sessions badge -->
+        <div id="total-badge" class="bg-surface-container-high retro-border retro-shadow px-6 py-4 rounded-xl flex flex-col items-center min-w-[130px]">
+          <span class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">총 세션</span>
+          <span id="total-sessions" class="font-display text-2xl font-bold text-primary">0</span>
+        </div>
+      </section>
+
+      <!-- Tabs -->
+      <div class="flex gap-3">
+        <button onclick="switchTab('log')" id="tab-log"
+                class="tab-btn active font-display font-bold text-sm uppercase tracking-wider px-6 py-2.5 rounded retro-border bg-primary text-white">
+          기록
+        </button>
+        <button onclick="switchTab('stats')" id="tab-stats"
+                class="tab-btn font-display font-bold text-sm uppercase tracking-wider px-6 py-2.5 rounded retro-border bg-white text-on-surface-variant">
+          통계
+        </button>
+      </div>
+
+      <!-- Tab: Session Log -->
+      <div id="content-log" class="tab-content active">
+        <div id="session-list" class="flex flex-col gap-4"></div>
+      </div>
+
+      <!-- Tab: Stats -->
+      <div id="content-stats" class="tab-content">
+
+        <!-- Personal Bests -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div class="bg-white retro-border retro-shadow rounded-xl p-5 text-center">
+            <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-2">최대 악력</div>
+            <div id="stat-max-force" class="font-display text-2xl font-bold text-primary">—</div>
+            <div class="text-xs text-on-surface-variant mt-1">%</div>
+          </div>
+          <div class="bg-white retro-border retro-shadow rounded-xl p-5 text-center">
+            <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-2">총 세션</div>
+            <div id="stat-total" class="font-display text-2xl font-bold text-primary">—</div>
+            <div class="text-xs text-on-surface-variant mt-1">회</div>
+          </div>
+          <div class="bg-white retro-border retro-shadow rounded-xl p-5 text-center">
+            <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-2">평균 세트</div>
+            <div id="stat-avg-sets" class="font-display text-2xl font-bold text-primary">—</div>
+            <div class="text-xs text-on-surface-variant mt-1">세트</div>
+          </div>
+          <div class="bg-white retro-border retro-shadow rounded-xl p-5 text-center">
+            <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-2">연속 출석</div>
+            <div id="stat-streak" class="font-display text-2xl font-bold text-primary">—</div>
+            <div class="text-xs text-on-surface-variant mt-1">일</div>
+          </div>
+        </div>
+
+        <!-- Weekly Force Chart -->
+        <div class="bg-white retro-border retro-shadow rounded-xl p-6">
+          <h3 class="font-display text-base font-bold uppercase tracking-wide mb-6">주간 평균 악력 (최근 7일)</h3>
+          <div id="force-chart" class="flex items-end gap-2 h-[180px]"></div>
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+
+  <div id="nav-bottom"></div>
+</div>
+
+<script src="shared.js"></script>
+<script>
+initPage('history');
+
+function switchTab(name) {
+  ['log', 'stats'].forEach(t => {
+    document.getElementById(`content-${t}`).classList.toggle('active', t === name);
+    const btn = document.getElementById(`tab-${t}`);
+    btn.classList.toggle('active', t === name);
+    if (t !== name) {
+      btn.style.background = '#fff';
+      btn.style.color = '#58423a';
+      btn.style.boxShadow = '';
+    }
+  });
+}
+
+function starsHtml(n) {
+  return [1,2,3].map(i =>
+    `<span class="material-symbols-outlined text-sm ${i<=n?'text-yellow-400':'text-on-surface-variant'}"
+          style="font-variation-settings:'FILL' ${i<=n?1:0}">star</span>`
+  ).join('');
+}
+
+function renderLog(sessions) {
+  const list = document.getElementById('session-list');
+  if (!sessions.length) {
+    list.innerHTML = `<div class="text-center py-16 text-on-surface-variant font-display font-bold uppercase tracking-wide">아직 세션 기록이 없습니다.<br/><a href="training.html" class="text-primary mt-2 inline-block">첫 훈련 시작하기 →</a></div>`;
+    return;
+  }
+  list.innerHTML = sessions.map(s => `
+    <div class="bg-white retro-border retro-shadow rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:-translate-y-0.5 transition-transform">
+      <div class="flex items-center gap-4">
+        <div class="w-10 h-10 rounded-full bg-surface-container retro-border flex items-center justify-center flex-shrink-0">
+          <span class="material-symbols-outlined text-primary text-lg" style="font-variation-settings:'FILL' 1">fitness_center</span>
+        </div>
+        <div>
+          <div class="font-display font-bold text-base">${s.label}</div>
+          <div class="text-on-surface-variant text-sm">${formatKoreanDate(s.date)} · ${s.durationMin}분 · ${s.sets}세트</div>
+        </div>
+      </div>
+      <div class="flex items-center gap-4 flex-shrink-0">
+        <div class="text-center">
+          <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">평균 악력</div>
+          <div class="font-display text-lg font-bold text-primary">${s.avgForce}%</div>
+        </div>
+        <div class="flex gap-0.5">${starsHtml(s.stars)}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderStats(sessions) {
+  if (!sessions.length) return;
+
+  document.getElementById('stat-max-force').textContent = Math.max(...sessions.map(s => s.maxForce));
+  document.getElementById('stat-total').textContent = sessions.length;
+  document.getElementById('stat-avg-sets').textContent = Math.round(sessions.reduce((a,s) => a + s.sets, 0) / sessions.length);
+
+  // Streak: count consecutive days from today
+  const today = new Date(); today.setHours(0,0,0,0);
+  let streak = 0;
+  const usedDays = new Set();
+  for (const s of sessions) {
+    const d = new Date(s.date); d.setHours(0,0,0,0);
+    const key = d.toDateString();
+    if (!usedDays.has(key)) { usedDays.add(key); streak++; }
+    else break;
+  }
+  document.getElementById('stat-streak').textContent = streak;
+
+  // 7-day chart
+  const last7 = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today); d.setDate(d.getDate() - i);
+    const dayStr = d.toDateString();
+    const daySessions = sessions.filter(s => new Date(s.date).toDateString() === dayStr);
+    const avg = daySessions.length ? Math.round(daySessions.reduce((a,s) => a + s.avgForce, 0) / daySessions.length) : 0;
+    const dayLabels = ['일','월','화','수','목','금','토'];
+    last7.push({ label: dayLabels[d.getDay()], value: avg });
+  }
+
+  const maxVal = Math.max(...last7.map(d => d.value), 1);
+  const chart = document.getElementById('force-chart');
+  chart.innerHTML = last7.map(d => `
+    <div class="bar-col">
+      <div class="bar-val">${d.value > 0 ? d.value+'%' : ''}</div>
+      <div class="bar-track" style="height:140px;">
+        <div class="bar-fill" style="height:${Math.round((d.value/maxVal)*100)}%;"></div>
+      </div>
+      <div class="bar-label">${d.label}</div>
+    </div>
+  `).join('');
+}
+
+// Render
+const sessions = loadSessions();
+document.getElementById('total-sessions').textContent = sessions.length;
+renderLog(sessions);
+renderStats(sessions);
+</script>
+</body>
+</html>

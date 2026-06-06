@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ReGrip — 게임 선택</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=DM+Sans:wght@400;500;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="shared.css"/>
+<script id="tailwind-config">
+tailwind.config = {
+  theme: { extend: {
+    colors: {
+      primary: '#994626', 'primary-container': '#e8825e', 'on-primary': '#ffffff',
+      'on-primary-container': '#621e02', surface: '#FFF8F6', 'surface-warm': '#FFF1ED',
+      'surface-container': '#FFE9E3', 'surface-container-high': '#fae3dc',
+      'surface-container-highest': '#f5ded7', 'on-surface': '#251915',
+      'on-surface-variant': '#58423a', 'outline-variant': '#dfc0b6',
+      'background-sky': '#F0F9FF', 'ink-black': '#0F172A',
+      secondary: '#006c49', 'secondary-container': '#6cf8bb', 'mint-green': '#10B981',
+    },
+    fontFamily: { display: ['Space Grotesk'], body: ['DM Sans'] },
+    boxShadow: { retro: '4px 4px 0px #0F172A', 'retro-sm': '2px 2px 0px #0F172A' },
+  }}
+};
+</script>
+<style>
+  .game-card {
+    background: #fff;
+    border: 4px solid #0F172A;
+    box-shadow: 6px 6px 0px #0F172A;
+    border-radius: 16px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.12s, box-shadow 0.12s;
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+  }
+  .game-card:hover  { transform: translate(-2px, -2px); box-shadow: 8px 8px 0px #0F172A; }
+  .game-card:active { transform: translate(6px, 6px);  box-shadow: 0px 0px 0px #0F172A; }
+
+  .difficulty-dot { width:10px; height:10px; border-radius:50%; border:2px solid #0F172A; display:inline-block; }
+  .dot-filled { background:#994626; }
+  .dot-empty  { background:#FFE9E3; }
+</style>
+</head>
+<body class="bg-background-sky text-on-surface">
+
+<div class="app-shell">
+  <div id="nav-sidebar"></div>
+
+  <main class="app-main w-full">
+    <div class="max-w-[1100px] mx-auto px-8 py-8 flex flex-col gap-6">
+
+      <!-- Header -->
+      <section class="border-b-4 border-ink-black pb-6">
+        <h1 class="font-display text-4xl md:text-5xl font-bold uppercase tracking-tight mb-2 flex items-center gap-3">
+          <span class="material-symbols-outlined text-4xl text-primary" style="font-variation-settings:'FILL' 1">sports_esports</span>
+          훈련 모드 선택
+        </h1>
+        <p class="text-on-surface-variant text-lg">재활 목적에 맞는 게임을 선택하세요. 모든 게임은 실제 악력 데이터를 기록합니다.</p>
+      </section>
+
+      <!-- Calibration reminder -->
+      <div class="bg-surface-container retro-border rounded-xl p-4 flex items-center gap-4">
+        <span class="material-symbols-outlined text-primary text-2xl flex-shrink-0" style="font-variation-settings:'FILL' 1">tune</span>
+        <div class="flex-1">
+          <span class="font-display font-bold text-sm">처음 사용하신다면 캘리브레이션을 먼저 진행하세요.</span>
+          <span class="text-on-surface-variant text-sm ml-2">정확한 0%~100% 기준을 설정합니다.</span>
+        </div>
+        <a href="calibration.html"
+           class="font-display font-bold text-xs uppercase tracking-wider text-primary hover:underline no-underline flex-shrink-0">
+          캘리브레이션 →
+        </a>
+      </div>
+
+      <!-- Game Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        <!-- Balloon Game -->
+        <a href="game-balloon.html" class="game-card">
+          <!-- Preview Banner -->
+          <div class="h-48 relative overflow-hidden flex items-center justify-center"
+               style="background:linear-gradient(135deg,#E0F2FE 0%,#BAE6FD 60%,#7DD3FC 100%);">
+            <!-- Clouds -->
+            <div class="absolute top-4 left-6 w-16 h-8 bg-white rounded-full opacity-70"></div>
+            <div class="absolute top-2 left-14 w-10 h-6 bg-white rounded-full opacity-60"></div>
+            <div class="absolute top-6 right-8 w-20 h-7 bg-white rounded-full opacity-60"></div>
+            <!-- Target Zone band -->
+            <div class="absolute w-full" style="top:25%;height:18%;background:rgba(16,185,129,0.2);border-top:3px dashed #10B981;border-bottom:3px dashed #10B981;"></div>
+            <!-- Balloon SVG -->
+            <div class="relative z-10" style="bottom:0;">
+              <svg width="80" height="110" viewBox="0 0 80 110" fill="none">
+                <ellipse cx="40" cy="42" rx="32" ry="40" fill="#F472B6" stroke="#0F172A" stroke-width="3"/>
+                <ellipse cx="30" cy="28" rx="10" ry="14" fill="rgba(255,255,255,0.35)" transform="rotate(-20 30 28)"/>
+                <path d="M34 82 Q40 92 46 82" stroke="#0F172A" stroke-width="2.5" fill="none"/>
+                <line x1="40" y1="84" x2="40" y2="110" stroke="#251915" stroke-width="2"/>
+              </svg>
+            </div>
+          </div>
+          <!-- Card Body -->
+          <div class="p-6 flex flex-col flex-1">
+            <div class="flex items-center justify-between mb-2">
+              <h2 class="font-display text-2xl font-bold">풍선 게임</h2>
+              <span class="font-display text-xs font-bold tracking-widest uppercase px-3 py-1 rounded-full retro-border text-on-surface-variant bg-surface-container">2분</span>
+            </div>
+            <p class="text-on-surface-variant text-sm mb-4 flex-1">
+              그립력으로 풍선을 원하는 높이로 조절하세요. 목표 구간에 3초간 유지하면 팝! 재활 목적: <strong>지속적 악력 유지 훈련</strong>
+            </p>
+            <!-- Rehab tags -->
+            <div class="flex flex-wrap gap-2 mb-4">
+              <span class="font-display text-xs font-bold uppercase tracking-wider px-2 py-1 rounded" style="background:#DCFCE7;border:2px solid #16A34A;color:#16A34A;">지속 유지</span>
+              <span class="font-display text-xs font-bold uppercase tracking-wider px-2 py-1 rounded" style="background:#E0F2FE;border:2px solid #0284C7;color:#0284C7;">집중력</span>
+              <span class="font-display text-xs font-bold uppercase tracking-wider px-2 py-1 rounded" style="background:#FEF9C3;border:2px solid #CA8A04;color:#CA8A04;">정밀 제어</span>
+            </div>
+            <!-- Difficulty -->
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="font-display text-xs font-bold text-on-surface-variant uppercase tracking-wider">난이도</span>
+                <div class="flex gap-1">
+                  <span class="difficulty-dot dot-filled"></span>
+                  <span class="difficulty-dot dot-filled"></span>
+                  <span class="difficulty-dot dot-empty"></span>
+                  <span class="difficulty-dot dot-empty"></span>
+                  <span class="difficulty-dot dot-empty"></span>
+                </div>
+              </div>
+              <div class="font-display font-bold text-sm text-primary flex items-center gap-1">
+                시작하기
+                <span class="material-symbols-outlined text-base">arrow_forward</span>
+              </div>
+            </div>
+          </div>
+        </a>
+
+        <!-- Crane Game -->
+        <a href="game-crane.html" class="game-card">
+          <!-- Preview Banner -->
+          <div class="h-48 relative overflow-hidden flex items-end justify-center pb-4"
+               style="background:linear-gradient(135deg,#FFF1ED 0%,#FFE4D4 60%,#FFD4BC 100%);">
+            <!-- Dots bg -->
+            <div class="absolute inset-0 opacity-20"
+                 style="background-image:radial-gradient(#994626 2px,transparent 2px);background-size:24px 24px;"></div>
+            <!-- Crane SVG -->
+            <svg class="absolute top-0 left-1/2 -translate-x-1/2 z-10" width="120" height="130" viewBox="0 0 120 130" fill="none">
+              <!-- Cable -->
+              <line x1="60" y1="0" x2="60" y2="55" stroke="#0F172A" stroke-width="3"/>
+              <!-- Body -->
+              <rect x="42" y="55" width="36" height="22" rx="4" fill="#994626" stroke="#0F172A" stroke-width="3"/>
+              <circle cx="60" cy="66" r="6" fill="white" stroke="#0F172A" stroke-width="2"/>
+              <!-- Left prong -->
+              <path d="M50 77 Q38 90 36 110" stroke="#0F172A" stroke-width="4" fill="none" stroke-linecap="round"/>
+              <!-- Right prong -->
+              <path d="M70 77 Q82 90 84 110" stroke="#0F172A" stroke-width="4" fill="none" stroke-linecap="round"/>
+            </svg>
+            <!-- Capsules -->
+            <div class="flex gap-6 z-10">
+              <div class="w-12 h-16 rounded-full border-4 border-ink-black" style="background:#F472B6;transform:rotate(-15deg);"></div>
+              <div class="w-12 h-16 rounded-full border-4 border-ink-black" style="background:#10B981;"></div>
+              <div class="w-12 h-16 rounded-full border-4 border-ink-black" style="background:#FBBF24;transform:rotate(10deg);"></div>
+            </div>
+            <!-- Floor -->
+            <div class="absolute bottom-0 w-full h-6 border-t-4 border-ink-black" style="background:#f5ded7;"></div>
+          </div>
+          <!-- Card Body -->
+          <div class="p-6 flex flex-col flex-1">
+            <div class="flex items-center justify-between mb-2">
+              <h2 class="font-display text-2xl font-bold">크레인 게임</h2>
+              <span class="font-display text-xs font-bold tracking-widest uppercase px-3 py-1 rounded-full retro-border text-on-surface-variant bg-surface-container">60초</span>
+            </div>
+            <p class="text-on-surface-variant text-sm mb-4 flex-1">
+              크레인이 좌우로 이동합니다. 목표 악력(80%) 이상으로 3초간 유지하면 캡슐을 획득! 재활 목적: <strong>최대 악력 도달 및 유지</strong>
+            </p>
+            <!-- Rehab tags -->
+            <div class="flex flex-wrap gap-2 mb-4">
+              <span class="font-display text-xs font-bold uppercase tracking-wider px-2 py-1 rounded" style="background:#FEE2E2;border:2px solid #DC2626;color:#DC2626;">최대 악력</span>
+              <span class="font-display text-xs font-bold uppercase tracking-wider px-2 py-1 rounded" style="background:#DCFCE7;border:2px solid #16A34A;color:#16A34A;">폭발력</span>
+              <span class="font-display text-xs font-bold uppercase tracking-wider px-2 py-1 rounded" style="background:#F3E8FF;border:2px solid #9333EA;color:#9333EA;">타이밍</span>
+            </div>
+            <!-- Difficulty -->
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="font-display text-xs font-bold text-on-surface-variant uppercase tracking-wider">난이도</span>
+                <div class="flex gap-1">
+                  <span class="difficulty-dot dot-filled"></span>
+                  <span class="difficulty-dot dot-filled"></span>
+                  <span class="difficulty-dot dot-filled"></span>
+                  <span class="difficulty-dot dot-empty"></span>
+                  <span class="difficulty-dot dot-empty"></span>
+                </div>
+              </div>
+              <div class="font-display font-bold text-sm text-primary flex items-center gap-1">
+                시작하기
+                <span class="material-symbols-outlined text-base">arrow_forward</span>
+              </div>
+            </div>
+          </div>
+        </a>
+
+      </div>
+
+      <!-- Info strip -->
+      <div class="bg-white retro-border retro-shadow rounded-xl p-5 flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+        <span class="material-symbols-outlined text-2xl text-primary flex-shrink-0" style="font-variation-settings:'FILL' 1">info</span>
+        <div>
+          <span class="font-display font-bold text-sm">시뮬레이션 모드:</span>
+          <span class="text-on-surface-variant text-sm ml-2">실제 센서 없이도 <kbd class="font-display font-bold px-2 py-0.5 bg-surface-container retro-border rounded text-xs">SPACE</kbd> 키 또는 마우스 클릭을 홀드해 악력을 시뮬레이션할 수 있습니다.</span>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <div id="nav-bottom"></div>
+</div>
+
+<script src="shared.js"></script>
+<script>initPage('training');</script>
+</body>
+</html>

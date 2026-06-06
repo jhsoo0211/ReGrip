@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ReGrip — 캘리브레이션 룸</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=DM+Sans:wght@400;500;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="shared.css"/>
+<script id="tailwind-config">
+tailwind.config = {
+  theme: { extend: {
+    colors: {
+      primary: '#994626', 'primary-container': '#e8825e', 'on-primary': '#ffffff',
+      surface: '#FFF8F6', 'surface-warm': '#FFF1ED', 'surface-container': '#FFE9E3',
+      'on-surface': '#251915', 'on-surface-variant': '#58423a',
+      'background-sky': '#F0F9FF', 'ink-black': '#0F172A',
+      'mint-green': '#10B981', 'cool-gray': '#64748B',
+    },
+    fontFamily: { display: ['Space Grotesk'], body: ['DM Sans'] },
+    boxShadow: { retro: '4px 4px 0px #0F172A', 'retro-sm': '2px 2px 0px #0F172A' },
+  }}
+};
+</script>
+</head>
+<body class="bg-background-sky text-on-surface min-h-screen flex flex-col items-center justify-center p-6">
+
+  <!-- Header (wizard mode — no sidebar) -->
+  <header class="w-full max-w-[900px] flex items-center mb-6">
+    <a href="index.html"
+       class="flex items-center gap-2 text-on-surface hover:text-primary transition-colors font-display font-bold uppercase tracking-wider text-sm no-underline">
+      <span class="material-symbols-outlined">arrow_back</span>
+      홈으로 돌아가기
+    </a>
+  </header>
+
+  <!-- Main Card -->
+  <main class="w-full max-w-[900px] bg-white rounded-2xl retro-shadow retro-border-thick overflow-hidden flex flex-col md:flex-row">
+
+    <!-- Left: Steps -->
+    <section class="flex-1 p-8 md:p-10 border-b-4 md:border-b-0 md:border-r-4 border-ink-black flex flex-col justify-between">
+      <div>
+        <h1 class="font-display text-4xl font-bold mb-1 uppercase tracking-tight">캘리브레이션 룸</h1>
+        <p class="text-cool-gray text-base mb-8">0–100% 관절 가동 범위 기준 설정</p>
+
+        <div class="space-y-4">
+
+          <!-- Step 1 -->
+          <div id="step-1" class="retro-border rounded-xl p-5 bg-white transition-colors duration-300">
+            <div class="flex items-start justify-between">
+              <div class="flex gap-4">
+                <div id="step-1-number"
+                     class="w-11 h-11 rounded-full retro-border flex items-center justify-center font-display font-bold text-lg bg-background-sky flex-shrink-0">
+                  1
+                </div>
+                <div>
+                  <h3 class="font-display text-lg font-bold mb-1">0% 기준 (힘 빼기)</h3>
+                  <p class="text-cool-gray text-sm">손에 힘을 완전히 빼세요.</p>
+                </div>
+              </div>
+              <span class="material-symbols-outlined text-3xl text-cool-gray flex-shrink-0" style="font-variation-settings:'FILL' 0">front_hand</span>
+            </div>
+            <div class="mt-4 flex justify-end">
+              <button id="btn-cap-1"
+                      onclick="captureBaseline(1)"
+                      class="bg-cool-gray text-white font-display font-bold uppercase tracking-wider px-5 py-2.5 rounded retro-border retro-shadow text-sm">
+                0% 기록
+              </button>
+            </div>
+          </div>
+
+          <!-- Step 2 -->
+          <div id="step-2" class="retro-border rounded-xl p-5 bg-surface opacity-50 pointer-events-none transition-all duration-300">
+            <div class="flex items-start justify-between">
+              <div class="flex gap-4">
+                <div id="step-2-number"
+                     class="w-11 h-11 rounded-full retro-border flex items-center justify-center font-display font-bold text-lg bg-surface text-cool-gray flex-shrink-0">
+                  2
+                </div>
+                <div>
+                  <h3 class="font-display text-lg font-bold mb-1">100% 최대 악력</h3>
+                  <p class="text-cool-gray text-sm">안전한 범위 내에서 <span class="font-bold underline">최대한 세게</span> 쥐세요.</p>
+                </div>
+              </div>
+              <span class="material-symbols-outlined text-3xl text-on-surface flex-shrink-0" style="font-variation-settings:'FILL' 1">back_hand</span>
+            </div>
+            <div class="mt-4 flex justify-end">
+              <button id="btn-cap-2"
+                      onclick="captureBaseline(2)"
+                      class="bg-cool-gray text-white font-display font-bold uppercase tracking-wider px-5 py-2.5 rounded retro-border retro-shadow text-sm">
+                100% 기록
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Start Button -->
+      <div class="mt-8">
+        <button id="btn-start"
+                disabled
+                onclick="window.location.href='training.html'"
+                class="w-full bg-surface-container text-cool-gray font-display font-bold text-xl uppercase tracking-wider py-4 rounded retro-border cursor-not-allowed transition-all duration-300"
+                style="box-shadow:4px 4px 0px #64748B;">
+          운동 시작
+        </button>
+      </div>
+    </section>
+
+    <!-- Right: Live Meter -->
+    <section class="w-full md:w-[280px] bg-surface p-8 flex flex-col items-center justify-center">
+      <h3 class="font-display text-xs font-bold uppercase tracking-widest text-cool-gray mb-6 text-center">실시간 센서<br/>데이터</h3>
+
+      <div class="relative h-[360px] w-10 flex flex-col items-center">
+        <!-- 100% label -->
+        <div class="absolute -top-5 right-14 font-display font-bold text-on-surface text-sm">100%</div>
+        <div class="absolute top-0 right-12 w-8 border-t-2 border-dashed border-cool-gray opacity-40"></div>
+
+        <!-- Tube -->
+        <div class="w-full h-full bg-background-sky rounded-full retro-border overflow-hidden relative shadow-inner">
+          <div id="live-meter-fill"
+               class="absolute bottom-0 left-0 right-0 transition-all duration-100 ease-out rounded-full"
+               style="height:15%;background:#994626;"></div>
+        </div>
+
+        <!-- 0% label -->
+        <div class="absolute -bottom-5 right-14 font-display font-bold text-on-surface text-sm">0%</div>
+        <div class="absolute bottom-0 right-12 w-8 border-t-2 border-dashed border-cool-gray opacity-40"></div>
+      </div>
+
+      <div id="live-value" class="mt-8 font-display text-3xl font-bold text-on-surface">15%</div>
+
+      <!-- Baseline indicators -->
+      <div id="baseline-info" class="mt-4 text-xs font-display font-bold uppercase tracking-wider text-cool-gray text-center space-y-1 hidden">
+        <div id="b0-info">0% 기준: —</div>
+        <div id="b100-info">100% 기준: —</div>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="shared.js"></script>
+  <script>
+    injectFeedbackModal();
+
+    let simulatedValue = 15;
+    let baseline0 = null;
+    let baseline100 = null;
+
+    const meterFill = document.getElementById('live-meter-fill');
+    const liveValueText = document.getElementById('live-value');
+
+    setInterval(() => {
+      simulatedValue += (Math.random() - 0.5) * 5;
+      simulatedValue = Math.max(0, Math.min(100, simulatedValue));
+      meterFill.style.height = `${simulatedValue}%`;
+      liveValueText.textContent = `${Math.round(simulatedValue)}%`;
+    }, 100);
+
+    function captureBaseline(step) {
+      if (step === 1) {
+        baseline0 = simulatedValue;
+
+        const btn1 = document.getElementById('btn-cap-1');
+        btn1.textContent = '기록됨 ✓';
+        btn1.style.background = '#10B981';
+        btn1.disabled = true;
+        btn1.style.boxShadow = 'none';
+
+        document.getElementById('step-1').style.background = '#F0FFF8';
+
+        const num1 = document.getElementById('step-1-number');
+        num1.innerHTML = '<span class="material-symbols-outlined text-sm">check</span>';
+        num1.style.background = '#10B981';
+        num1.style.color = '#fff';
+
+        // Unlock Step 2
+        const step2 = document.getElementById('step-2');
+        step2.classList.remove('opacity-50', 'pointer-events-none');
+        step2.style.background = '#fff';
+
+        const btn2 = document.getElementById('btn-cap-2');
+        btn2.style.background = '#0F172A';
+        btn2.style.color = '#fff';
+
+        const num2 = document.getElementById('step-2-number');
+        num2.style.background = '#994626';
+        num2.style.color = '#fff';
+
+        document.getElementById('baseline-info').classList.remove('hidden');
+        document.getElementById('b0-info').textContent = `0% 기준: ${Math.round(baseline0)}%`;
+
+      } else if (step === 2) {
+        baseline100 = simulatedValue;
+
+        const btn2 = document.getElementById('btn-cap-2');
+        btn2.textContent = '기록됨 ✓';
+        btn2.style.background = '#10B981';
+        btn2.disabled = true;
+        btn2.style.boxShadow = 'none';
+
+        document.getElementById('step-2').style.background = '#F0FFF8';
+
+        const num2 = document.getElementById('step-2-number');
+        num2.innerHTML = '<span class="material-symbols-outlined text-sm">check</span>';
+        num2.style.background = '#10B981';
+        num2.style.color = '#fff';
+
+        document.getElementById('b100-info').textContent = `100% 기준: ${Math.round(baseline100)}%`;
+
+        // Unlock Start
+        const btnStart = document.getElementById('btn-start');
+        btnStart.disabled = false;
+        btnStart.style.background = '#994626';
+        btnStart.style.color = '#fff';
+        btnStart.style.cursor = 'pointer';
+        btnStart.style.boxShadow = '4px 4px 0px #0F172A';
+      }
+    }
+  </script>
+</body>
+</html>

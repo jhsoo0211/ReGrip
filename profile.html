@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ReGrip — 프로필 편집</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=DM+Sans:wght@400;500;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="shared.css"/>
+<script id="tailwind-config">
+tailwind.config = {
+  theme: { extend: {
+    colors: {
+      primary: '#994626', 'primary-container': '#e8825e', 'on-primary': '#ffffff',
+      'on-primary-container': '#621e02', surface: '#FFF8F6', 'surface-warm': '#FFF1ED',
+      'surface-container': '#FFE9E3', 'surface-container-high': '#fae3dc',
+      'surface-container-highest': '#f5ded7', 'on-surface': '#251915',
+      'on-surface-variant': '#58423a', 'outline-variant': '#dfc0b6',
+      'background-sky': '#F0F9FF', 'ink-black': '#0F172A',
+      'mint-green': '#10B981',
+    },
+    fontFamily: { display: ['Space Grotesk'], body: ['DM Sans'] },
+    boxShadow: { retro: '4px 4px 0px #0F172A', 'retro-sm': '2px 2px 0px #0F172A' },
+  }}
+};
+</script>
+<style>
+  /* Input focus style */
+  .field-input {
+    width: 100%;
+    border: 2px solid #0F172A;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    background: #FFF8F6;
+    color: #251915;
+    outline: none;
+    transition: box-shadow 0.15s;
+  }
+  .field-input:focus {
+    box-shadow: 3px 3px 0px #994626;
+    border-color: #994626;
+  }
+  select.field-input {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24'%3E%3Cpath fill='%23251915' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+  }
+  .field-label {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #58423a;
+    margin-bottom: 6px;
+    display: block;
+  }
+  /* Avatar upload */
+  #avatar-preview {
+    width: 120px; height: 120px;
+    border-radius: 50%;
+    border: 4px solid #0F172A;
+    box-shadow: 4px 4px 0px #0F172A;
+    object-fit: cover;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  #avatar-preview:hover { opacity: 0.85; }
+  #avatar-input { display: none; }
+
+  /* Section divider */
+  .section-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: #994626;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #FFE9E3;
+    margin-bottom: 16px;
+  }
+</style>
+</head>
+<body class="bg-background-sky text-on-surface">
+
+<div class="app-shell">
+  <div id="nav-sidebar"></div>
+
+  <main class="app-main w-full">
+    <div class="max-w-[900px] mx-auto px-8 py-8 flex flex-col gap-6">
+
+      <!-- Header -->
+      <section class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b-4 border-ink-black pb-6">
+        <div>
+          <h1 class="font-display text-4xl md:text-5xl font-bold uppercase tracking-tight mb-2 flex items-center gap-3">
+            <span class="material-symbols-outlined text-4xl text-primary" style="font-variation-settings:'FILL' 1">manage_accounts</span>
+            프로필 편집
+          </h1>
+          <p class="text-on-surface-variant text-lg">개인 정보와 재활 정보를 관리하세요.</p>
+        </div>
+        <a href="index.html" class="font-display font-bold text-sm uppercase tracking-wider text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 no-underline">
+          <span class="material-symbols-outlined text-base">arrow_back</span>
+          돌아가기
+        </a>
+      </section>
+
+      <div class="flex flex-col lg:flex-row gap-6 items-start">
+
+        <!-- Left: Avatar + Level Card -->
+        <div class="lg:w-[280px] flex-shrink-0 flex flex-col gap-4">
+
+          <!-- Avatar Card -->
+          <div class="bg-white retro-border retro-shadow rounded-xl p-6 flex flex-col items-center gap-4">
+            <div class="relative">
+              <img id="avatar-preview" src="" alt="프로필 사진" onclick="document.getElementById('avatar-input').click()"/>
+              <input type="file" id="avatar-input" accept="image/*" onchange="handleAvatarUpload(this)"/>
+              <div class="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-primary retro-border flex items-center justify-center cursor-pointer"
+                   onclick="document.getElementById('avatar-input').click()">
+                <span class="material-symbols-outlined text-white text-sm">photo_camera</span>
+              </div>
+            </div>
+            <div class="text-center">
+              <div id="display-name" class="font-display text-xl font-bold">ReGrip 사용자</div>
+              <div class="text-on-surface-variant text-sm mt-1">클릭하여 사진 변경</div>
+            </div>
+          </div>
+
+          <!-- Level Badge Card -->
+          <div class="bg-surface-container retro-border retro-shadow rounded-xl p-5">
+            <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-3">현재 레벨</div>
+            <div class="flex items-center gap-3 mb-3">
+              <span class="material-symbols-outlined text-3xl text-primary" style="font-variation-settings:'FILL' 1">military_tech</span>
+              <div>
+                <div class="font-display text-xl font-bold text-primary">Lv. 12 초심자</div>
+                <div class="text-on-surface-variant text-xs">다음 레벨까지 850 XP</div>
+              </div>
+            </div>
+            <div class="w-full h-3 bg-white retro-border rounded-full overflow-hidden">
+              <div class="h-full bg-primary rounded-full" style="width:62%;"></div>
+            </div>
+          </div>
+
+          <!-- Stats Summary -->
+          <div class="bg-white retro-border retro-shadow rounded-xl p-5 grid grid-cols-2 gap-3">
+            <div class="text-center">
+              <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">총 세션</div>
+              <div id="stat-sessions" class="font-display text-2xl font-bold text-primary">0</div>
+            </div>
+            <div class="text-center">
+              <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">획득 배지</div>
+              <div class="font-display text-2xl font-bold text-primary">3</div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Right: Form -->
+        <div class="flex-1 bg-white retro-border retro-shadow rounded-xl p-6 flex flex-col gap-6">
+
+          <!-- Basic Info -->
+          <div>
+            <div class="section-title">기본 정보</div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="field-label" for="f-name">이름</label>
+                <input id="f-name" type="text" class="field-input" placeholder="이름 입력"/>
+              </div>
+              <div>
+                <label class="field-label" for="f-age">나이</label>
+                <input id="f-age" type="number" class="field-input" placeholder="예: 35" min="1" max="120"/>
+              </div>
+              <div>
+                <label class="field-label" for="f-gender">성별</label>
+                <select id="f-gender" class="field-input">
+                  <option value="">선택 안 함</option>
+                  <option value="male">남성</option>
+                  <option value="female">여성</option>
+                  <option value="other">기타</option>
+                </select>
+              </div>
+              <div>
+                <label class="field-label" for="f-phone">연락처 (선택)</label>
+                <input id="f-phone" type="tel" class="field-input" placeholder="010-0000-0000"/>
+              </div>
+            </div>
+          </div>
+
+          <!-- Rehab Info -->
+          <div>
+            <div class="section-title">재활 정보</div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="field-label" for="f-hand">주요 손</label>
+                <select id="f-hand" class="field-input">
+                  <option value="right">오른손</option>
+                  <option value="left">왼손</option>
+                  <option value="both">양손</option>
+                </select>
+              </div>
+              <div>
+                <label class="field-label" for="f-injury">부상 유형</label>
+                <select id="f-injury" class="field-input">
+                  <option value="">선택</option>
+                  <option value="fracture">골절</option>
+                  <option value="tendon">힘줄 손상</option>
+                  <option value="nerve">신경 손상</option>
+                  <option value="arthritis">관절염</option>
+                  <option value="stroke">뇌졸중 후유증</option>
+                  <option value="other">기타</option>
+                </select>
+              </div>
+              <div>
+                <label class="field-label" for="f-start">치료 시작일</label>
+                <input id="f-start" type="date" class="field-input"/>
+              </div>
+              <div>
+                <label class="field-label" for="f-doctor">담당 의사/치료사</label>
+                <input id="f-doctor" type="text" class="field-input" placeholder="예: 김재활 선생님"/>
+              </div>
+            </div>
+          </div>
+
+          <!-- Goals -->
+          <div>
+            <div class="section-title">훈련 목표</div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="field-label" for="f-goal-force">목표 악력</label>
+                <div class="flex items-center gap-3">
+                  <input id="f-goal-force" type="range" min="10" max="100" value="70" class="flex-1" oninput="document.getElementById('goal-force-val').textContent=this.value+'%'"/>
+                  <span id="goal-force-val" class="font-display font-bold text-primary w-10 text-right">70%</span>
+                </div>
+              </div>
+              <div>
+                <label class="field-label" for="f-goal-days">주간 목표 일수</label>
+                <select id="f-goal-days" class="field-input">
+                  <option value="3">주 3일</option>
+                  <option value="4">주 4일</option>
+                  <option value="5" selected>주 5일</option>
+                  <option value="7">매일</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Save Button -->
+          <button onclick="saveProfile()"
+                  class="w-full bg-primary text-white font-display font-bold text-lg uppercase tracking-wider py-4 rounded-xl retro-border retro-shadow hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+            <span class="material-symbols-outlined">save</span>
+            프로필 저장
+          </button>
+
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <div id="nav-bottom"></div>
+</div>
+
+<script src="shared.js"></script>
+<script>
+initPage(null);
+
+// Load sessions count
+const sessions = loadSessions();
+document.getElementById('stat-sessions').textContent = sessions.length;
+
+// Load existing profile
+const profile = DataService.getProfileSync();
+
+function loadIntoForm(p) {
+  document.getElementById('f-name').value    = p.name    || '';
+  document.getElementById('f-age').value     = p.age     || '';
+  document.getElementById('f-gender').value  = p.gender  || '';
+  document.getElementById('f-phone').value   = p.phone   || '';
+  document.getElementById('f-hand').value    = p.hand    || 'right';
+  document.getElementById('f-injury').value  = p.injuryType || '';
+  document.getElementById('f-start').value   = p.treatmentStart || '';
+  document.getElementById('f-doctor').value  = p.doctorName || '';
+  if (p.goalForce) {
+    document.getElementById('f-goal-force').value = p.goalForce;
+    document.getElementById('goal-force-val').textContent = p.goalForce + '%';
+  }
+  if (p.goalDays) document.getElementById('f-goal-days').value = p.goalDays;
+
+  // Avatar
+  const avatar = document.getElementById('avatar-preview');
+  avatar.src = p.avatarBase64 || 'https://lh3.googleusercontent.com/aida-public/AB6AXuAMD1C_MGkOFfAqI9jQHYlgL_uT4Mol13UMOieb5zW6vv9HR8PZzl4r0P_6cJeWzKiRZYRAOTJlzJglaAKqo4xkycQn4MXGHCCzI9LAjRS2Fx_KrcEXFH7jn9kXiMBicZW1voTZ-gA05R0gvzJPd8Qk8-po2W-MfoBauuZ0Q13ASGls1awQYOXR3c5aBqBHQxgA4_ZrFZ4aMDQHLRSwbeDck73EFwM4c1s9L6ijUXzb8FbZAL2Cw2rHCCcpCKucafQPWS6Iba3tT58';
+
+  const nameDisplay = p.name || 'ReGrip 사용자';
+  document.getElementById('display-name').textContent = nameDisplay;
+}
+
+loadIntoForm(profile);
+
+// Update display name in real-time
+document.getElementById('f-name').addEventListener('input', function() {
+  document.getElementById('display-name').textContent = this.value || 'ReGrip 사용자';
+});
+
+function handleAvatarUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('avatar-preview').src = e.target.result;
+    window._pendingAvatar = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function saveProfile() {
+  const data = {
+    name:           document.getElementById('f-name').value.trim(),
+    age:            document.getElementById('f-age').value,
+    gender:         document.getElementById('f-gender').value,
+    phone:          document.getElementById('f-phone').value.trim(),
+    hand:           document.getElementById('f-hand').value,
+    injuryType:     document.getElementById('f-injury').value,
+    treatmentStart: document.getElementById('f-start').value,
+    doctorName:     document.getElementById('f-doctor').value.trim(),
+    goalForce:      document.getElementById('f-goal-force').value,
+    goalDays:       document.getElementById('f-goal-days').value,
+    avatarBase64:   window._pendingAvatar || DataService.getProfileSync().avatarBase64 || null,
+  };
+
+  await DataService.saveProfile(data);
+
+  const btn = document.querySelector('button[onclick="saveProfile()"]');
+  btn.innerHTML = '<span class="material-symbols-outlined">check_circle</span> 저장 완료!';
+  btn.style.background = '#10B981';
+  setTimeout(() => {
+    btn.innerHTML = '<span class="material-symbols-outlined">save</span> 프로필 저장';
+    btn.style.background = '#994626';
+  }, 2000);
+}
+</script>
+</body>
+</html>

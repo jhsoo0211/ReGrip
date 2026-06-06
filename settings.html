@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ReGrip — 설정</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=DM+Sans:wght@400;500;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="shared.css"/>
+<script id="tailwind-config">
+tailwind.config = {
+  theme: { extend: {
+    colors: {
+      primary: '#994626', 'primary-container': '#e8825e', 'on-primary': '#ffffff',
+      'on-primary-container': '#621e02', surface: '#FFF8F6', 'surface-warm': '#FFF1ED',
+      'surface-container': '#FFE9E3', 'surface-container-high': '#fae3dc',
+      'surface-container-highest': '#f5ded7', 'on-surface': '#251915',
+      'on-surface-variant': '#58423a', 'outline-variant': '#dfc0b6',
+      'background-sky': '#F0F9FF', 'ink-black': '#0F172A',
+      secondary: '#006c49', 'mint-green': '#10B981',
+    },
+    fontFamily: { display: ['Space Grotesk'], body: ['DM Sans'] },
+    boxShadow: { retro: '4px 4px 0px #0F172A', 'retro-sm': '2px 2px 0px #0F172A' },
+  }}
+};
+</script>
+<style>
+  /* Toggle switch */
+  .toggle-switch { position:relative; display:inline-block; width:48px; height:26px; }
+  .toggle-switch input { opacity:0; width:0; height:0; }
+  .toggle-track {
+    position:absolute; inset:0; cursor:pointer;
+    background:#f5ded7; border:2px solid #0F172A; border-radius:9999px;
+    transition:background 0.2s;
+  }
+  .toggle-track::after {
+    content:''; position:absolute; height:18px; width:18px; left:2px; top:2px;
+    background:#fff; border-radius:50%; border:2px solid #0F172A;
+    transition:transform 0.2s;
+  }
+  .toggle-switch input:checked + .toggle-track { background:#994626; }
+  .toggle-switch input:checked + .toggle-track::after { transform:translateX(22px); }
+
+  /* Radio pill */
+  .radio-pill { display:flex; gap:0; }
+  .radio-pill input[type=radio] { display:none; }
+  .radio-pill label {
+    padding:8px 18px;
+    font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:13px;
+    text-transform:uppercase; letter-spacing:0.08em;
+    border:2px solid #0F172A; cursor:pointer;
+    background:#fff; color:#58423a;
+    transition:background 0.15s, color 0.15s;
+  }
+  .radio-pill label:first-of-type { border-radius:8px 0 0 8px; }
+  .radio-pill label:last-of-type  { border-radius:0 8px 8px 0; margin-left:-2px; }
+  .radio-pill label:not(:first-of-type):not(:last-of-type) { margin-left:-2px; }
+  .radio-pill input[type=radio]:checked + label { background:#994626; color:#fff; }
+
+  /* Settings section card */
+  .settings-card { background:#fff; border:2px solid #0F172A; box-shadow:4px 4px 0 #0F172A; border-radius:12px; overflow:hidden; }
+  .settings-card-header {
+    background:#FFE9E3; border-bottom:2px solid #0F172A; padding:14px 20px;
+    font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:13px;
+    letter-spacing:0.1em; text-transform:uppercase;
+    display:flex; align-items:center; gap:10px;
+  }
+  .settings-row {
+    padding:16px 20px;
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    border-bottom:1px solid #f5ded7;
+  }
+  .settings-row:last-child { border-bottom:none; }
+  .settings-row-label { font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:14px; }
+  .settings-row-sub   { font-size:13px; color:#58423a; margin-top:2px; }
+</style>
+</head>
+<body class="bg-background-sky text-on-surface">
+
+<div class="app-shell">
+  <div id="nav-sidebar"></div>
+
+  <main class="app-main w-full">
+    <div class="max-w-[800px] mx-auto px-8 py-8 flex flex-col gap-6">
+
+      <!-- Header -->
+      <section class="border-b-4 border-ink-black pb-6">
+        <h1 class="font-display text-4xl md:text-5xl font-bold uppercase tracking-tight mb-2 flex items-center gap-3">
+          <span class="material-symbols-outlined text-4xl text-primary" style="font-variation-settings:'FILL' 1">settings</span>
+          설정
+        </h1>
+        <p class="text-on-surface-variant text-lg">앱 및 훈련 설정을 관리하세요.</p>
+      </section>
+
+      <!-- 1. 기기 연결 -->
+      <div class="settings-card">
+        <div class="settings-card-header">
+          <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1">sensors</span>
+          기기 연결
+        </div>
+        <!-- Sensor Status -->
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-label">ReGrip Sensor v2</div>
+            <div class="settings-row-sub">배터리 87% · 신호 강도 우수</div>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="font-display text-xs font-bold tracking-wider uppercase px-3 py-1 rounded-full retro-border text-white" style="background:#16A34A;">연결됨</span>
+            <button onclick="openFeedbackModal()" class="retro-border retro-shadow rounded-lg px-4 py-2 font-display font-bold text-sm uppercase tracking-wider bg-white hover:bg-surface-container transition-colors">
+              해제
+            </button>
+          </div>
+        </div>
+        <!-- Sensor Name -->
+        <div class="settings-row flex-col items-start gap-3">
+          <div class="settings-row-label">센서 이름</div>
+          <input type="text" value="ReGrip Sensor"
+                 class="w-full border-2 border-ink-black rounded-lg px-4 py-2 font-display font-bold text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-surface-container"
+                 placeholder="센서 이름 입력"/>
+        </div>
+      </div>
+
+      <!-- 2. 훈련 설정 -->
+      <div class="settings-card">
+        <div class="settings-card-header">
+          <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1">fitness_center</span>
+          훈련 설정
+        </div>
+        <!-- Dominant Hand -->
+        <div class="settings-row flex-wrap gap-4">
+          <div>
+            <div class="settings-row-label">주요 손</div>
+            <div class="settings-row-sub">훈련에 사용할 주요 손을 선택하세요</div>
+          </div>
+          <div class="radio-pill">
+            <input type="radio" name="hand" id="hand-left" value="left"/>
+            <label for="hand-left">왼손</label>
+            <input type="radio" name="hand" id="hand-right" value="right" checked/>
+            <label for="hand-right">오른손</label>
+            <input type="radio" name="hand" id="hand-both" value="both"/>
+            <label for="hand-both">양손</label>
+          </div>
+        </div>
+        <!-- Difficulty -->
+        <div class="settings-row flex-wrap gap-4">
+          <div>
+            <div class="settings-row-label">난이도</div>
+            <div class="settings-row-sub">세션 강도와 목표 구간을 조절합니다</div>
+          </div>
+          <div class="radio-pill">
+            <input type="radio" name="difficulty" id="diff-easy" value="easy"/>
+            <label for="diff-easy">초급</label>
+            <input type="radio" name="difficulty" id="diff-mid" value="medium" checked/>
+            <label for="diff-mid">중급</label>
+            <input type="radio" name="difficulty" id="diff-hard" value="hard"/>
+            <label for="diff-hard">고급</label>
+          </div>
+        </div>
+        <!-- Rest Duration -->
+        <div class="settings-row flex-wrap gap-4">
+          <div>
+            <div class="settings-row-label">세트 간 휴식 시간</div>
+            <div class="settings-row-sub">기본값: 30초</div>
+          </div>
+          <div class="flex items-center gap-3">
+            <button onclick="adjustRest(-5)" class="w-9 h-9 retro-border retro-shadow rounded-lg font-display font-bold text-lg bg-white hover:bg-surface-container transition-colors flex items-center justify-center">−</button>
+            <span id="rest-val" class="font-display font-bold text-xl w-12 text-center">30초</span>
+            <button onclick="adjustRest(5)"  class="w-9 h-9 retro-border retro-shadow rounded-lg font-display font-bold text-lg bg-white hover:bg-surface-container transition-colors flex items-center justify-center">+</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. 알림 -->
+      <div class="settings-card">
+        <div class="settings-card-header">
+          <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1">notifications</span>
+          알림
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-label">일일 훈련 리마인더</div>
+            <div class="settings-row-sub">매일 지정한 시간에 알림을 보냅니다</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="reminder-toggle" checked onchange="toggleReminder(this)"/>
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+        <div class="settings-row" id="reminder-time-row">
+          <div class="settings-row-label">알림 시간</div>
+          <input type="time" value="09:00"
+                 class="border-2 border-ink-black rounded-lg px-3 py-2 font-display font-bold text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-surface-container"/>
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-label">세션 완료 요약</div>
+            <div class="settings-row-sub">훈련 후 결과 요약 알림을 받습니다</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" checked/>
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- 4. 앱 정보 -->
+      <div class="settings-card">
+        <div class="settings-card-header">
+          <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1">info</span>
+          앱 정보
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-label">버전</div>
+          <span class="font-display text-sm font-bold text-on-surface-variant">1.0.0 (프로토타입)</span>
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-label">피드백 및 오류 신고</div>
+            <div class="settings-row-sub">문제가 있으신가요? 알려주세요.</div>
+          </div>
+          <button onclick="openFeedbackModal()" class="retro-border retro-shadow rounded-lg px-4 py-2 font-display font-bold text-sm uppercase tracking-wider bg-white hover:bg-surface-container transition-colors flex items-center gap-2">
+            <span class="material-symbols-outlined text-base">bug_report</span>
+            신고
+          </button>
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-label">데이터 초기화</div>
+            <div class="settings-row-sub">모든 훈련 기록을 삭제합니다</div>
+          </div>
+          <button onclick="clearData()" class="retro-border rounded-lg px-4 py-2 font-display font-bold text-sm uppercase tracking-wider hover:bg-red-50 transition-colors text-red-600 border-red-300 flex items-center gap-2">
+            <span class="material-symbols-outlined text-base">delete_forever</span>
+            초기화
+          </button>
+        </div>
+      </div>
+
+      <!-- Save Button -->
+      <button onclick="saveSettings()" class="w-full bg-primary text-white font-display font-bold text-lg uppercase tracking-wider py-4 rounded-xl retro-border retro-shadow hover:opacity-90 transition-opacity">
+        설정 저장
+      </button>
+
+    </div>
+  </main>
+
+  <div id="nav-bottom"></div>
+</div>
+
+<script src="shared.js"></script>
+<script>
+initPage('settings');
+
+let restSeconds = 30;
+
+function adjustRest(delta) {
+  restSeconds = Math.max(10, Math.min(120, restSeconds + delta));
+  document.getElementById('rest-val').textContent = restSeconds + '초';
+}
+
+function toggleReminder(el) {
+  document.getElementById('reminder-time-row').style.opacity = el.checked ? '1' : '0.4';
+}
+
+function saveSettings() {
+  const hand       = document.querySelector('input[name=hand]:checked')?.value;
+  const difficulty = document.querySelector('input[name=difficulty]:checked')?.value;
+  localStorage.setItem('regrip_settings', JSON.stringify({ hand, difficulty, restSeconds }));
+
+  const btn = event.target;
+  const orig = btn.textContent;
+  btn.textContent = '저장 완료 ✓';
+  btn.style.background = '#10B981';
+  setTimeout(() => { btn.textContent = orig; btn.style.background = '#994626'; }, 1800);
+}
+
+function clearData() {
+  if (confirm('모든 훈련 기록을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
+    localStorage.removeItem('regrip_sessions');
+    alert('데이터가 초기화되었습니다.');
+  }
+}
+
+// Load saved settings
+const saved = JSON.parse(localStorage.getItem('regrip_settings') || '{}');
+if (saved.hand) {
+  const el = document.getElementById(`hand-${saved.hand}`);
+  if (el) el.checked = true;
+}
+if (saved.difficulty) {
+  const el = document.getElementById(`diff-${saved.difficulty}`);
+  if (el) el.checked = true;
+}
+if (saved.restSeconds) {
+  restSeconds = saved.restSeconds;
+  document.getElementById('rest-val').textContent = restSeconds + '초';
+}
+</script>
+</body>
+</html>

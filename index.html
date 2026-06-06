@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ReGrip — 홈 대시보드</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=DM+Sans:wght@400;500;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="shared.css"/>
+<script id="tailwind-config">
+tailwind.config = {
+  theme: { extend: {
+    colors: {
+      primary: '#994626', 'primary-container': '#e8825e', 'on-primary': '#ffffff',
+      'on-primary-container': '#621e02', surface: '#FFF8F6', 'surface-warm': '#FFF1ED',
+      'surface-container': '#FFE9E3', 'surface-container-high': '#fae3dc',
+      'surface-container-highest': '#f5ded7', 'on-surface': '#251915',
+      'on-surface-variant': '#58423a', 'outline-variant': '#dfc0b6',
+      'background-sky': '#F0F9FF', 'ink-black': '#0F172A',
+      secondary: '#006c49', 'secondary-container': '#6cf8bb',
+      'mint-green': '#10B981',
+    },
+    fontFamily: { display: ['Space Grotesk'], body: ['DM Sans'] },
+    boxShadow: { retro: '4px 4px 0px #0F172A', 'retro-sm': '2px 2px 0px #0F172A' },
+  }}
+};
+</script>
+</head>
+<body class="bg-background-sky text-on-surface">
+
+<div class="app-shell">
+  <!-- Sidebar -->
+  <div id="nav-sidebar"></div>
+
+  <!-- Main -->
+  <main class="app-main w-full">
+    <div class="max-w-[1100px] mx-auto px-8 py-8 flex flex-col gap-6">
+
+      <!-- Greeting -->
+      <section class="bg-surface retro-border retro-shadow rounded-xl p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative overflow-hidden">
+        <div class="absolute -right-8 -top-8 opacity-10 pointer-events-none select-none">
+          <span class="material-symbols-outlined" style="font-size:180px">sports_esports</span>
+        </div>
+        <div class="relative z-10">
+          <h1 class="font-display text-4xl md:text-5xl font-bold text-ink-black mb-2 uppercase tracking-tight leading-tight">
+            안녕하세요,<br/>사용자님! <span class="inline-block animate-bounce origin-bottom">👋</span>
+          </h1>
+          <p class="text-on-surface-variant text-lg max-w-xl">오늘도 목표를 향해 나아갈 준비가 되셨나요? 꾸준한 노력이 큰 변화를 만듭니다.</p>
+        </div>
+        <div class="bg-surface-container-highest p-5 rounded-xl retro-border retro-shadow-sm relative z-10 text-center min-w-[130px]">
+          <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-2">현재 레벨</div>
+          <div class="font-display text-xl font-bold text-primary flex items-center justify-center gap-2">
+            <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1">military_tech</span>
+            Lv. 12
+          </div>
+          <div class="text-sm text-on-surface-variant mt-1">초심자</div>
+        </div>
+      </section>
+
+      <!-- Bento Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+
+        <!-- Main CTA -->
+        <div class="md:col-span-8 rounded-xl retro-border retro-shadow p-8 flex flex-col justify-between min-h-[280px] relative overflow-hidden group"
+             style="background-color:#FFB38E;">
+          <div class="absolute inset-0 opacity-10"
+               style="background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.3) 0,rgba(255,255,255,.3) 10px,transparent 10px,transparent 20px);background-size:28px 28px;"></div>
+          <div class="relative z-10">
+            <div class="font-display text-xs font-bold tracking-widest text-ink-black uppercase opacity-60 mb-2">오늘의 훈련</div>
+            <h2 class="font-display text-3xl font-bold text-ink-black mb-2 uppercase leading-tight">완전 악력 훈련</h2>
+            <p class="text-ink-black opacity-70 text-base">4세트 · 세트당 8회 · 권장 시간 25분</p>
+          </div>
+          <div class="relative z-10 flex gap-3 flex-wrap mt-6">
+            <a href="calibration.html"
+               class="bg-ink-black text-white font-display font-bold text-sm uppercase tracking-wider px-6 py-3 rounded border-2 border-ink-black retro-shadow flex items-center gap-2 no-underline transition-all hover:opacity-90">
+              <span class="material-symbols-outlined text-base">tune</span>
+              캘리브레이션
+            </a>
+            <a href="training.html"
+               class="bg-primary text-white font-display font-bold text-sm uppercase tracking-wider px-6 py-3 rounded border-2 border-ink-black retro-shadow flex items-center gap-2 no-underline transition-all hover:opacity-90">
+              <span class="material-symbols-outlined text-base">play_arrow</span>
+              바로 시작
+            </a>
+          </div>
+        </div>
+
+        <!-- Today Stats -->
+        <div class="md:col-span-4 flex flex-col gap-4">
+          <div class="bg-surface rounded-xl retro-border retro-shadow p-5 flex items-center gap-4">
+            <div class="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center retro-border flex-shrink-0">
+              <span class="material-symbols-outlined text-primary" style="font-variation-settings:'FILL' 1">local_fire_department</span>
+            </div>
+            <div>
+              <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">연속 출석</div>
+              <div class="font-display text-2xl font-bold text-primary">7일</div>
+            </div>
+          </div>
+          <div class="bg-surface rounded-xl retro-border retro-shadow p-5 flex items-center gap-4">
+            <div class="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center retro-border flex-shrink-0">
+              <span class="material-symbols-outlined text-primary" style="font-variation-settings:'FILL' 1">trending_up</span>
+            </div>
+            <div>
+              <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">이번 주 악력</div>
+              <div class="font-display text-2xl font-bold text-primary">+12%</div>
+            </div>
+          </div>
+          <div class="bg-surface rounded-xl retro-border retro-shadow p-5 flex items-center gap-4">
+            <div class="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center retro-border flex-shrink-0">
+              <span class="material-symbols-outlined text-primary" style="font-variation-settings:'FILL' 1">workspace_premium</span>
+            </div>
+            <div>
+              <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">획득 배지</div>
+              <div class="font-display text-2xl font-bold text-primary">3 / 5</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Progress Bar Card -->
+        <div class="md:col-span-6 bg-surface rounded-xl retro-border retro-shadow p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-display text-base font-bold uppercase tracking-wide">이번 주 목표 달성률</h3>
+            <span class="font-display text-2xl font-bold text-primary">5 / 7일</span>
+          </div>
+          <div class="w-full h-5 bg-surface-container rounded-full retro-border overflow-hidden mb-2">
+            <div class="h-full bg-primary rounded-full transition-all" style="width:71%;"></div>
+          </div>
+          <p class="text-on-surface-variant text-sm">목표까지 2일 남았습니다. 화이팅!</p>
+        </div>
+
+        <!-- Recent Session -->
+        <div class="md:col-span-6 bg-surface rounded-xl retro-border retro-shadow p-6">
+          <h3 class="font-display text-base font-bold uppercase tracking-wide mb-4">최근 세션</h3>
+          <div class="space-y-3">
+            <div class="flex items-center justify-between py-2 border-b border-outline-variant">
+              <div>
+                <div class="font-display text-sm font-bold">완전 그립 훈련</div>
+                <div class="text-on-surface-variant text-xs">2026.06.05 · 25분 · 8세트</div>
+              </div>
+              <div class="flex gap-0.5">
+                <span class="material-symbols-outlined text-yellow-400 text-base" style="font-variation-settings:'FILL' 1">star</span>
+                <span class="material-symbols-outlined text-yellow-400 text-base" style="font-variation-settings:'FILL' 1">star</span>
+                <span class="material-symbols-outlined text-yellow-400 text-base" style="font-variation-settings:'FILL' 1">star</span>
+              </div>
+            </div>
+            <div class="flex items-center justify-between py-2 border-b border-outline-variant">
+              <div>
+                <div class="font-display text-sm font-bold">핀치 그립 훈련</div>
+                <div class="text-on-surface-variant text-xs">2026.06.04 · 18분 · 6세트</div>
+              </div>
+              <div class="flex gap-0.5">
+                <span class="material-symbols-outlined text-yellow-400 text-base" style="font-variation-settings:'FILL' 1">star</span>
+                <span class="material-symbols-outlined text-yellow-400 text-base" style="font-variation-settings:'FILL' 1">star</span>
+                <span class="material-symbols-outlined text-base text-on-surface-variant">star</span>
+              </div>
+            </div>
+            <div class="text-center mt-2">
+              <a href="history.html" class="text-primary text-sm font-display font-bold uppercase tracking-wide hover:underline">전체 기록 보기 →</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Nav Tiles -->
+        <div class="md:col-span-12 grid grid-cols-2 md:grid-cols-4 gap-4">
+          <a href="calibration.html" class="bg-surface rounded-xl retro-border retro-shadow p-5 flex flex-col items-center text-center gap-3 no-underline hover:bg-surface-container transition-colors group">
+            <span class="material-symbols-outlined text-3xl text-primary group-hover:scale-110 transition-transform" style="font-variation-settings:'FILL' 1">tune</span>
+            <span class="font-display text-sm font-bold uppercase tracking-wide">캘리브레이션</span>
+          </a>
+          <a href="history.html" class="bg-surface rounded-xl retro-border retro-shadow p-5 flex flex-col items-center text-center gap-3 no-underline hover:bg-surface-container transition-colors group">
+            <span class="material-symbols-outlined text-3xl text-primary group-hover:scale-110 transition-transform" style="font-variation-settings:'FILL' 1">timeline</span>
+            <span class="font-display text-sm font-bold uppercase tracking-wide">통계 및 추세</span>
+          </a>
+          <a href="achievements.html" class="bg-surface rounded-xl retro-border retro-shadow p-5 flex flex-col items-center text-center gap-3 no-underline hover:bg-surface-container transition-colors group">
+            <span class="material-symbols-outlined text-3xl text-primary group-hover:scale-110 transition-transform" style="font-variation-settings:'FILL' 1">emoji_events</span>
+            <span class="font-display text-sm font-bold uppercase tracking-wide">나의 업적</span>
+          </a>
+          <a href="settings.html" class="bg-surface rounded-xl retro-border retro-shadow p-5 flex flex-col items-center text-center gap-3 no-underline hover:bg-surface-container transition-colors group">
+            <span class="material-symbols-outlined text-3xl text-primary group-hover:scale-110 transition-transform" style="font-variation-settings:'FILL' 1">settings</span>
+            <span class="font-display text-sm font-bold uppercase tracking-wide">설정</span>
+          </a>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <!-- Bottom Nav -->
+  <div id="nav-bottom"></div>
+</div>
+
+<script src="shared.js"></script>
+<script>initPage('home');</script>
+</body>
+</html>
