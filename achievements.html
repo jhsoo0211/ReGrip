@@ -24,6 +24,92 @@ tailwind.config = {
   }}
 };
 </script>
+<style>
+  /* Achievement Detail Modal */
+  #achievement-detail-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: rgba(15,23,42,0.6);
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  #achievement-detail-modal.open { display: flex; }
+
+  @keyframes achSlideUp { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  @keyframes achPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+
+  .ach-detail-card {
+    background: #FFF8F6;
+    border: 4px solid #0F172A;
+    box-shadow: 8px 8px 0px #0F172A;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 520px;
+    max-height: 85vh;
+    overflow-y: auto;
+    animation: achSlideUp 0.2s ease;
+  }
+
+  .ach-detail-banner {
+    border-bottom: 4px solid #0F172A;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .ach-detail-body { padding: 28px 24px; }
+
+  .ach-icon-lg {
+    width: 120px; height: 120px;
+    border-radius: 50%;
+    border: 4px solid #0F172A;
+    box-shadow: 4px 4px 0px #0F172A;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+    position: relative;
+  }
+  .ach-icon-lg img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+  }
+  .ach-icon-lg.earned { background: #FFE9E3; animation: achPulse 2s ease-in-out infinite; }
+  .ach-icon-lg.locked { background: #f5ded7; }
+
+  .ach-progress-bar-bg {
+    height: 12px;
+    background: #f5ded7;
+    border: 2px solid #0F172A;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .ach-progress-bar-fill {
+    height: 100%;
+    background: #994626;
+    border-radius: 999px;
+    transition: width 0.6s ease;
+  }
+
+  .reward-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    border: 2px solid #0F172A;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+</style>
 </head>
 <body class="bg-background-sky text-on-surface">
 
@@ -52,10 +138,11 @@ tailwind.config = {
       <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
         <!-- Earned 1 -->
-        <article class="bg-white retro-border retro-shadow rounded-xl p-6 flex flex-col items-center text-center relative overflow-hidden hover:-translate-y-1 transition-transform">
+        <article class="bg-white retro-border retro-shadow rounded-xl p-6 flex flex-col items-center text-center relative overflow-hidden hover:-translate-y-1 transition-transform cursor-pointer"
+                 onclick="openAchievementDetail(0)">
           <div class="absolute top-0 left-0 w-full h-2 bg-secondary-container border-b-2 border-ink-black"></div>
-          <div class="w-28 h-28 mb-5 rounded-full retro-border bg-surface-container flex items-center justify-center p-2 shadow-inner mt-2">
-            <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAr50qpgbrUtxV0UbPCpxiQjh4RzrsxH2axw7Ac5USq3HpiCpPEPfzNqhQ6CQOCzok8tjKsXAPPcJ6P4qxtyMDTlEb7gNnNpR4DBsBPleJkO9qKyZt_uLV7KYTaJts2If4vGBpABk3R1OVaTaHyjpLzEYxZC4sbliiIDbAdC579yhzuX5cG6pPnpWWkuB7QgwEOhYa6uUqjTqLVvNeDW_eeqHuK_SLaO-fL2IVSKZ-e1uAk1j2msodHF_vWp22_jITwteGMtUpuHE0" alt="첫 번째 캡슐" class="w-full h-full object-contain drop-shadow-md"/>
+          <div class="w-28 h-28 mb-5 rounded-full retro-border bg-surface-container flex items-center justify-center p-2 shadow-inner mt-2 overflow-hidden">
+            <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAr50qpgbrUtxV0UbPCpxiQjh4RzrsxH2axw7Ac5USq3HpiCpPEPfzNqhQ6CQOCzok8tjKsXAPPcJ6P4qxtyMDTlEb7gNnNpR4DBsBPleJkO9qKyZt_uLV7KYTaJts2If4vGBpABk3R1OVaTaHyjpLzEYxZC4sbliiIDbAdC579yhzuX5cG6pPnpWWkuB7QgwEOhYa6uUqjTqLVvNeDW_eeqHuK_SLaO-fL2IVSKZ-e1uAk1j2msodHF_vWp22_jITwteGMtUpuHE0" alt="첫 번째 캡슐" class="w-full h-full object-cover drop-shadow-md"/>
           </div>
           <h3 class="font-display text-lg font-bold mb-2">첫 번째 캡슐</h3>
           <p class="text-on-surface-variant text-sm mb-4 flex-1">크레인을 조작하여 첫 번째 보상 캡슐을 성공적으로 수집했습니다.</p>
@@ -66,10 +153,11 @@ tailwind.config = {
         </article>
 
         <!-- Earned 2 -->
-        <article class="bg-white retro-border retro-shadow rounded-xl p-6 flex flex-col items-center text-center relative overflow-hidden hover:-translate-y-1 transition-transform">
+        <article class="bg-white retro-border retro-shadow rounded-xl p-6 flex flex-col items-center text-center relative overflow-hidden hover:-translate-y-1 transition-transform cursor-pointer"
+                 onclick="openAchievementDetail(1)">
           <div class="absolute top-0 left-0 w-full h-2 bg-secondary-container border-b-2 border-ink-black"></div>
-          <div class="w-28 h-28 mb-5 rounded-full retro-border bg-surface-container flex items-center justify-center p-2 shadow-inner mt-2">
-            <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAa99xLJU4p1iWwcUqU6STPNiaKU5pG9Te__iNTw7WOnSEAzvegvFMFN2fHscEdrOqVeqZGnoTtP7DzpSXZkUX5flpIfHMxjqIEvZASnFWKkoMMcQ1EV5HKsDLVXG1E95y2i1J7r270zw9RGSgzzQlGSGo3iDYHAxp28-LfWOXm1h8oYsC4mEqO2WjokXtvgI3UG8ECANJu2Zglb1FZBtKxYL2ZdFSO80Mk7ysrb87LfSm984RdizC5G_AECy5gm2bptGe1TrQSD5o" alt="강력한 악력" class="w-full h-full object-contain drop-shadow-md"/>
+          <div class="w-28 h-28 mb-5 rounded-full retro-border bg-surface-container flex items-center justify-center p-2 shadow-inner mt-2 overflow-hidden">
+            <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAa99xLJU4p1iWwcUqU6STPNiaKU5pG9Te__iNTw7WOnSEAzvegvFMFN2fHscEdrOqVeqZGnoTtP7DzpSXZkUX5flpIfHMxjqIEvZASnFWKkoMMcQ1EV5HKsDLVXG1E95y2i1J7r270zw9RGSgzzQlGSGo3iDYHAxp28-LfWOXm1h8oYsC4mEqO2WjokXtvgI3UG8ECANJu2Zglb1FZBtKxYL2ZdFSO80Mk7ysrb87LfSm984RdizC5G_AECy5gm2bptGe1TrQSD5o" alt="강력한 악력" class="w-full h-full object-cover drop-shadow-md"/>
           </div>
           <h3 class="font-display text-lg font-bold mb-2">강력한 악력</h3>
           <p class="text-on-surface-variant text-sm mb-4 flex-1">악력 측정기에서 80% 이상의 목표 파워를 5회 연속 달성했습니다.</p>
@@ -80,10 +168,11 @@ tailwind.config = {
         </article>
 
         <!-- Earned 3 -->
-        <article class="bg-white retro-border retro-shadow rounded-xl p-6 flex flex-col items-center text-center relative overflow-hidden hover:-translate-y-1 transition-transform">
+        <article class="bg-white retro-border retro-shadow rounded-xl p-6 flex flex-col items-center text-center relative overflow-hidden hover:-translate-y-1 transition-transform cursor-pointer"
+                 onclick="openAchievementDetail(2)">
           <div class="absolute top-0 left-0 w-full h-2 bg-secondary-container border-b-2 border-ink-black"></div>
-          <div class="w-28 h-28 mb-5 rounded-full retro-border bg-surface-container flex items-center justify-center p-2 shadow-inner mt-2">
-            <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuBbE2ktvXPHSxGjsTe1qhkGNh_T1v-Xa0Fzva4XyxyIMlgAkgpSdbT0l7ZY20jP4b6eheLrZ8Nv-shTncX71TKHU5ejtt-Zn4WN4m9ge8KWuJiVCyfvLVLE4IL9SZ3bMEQfTZQ67MFqy5RMMe09BdG5Giq_PSejib6vuYXXb30FEyraFIVCR0NQ1uCdSDhTWJTezAx7Ycql0N180FhrMJ-_EzQlhQ_en3OypTNDw4vFfKiLmEb9MzxHoYtQZK5iNtHb6IlBpHuqON0" alt="꾸준함의 왕" class="w-full h-full object-contain drop-shadow-md"/>
+          <div class="w-28 h-28 mb-5 rounded-full retro-border bg-surface-container flex items-center justify-center p-2 shadow-inner mt-2 overflow-hidden">
+            <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuBbE2ktvXPHSxGjsTe1qhkGNh_T1v-Xa0Fzva4XyxyIMlgAkgpSdbT0l7ZY20jP4b6eheLrZ8Nv-shTncX71TKHU5ejtt-Zn4WN4m9ge8KWuJiVCyfvLVLE4IL9SZ3bMEQfTZQ67MFqy5RMMe09BdG5Giq_PSejib6vuYXXb30FEyraFIVCR0NQ1uCdSDhTWJTezAx7Ycql0N180FhrMJ-_EzQlhQ_en3OypTNDw4vFfKiLmEb9MzxHoYtQZK5iNtHb6IlBpHuqON0" alt="꾸준함의 왕" class="w-full h-full object-cover drop-shadow-md"/>
           </div>
           <h3 class="font-display text-lg font-bold mb-2">꾸준함의 왕</h3>
           <p class="text-on-surface-variant text-sm mb-4 flex-1">7일 연속으로 훈련 세션에 로그인하고 완료했습니다.</p>
@@ -94,7 +183,8 @@ tailwind.config = {
         </article>
 
         <!-- Locked 1 -->
-        <article class="bg-surface-container-high retro-border rounded-xl p-6 opacity-75 flex flex-col items-center text-center relative" style="border-color:#dfc0b6;">
+        <article class="bg-surface-container-high retro-border rounded-xl p-6 opacity-75 flex flex-col items-center text-center relative cursor-pointer hover:opacity-85 transition-opacity" style="border-color:#dfc0b6;"
+                 onclick="openAchievementDetail(3)">
           <div class="absolute top-0 left-0 w-full h-2 rounded-t-xl" style="background:#dfc0b6;"></div>
           <div class="w-28 h-28 mb-5 rounded-full bg-white flex items-center justify-center relative mt-2" style="border:2px solid #dfc0b6;">
             <span class="material-symbols-outlined text-5xl absolute z-10 text-on-surface-variant" style="font-variation-settings:'FILL' 1">lock</span>
@@ -114,7 +204,8 @@ tailwind.config = {
         </article>
 
         <!-- Locked 2 -->
-        <article class="bg-surface-container-high retro-border rounded-xl p-6 opacity-75 flex flex-col items-center text-center relative" style="border-color:#dfc0b6;">
+        <article class="bg-surface-container-high retro-border rounded-xl p-6 opacity-75 flex flex-col items-center text-center relative cursor-pointer hover:opacity-85 transition-opacity" style="border-color:#dfc0b6;"
+                 onclick="openAchievementDetail(4)">
           <div class="absolute top-0 left-0 w-full h-2 rounded-t-xl" style="background:#dfc0b6;"></div>
           <div class="w-28 h-28 mb-5 rounded-full bg-white flex items-center justify-center relative mt-2" style="border:2px solid #dfc0b6;">
             <span class="material-symbols-outlined text-5xl absolute z-10 text-on-surface-variant" style="font-variation-settings:'FILL' 1">lock</span>
@@ -149,7 +240,216 @@ tailwind.config = {
   <div id="nav-bottom"></div>
 </div>
 
+<!-- Achievement Detail Modal -->
+<div id="achievement-detail-modal" aria-modal="true" role="dialog">
+  <div class="ach-detail-card" id="ach-detail-content"></div>
+</div>
+
 <script src="shared.js"></script>
-<script>initPage('achievements');</script>
+<script>
+initPage('achievements');
+
+// Achievement data
+const ACHIEVEMENTS = [
+  {
+    id: 'first_capsule',
+    title: '첫 번째 캡슐',
+    desc: '크레인을 조작하여 첫 번째 보상 캡슐을 성공적으로 수집했습니다.',
+    detailDesc: '크레인 게임에서 악력 센서를 사용하여 크레인을 조작하고, 첫 번째 보상 캡슐을 집어 올리는 데 성공했습니다. 이 업적은 센서와의 첫 상호작용을 기념합니다.',
+    condition: '크레인 게임에서 캡슐 1개 이상 수집',
+    earned: true,
+    earnedDate: '2023.10.12',
+    imgSrc: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAr50qpgbrUtxV0UbPCpxiQjh4RzrsxH2axw7Ac5USq3HpiCpPEPfzNqhQ6CQOCzok8tjKsXAPPcJ6P4qxtyMDTlEb7gNnNpR4DBsBPleJkO9qKyZt_uLV7KYTaJts2If4vGBpABk3R1OVaTaHyjpLzEYxZC4sbliiIDbAdC579yhzuX5cG6pPnpWWkuB7QgwEOhYa6uUqjTqLVvNeDW_eeqHuK_SLaO-fL2IVSKZ-e1uAk1j2msodHF_vWp22_jITwteGMtUpuHE0',
+    reward: { xp: 100, label: '100 XP' },
+    category: '게임 플레이',
+    rarity: '일반',
+  },
+  {
+    id: 'strong_grip',
+    title: '강력한 악력',
+    desc: '악력 측정기에서 80% 이상의 목표 파워를 5회 연속 달성했습니다.',
+    detailDesc: '꾸준한 훈련을 통해 악력 측정 세션에서 5회 연속으로 80% 이상의 목표 파워에 도달했습니다. 이는 상당한 악력 회복과 집중력을 보여주는 성과입니다.',
+    condition: '악력 80% 이상을 5회 연속 달성',
+    earned: true,
+    earnedDate: '2023.10.15',
+    imgSrc: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAa99xLJU4p1iWwcUqU6STPNiaKU5pG9Te__iNTw7WOnSEAzvegvFMFN2fHscEdrOqVeqZGnoTtP7DzpSXZkUX5flpIfHMxjqIEvZASnFWKkoMMcQ1EV5HKsDLVXG1E95y2i1J7r270zw9RGSgzzQlGSGo3iDYHAxp28-LfWOXm1h8oYsC4mEqO2WjokXtvgI3UG8ECANJu2Zglb1FZBtKxYL2ZdFSO80Mk7ysrb87LfSm984RdizC5G_AECy5gm2bptGe1TrQSD5o',
+    reward: { xp: 200, label: '200 XP' },
+    category: '악력 훈련',
+    rarity: '희귀',
+  },
+  {
+    id: 'consistency_king',
+    title: '꾸준함의 왕',
+    desc: '7일 연속으로 훈련 세션에 로그인하고 완료했습니다.',
+    detailDesc: '7일 연속으로 매일 훈련 세션을 완료하며 꾸준함의 중요성을 보여주었습니다. 재활에서 가장 중요한 것은 지속적인 노력이며, 이 업적은 그 헌신을 인정합니다.',
+    condition: '7일 연속 훈련 세션 완료',
+    earned: true,
+    earnedDate: '2023.10.22',
+    imgSrc: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBbE2ktvXPHSxGjsTe1qhkGNh_T1v-Xa0Fzva4XyxyIMlgAkgpSdbT0l7ZY20jP4b6eheLrZ8Nv-shTncX71TKHU5ejtt-Zn4WN4m9ge8KWuJiVCyfvLVLE4IL9SZ3bMEQfTZQ67MFqy5RMMe09BdG5Giq_PSejib6vuYXXb30FEyraFIVCR0NQ1uCdSDhTWJTezAx7Ycql0N180FhrMJ-_EzQlhQ_en3OypTNDw4vFfKiLmEb9MzxHoYtQZK5iNtHb6IlBpHuqON0',
+    reward: { xp: 300, label: '300 XP' },
+    category: '지속성',
+    rarity: '에픽',
+  },
+  {
+    id: 'sharpshooter',
+    title: '명사수',
+    desc: '타겟 슈팅 미니게임에서 95% 이상의 정확도를 달성하세요.',
+    detailDesc: '타겟 슈팅 미니게임에서 95% 이상의 정확도로 모든 타겟을 명중시키세요. 이 업적은 정밀한 손 제어력과 빠른 반응 속도를 요구합니다.',
+    condition: '타겟 슈팅 정확도 95% 이상 달성',
+    earned: false,
+    progress: 82,
+    progressLabel: '82%',
+    reward: { xp: 250, label: '250 XP' },
+    category: '게임 플레이',
+    rarity: '희귀',
+  },
+  {
+    id: 'halfway_goal',
+    title: '목표의 절반',
+    desc: '누적 보상 캡슐 500개를 수집하세요. 계속 힘내세요!',
+    detailDesc: '크레인 게임에서 누적으로 500개의 보상 캡슐을 수집하세요. 꾸준한 게임 플레이와 점차 향상되는 악력이 필요한 장기 목표 업적입니다.',
+    condition: '누적 캡슐 500개 수집',
+    earned: false,
+    progress: 49,
+    progressLabel: '245 / 500',
+    reward: { xp: 500, label: '500 XP' },
+    category: '수집',
+    rarity: '전설',
+  },
+];
+
+const RARITY_COLORS = {
+  '일반': { bg: '#E0F2FE', border: '#0284C7', text: '#0284C7' },
+  '희귀': { bg: '#F3E8FF', border: '#9333EA', text: '#9333EA' },
+  '에픽': { bg: '#FEF9C3', border: '#CA8A04', text: '#CA8A04' },
+  '전설': { bg: '#FEE2E2', border: '#DC2626', text: '#DC2626' },
+};
+
+function openAchievementDetail(index) {
+  const ach = ACHIEVEMENTS[index];
+  if (!ach) return;
+
+  const modal = document.getElementById('achievement-detail-modal');
+  const card = document.getElementById('ach-detail-content');
+  const rarityColor = RARITY_COLORS[ach.rarity] || RARITY_COLORS['일반'];
+
+  const iconContent = ach.earned
+    ? `<img src="${ach.imgSrc}" alt="${ach.title}"/>`
+    : `<span class="material-symbols-outlined text-5xl text-on-surface-variant" style="font-variation-settings:'FILL' 1">lock</span>`;
+
+  const statusSection = ach.earned
+    ? `
+      <div class="flex items-center justify-center gap-2 py-3 px-5 bg-white retro-border rounded-xl">
+        <span class="material-symbols-outlined text-lg" style="color:#16A34A;font-variation-settings:'FILL' 1">check_circle</span>
+        <span class="font-display text-sm font-bold" style="color:#16A34A">획득 완료</span>
+        <span class="text-on-surface-variant text-sm ml-2">${ach.earnedDate}</span>
+      </div>
+    `
+    : `
+      <div class="bg-white retro-border rounded-xl p-4">
+        <div class="flex justify-between items-center mb-2">
+          <span class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">진행률</span>
+          <span class="font-display text-sm font-bold text-primary">${ach.progressLabel}</span>
+        </div>
+        <div class="ach-progress-bar-bg">
+          <div class="ach-progress-bar-fill" style="width:${ach.progress}%"></div>
+        </div>
+        <p class="text-on-surface-variant text-xs mt-2 text-center">목표까지 ${100 - ach.progress}% 남았습니다!</p>
+      </div>
+    `;
+
+  card.innerHTML = `
+    <!-- Banner -->
+    <div class="ach-detail-banner" style="background:${ach.earned ? '#DCFCE7' : '#f5ded7'};">
+      <div class="flex items-center gap-3">
+        <span class="material-symbols-outlined text-lg" style="font-variation-settings:'FILL' 1;color:${ach.earned ? '#16A34A' : '#58423a'}">${ach.earned ? 'emoji_events' : 'lock'}</span>
+        <span class="font-display font-bold text-sm uppercase tracking-widest">${ach.earned ? '획득한 업적' : '미획득 업적'}</span>
+      </div>
+      <button onclick="closeAchievementDetail()" class="w-9 h-9 rounded-lg retro-border bg-white flex items-center justify-center hover:bg-surface-container transition-colors">
+        <span class="material-symbols-outlined text-base">close</span>
+      </button>
+    </div>
+
+    <!-- Body -->
+    <div class="ach-detail-body flex flex-col gap-5">
+
+      <!-- Icon -->
+      <div class="ach-icon-lg ${ach.earned ? 'earned' : 'locked'}">
+        ${iconContent}
+      </div>
+
+      <!-- Title & Rarity -->
+      <div class="text-center">
+        <h2 class="font-display text-2xl font-bold mb-2">${ach.title}</h2>
+        <div class="flex justify-center gap-2 flex-wrap">
+          <span class="reward-tag" style="background:${rarityColor.bg};border-color:${rarityColor.border};color:${rarityColor.text}">
+            <span class="material-symbols-outlined text-sm" style="font-variation-settings:'FILL' 1">diamond</span>
+            ${ach.rarity}
+          </span>
+          <span class="reward-tag" style="background:#FFE9E3;border-color:#994626;color:#994626">
+            <span class="material-symbols-outlined text-sm" style="font-variation-settings:'FILL' 1">category</span>
+            ${ach.category}
+          </span>
+        </div>
+      </div>
+
+      <!-- Status -->
+      ${statusSection}
+
+      <!-- Description -->
+      <div class="bg-white retro-border rounded-xl p-4">
+        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-2">상세 설명</div>
+        <p class="text-on-surface text-sm leading-relaxed">${ach.detailDesc}</p>
+      </div>
+
+      <!-- Condition -->
+      <div class="bg-white retro-border rounded-xl p-4">
+        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-2">획득 조건</div>
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-full bg-surface-container retro-border flex items-center justify-center flex-shrink-0">
+            <span class="material-symbols-outlined text-primary text-sm" style="font-variation-settings:'FILL' 1">task_alt</span>
+          </div>
+          <span class="font-bold text-sm">${ach.condition}</span>
+        </div>
+      </div>
+
+      <!-- Reward -->
+      <div class="bg-white retro-border rounded-xl p-4">
+        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-2">보상</div>
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style="background:#FEF9C3;border:2px solid #CA8A04;">
+            <span class="material-symbols-outlined text-sm" style="color:#CA8A04;font-variation-settings:'FILL' 1">stars</span>
+          </div>
+          <span class="font-display font-bold text-sm text-primary">${ach.reward.label}</span>
+          <span class="text-on-surface-variant text-xs">경험치 획득</span>
+        </div>
+      </div>
+
+      <!-- Close Button -->
+      <button onclick="closeAchievementDetail()"
+              class="w-full bg-primary text-white font-display font-bold text-sm uppercase tracking-wider py-3 rounded-xl retro-border retro-shadow hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+        <span class="material-symbols-outlined text-base">arrow_back</span>
+        업적 목록으로 돌아가기
+      </button>
+    </div>
+  `;
+
+  modal.classList.add('open');
+}
+
+function closeAchievementDetail() {
+  document.getElementById('achievement-detail-modal').classList.remove('open');
+}
+
+// Close on backdrop click
+document.getElementById('achievement-detail-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('achievement-detail-modal')) closeAchievementDetail();
+});
+
+// Close on Escape key
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeAchievementDetail();
+});
+</script>
 </body>
 </html>

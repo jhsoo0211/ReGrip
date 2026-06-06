@@ -117,7 +117,9 @@ tailwind.config = {
           <!-- Avatar Card -->
           <div class="bg-white retro-border retro-shadow rounded-xl p-6 flex flex-col items-center gap-4">
             <div class="relative">
-              <img id="avatar-preview" src="" alt="프로필 사진" onclick="document.getElementById('avatar-input').click()"/>
+              <div class="rounded-full overflow-hidden" style="width:120px;height:120px;">
+                <img id="avatar-preview" src="" alt="프로필 사진" onclick="document.getElementById('avatar-input').click()" style="width:100%;height:100%;object-fit:cover;cursor:pointer;border:4px solid #0F172A;border-radius:50%;box-shadow:4px 4px 0px #0F172A;transition:opacity 0.2s;"/>
+              </div>
               <input type="file" id="avatar-input" accept="image/*" onchange="handleAvatarUpload(this)"/>
               <div class="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-primary retro-border flex items-center justify-center cursor-pointer"
                    onclick="document.getElementById('avatar-input').click()">
@@ -131,7 +133,7 @@ tailwind.config = {
           </div>
 
           <!-- Level Badge Card -->
-          <div class="bg-surface-container retro-border retro-shadow rounded-xl p-5">
+          <a href="level.html" class="no-underline block bg-surface-container retro-border retro-shadow rounded-xl p-5 hover:opacity-90 transition-opacity">
             <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-3">현재 레벨</div>
             <div class="flex items-center gap-3 mb-3">
               <span class="material-symbols-outlined text-3xl text-primary" style="font-variation-settings:'FILL' 1">military_tech</span>
@@ -143,7 +145,8 @@ tailwind.config = {
             <div class="w-full h-3 bg-white retro-border rounded-full overflow-hidden">
               <div class="h-full bg-primary rounded-full" style="width:62%;"></div>
             </div>
-          </div>
+            <div class="text-xs text-primary mt-2 font-display font-bold uppercase tracking-wider text-center">상세보기 →</div>
+          </a>
 
           <!-- Stats Summary -->
           <div class="bg-white retro-border retro-shadow rounded-xl p-5 grid grid-cols-2 gap-3">

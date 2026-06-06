@@ -41,6 +41,83 @@ tailwind.config = {
   .bar-fill  { background: #994626; border-radius: 2px; transition: height 0.6s ease; }
   .bar-label { font-family: 'Space Grotesk', sans-serif; font-size: 11px; font-weight: 700; color: #58423a; text-align: center; }
   .bar-val   { font-family: 'Space Grotesk', sans-serif; font-size: 12px; font-weight: 700; color: #251915; }
+
+  /* Session Detail Modal */
+  #session-detail-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: rgba(15,23,42,0.6);
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    animation: fadeIn 0.15s ease;
+  }
+  #session-detail-modal.open { display: flex; }
+
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes slideUp { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+  .detail-card {
+    background: #FFF8F6;
+    border: 4px solid #0F172A;
+    box-shadow: 8px 8px 0px #0F172A;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 600px;
+    max-height: 85vh;
+    overflow-y: auto;
+    animation: slideUp 0.2s ease;
+  }
+
+  .detail-banner {
+    background: #FFE9E3;
+    border-bottom: 4px solid #0F172A;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .detail-body { padding: 24px; }
+
+  .force-bar-bg {
+    height: 14px;
+    background: #f5ded7;
+    border: 2px solid #0F172A;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .force-bar-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.5s ease;
+  }
+
+  .set-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid #f5ded7;
+  }
+  .set-row:last-child { border-bottom: none; }
+
+  .set-num {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    border: 2px solid #0F172A;
+    background: #FFE9E3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
 </style>
 </head>
 <body class="bg-background-sky text-on-surface">
@@ -125,6 +202,11 @@ tailwind.config = {
   <div id="nav-bottom"></div>
 </div>
 
+<!-- Session Detail Modal -->
+<div id="session-detail-modal" aria-modal="true" role="dialog">
+  <div class="detail-card" id="detail-card-content"></div>
+</div>
+
 <script src="shared.js"></script>
 <script>
 initPage('history');
@@ -149,14 +231,167 @@ function starsHtml(n) {
   ).join('');
 }
 
+function starsHtmlLg(n) {
+  return [1,2,3].map(i =>
+    `<span class="material-symbols-outlined text-2xl ${i<=n?'text-yellow-400':'text-on-surface-variant'}"
+          style="font-variation-settings:'FILL' ${i<=n?1:0}">star</span>`
+  ).join('');
+}
+
+// Generate simulated set data for a session
+function generateSetData(session) {
+  const sets = [];
+  for (let i = 0; i < session.sets; i++) {
+    const variation = (Math.random() - 0.5) * 20;
+    const force = Math.min(100, Math.max(10, Math.round(session.avgForce + variation)));
+    const reps = 6 + Math.floor(Math.random() * 5);
+    const holdTime = (2 + Math.random() * 4).toFixed(1);
+    sets.push({ setNum: i + 1, force, reps, holdTime });
+  }
+  return sets;
+}
+
+function openSessionDetail(sessionIndex) {
+  const session = window._allSessions[sessionIndex];
+  if (!session) return;
+
+  const modal = document.getElementById('session-detail-modal');
+  const card = document.getElementById('detail-card-content');
+  const setData = generateSetData(session);
+
+  const exerciseIcons = {
+    '완전 그립 훈련': 'fitness_center',
+    '핀치 그립 훈련': 'pinch',
+    '측면 그립 훈련': 'pan_tool',
+    '손가락 펴기': 'back_hand',
+  };
+  const icon = exerciseIcons[session.label] || 'fitness_center';
+
+  card.innerHTML = `
+    <!-- Banner -->
+    <div class="detail-banner">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-full bg-surface-container-highest retro-border flex items-center justify-center flex-shrink-0">
+          <span class="material-symbols-outlined text-primary text-lg" style="font-variation-settings:'FILL' 1">${icon}</span>
+        </div>
+        <div>
+          <div class="font-display font-bold text-base uppercase tracking-wide">${session.label}</div>
+          <div class="text-on-surface-variant text-xs">${formatKoreanDate(session.date)}</div>
+        </div>
+      </div>
+      <button onclick="closeSessionDetail()" class="w-9 h-9 rounded-lg retro-border bg-white flex items-center justify-center hover:bg-surface-container transition-colors">
+        <span class="material-symbols-outlined text-base">close</span>
+      </button>
+    </div>
+
+    <!-- Body -->
+    <div class="detail-body flex flex-col gap-5">
+
+      <!-- Star Rating -->
+      <div class="flex justify-center gap-1">
+        ${starsHtmlLg(session.stars)}
+      </div>
+
+      <!-- Summary Stats Grid -->
+      <div class="grid grid-cols-3 gap-3">
+        <div class="bg-white retro-border rounded-xl p-4 text-center">
+          <div class="font-display text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-1">소요 시간</div>
+          <div class="font-display text-xl font-bold text-primary">${session.durationMin}</div>
+          <div class="text-xs text-on-surface-variant">분</div>
+        </div>
+        <div class="bg-white retro-border rounded-xl p-4 text-center">
+          <div class="font-display text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-1">총 세트</div>
+          <div class="font-display text-xl font-bold text-primary">${session.sets}</div>
+          <div class="text-xs text-on-surface-variant">세트</div>
+        </div>
+        <div class="bg-white retro-border rounded-xl p-4 text-center">
+          <div class="font-display text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-1">최대 악력</div>
+          <div class="font-display text-xl font-bold text-primary">${session.maxForce}</div>
+          <div class="text-xs text-on-surface-variant">%</div>
+        </div>
+      </div>
+
+      <!-- Force Bars -->
+      <div class="bg-white retro-border rounded-xl p-4">
+        <div class="flex justify-between items-center mb-3">
+          <span class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">평균 악력</span>
+          <span class="font-display text-lg font-bold text-primary">${session.avgForce}%</span>
+        </div>
+        <div class="force-bar-bg">
+          <div class="force-bar-fill bg-primary" style="width:${session.avgForce}%"></div>
+        </div>
+        <div class="flex justify-between items-center mb-3 mt-4">
+          <span class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">최대 악력</span>
+          <span class="font-display text-lg font-bold" style="color:#16A34A">${session.maxForce}%</span>
+        </div>
+        <div class="force-bar-bg">
+          <div class="force-bar-fill" style="width:${session.maxForce}%;background:#16A34A"></div>
+        </div>
+      </div>
+
+      <!-- Per-Set Breakdown -->
+      <div class="bg-white retro-border rounded-xl overflow-hidden">
+        <div class="bg-surface-container border-b-2 border-ink-black px-4 py-3 flex items-center gap-2">
+          <span class="material-symbols-outlined text-primary text-base" style="font-variation-settings:'FILL' 1">format_list_numbered</span>
+          <span class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">세트별 상세</span>
+        </div>
+        <div class="px-4 py-2">
+          ${setData.map(s => `
+            <div class="set-row">
+              <div class="set-num">${s.setNum}</div>
+              <div class="flex-1">
+                <div class="flex justify-between items-center mb-1">
+                  <span class="text-sm font-bold">${s.reps}회 반복</span>
+                  <span class="font-display text-sm font-bold text-primary">${s.force}%</span>
+                </div>
+                <div class="force-bar-bg" style="height:8px;">
+                  <div class="force-bar-fill bg-primary" style="width:${s.force}%;height:100%"></div>
+                </div>
+              </div>
+              <div class="text-right flex-shrink-0" style="min-width:50px;">
+                <div class="text-xs text-on-surface-variant">유지</div>
+                <div class="font-display text-sm font-bold">${s.holdTime}초</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <!-- Close Button -->
+      <button onclick="closeSessionDetail()"
+              class="w-full bg-primary text-white font-display font-bold text-sm uppercase tracking-wider py-3 rounded-xl retro-border retro-shadow hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+        <span class="material-symbols-outlined text-base">arrow_back</span>
+        기록 목록으로 돌아가기
+      </button>
+    </div>
+  `;
+
+  modal.classList.add('open');
+}
+
+function closeSessionDetail() {
+  document.getElementById('session-detail-modal').classList.remove('open');
+}
+
+// Close on backdrop click
+document.getElementById('session-detail-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('session-detail-modal')) closeSessionDetail();
+});
+
+// Close on Escape key
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeSessionDetail();
+});
+
 function renderLog(sessions) {
   const list = document.getElementById('session-list');
   if (!sessions.length) {
     list.innerHTML = `<div class="text-center py-16 text-on-surface-variant font-display font-bold uppercase tracking-wide">아직 세션 기록이 없습니다.<br/><a href="training.html" class="text-primary mt-2 inline-block">첫 훈련 시작하기 →</a></div>`;
     return;
   }
-  list.innerHTML = sessions.map(s => `
-    <div class="bg-white retro-border retro-shadow rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:-translate-y-0.5 transition-transform">
+  list.innerHTML = sessions.map((s, idx) => `
+    <div class="bg-white retro-border retro-shadow rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:-translate-y-0.5 transition-transform cursor-pointer"
+         onclick="openSessionDetail(${idx})">
       <div class="flex items-center gap-4">
         <div class="w-10 h-10 rounded-full bg-surface-container retro-border flex items-center justify-center flex-shrink-0">
           <span class="material-symbols-outlined text-primary text-lg" style="font-variation-settings:'FILL' 1">fitness_center</span>
@@ -172,6 +407,7 @@ function renderLog(sessions) {
           <div class="font-display text-lg font-bold text-primary">${s.avgForce}%</div>
         </div>
         <div class="flex gap-0.5">${starsHtml(s.stars)}</div>
+        <span class="material-symbols-outlined text-on-surface-variant text-lg">chevron_right</span>
       </div>
     </div>
   `).join('');
@@ -222,6 +458,7 @@ function renderStats(sessions) {
 
 // Render
 const sessions = loadSessions();
+window._allSessions = sessions;
 document.getElementById('total-sessions').textContent = sessions.length;
 renderLog(sessions);
 renderStats(sessions);
