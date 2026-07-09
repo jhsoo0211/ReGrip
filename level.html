@@ -26,7 +26,7 @@
     stroke: #994626;
     stroke-width: 14;
     stroke-linecap: round;
-    transition: stroke-dashoffset 1s ease;
+    transition: stroke-dashoffset 1s var(--ease-out);
     transform: rotate(-90deg);
     transform-origin: center;
   }
@@ -111,6 +111,9 @@
     0%, 100% { transform: scale(1); }
     50% { transform: scale(1.08); }
   }
+
+  /* Card entrance (fade + rise) — cleared on animationend so .active transforms persist */
+  @keyframes levelCardRise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
 </style>
 </head>
 <body class="bg-background-sky text-on-surface">
@@ -150,25 +153,25 @@
                 <circle class="level-circle-bg" cx="110" cy="110" r="95"/>
                 <circle class="level-circle-fill" cx="110" cy="110" r="95"
                         stroke-dasharray="597"
-                        stroke-dashoffset="227"
+                        stroke-dashoffset="597"
                         id="level-progress-ring"/>
               </svg>
               <div class="level-circle-text">
                 <span class="material-symbols-outlined text-4xl text-primary mb-1" style="font-variation-settings:'FILL' 1">military_tech</span>
-                <div class="font-display text-4xl font-bold text-primary" id="current-level">Lv. 12</div>
-                <div class="font-display text-sm font-bold text-on-surface-variant uppercase tracking-widest" id="current-tier-name">초심자</div>
+                <div class="font-display text-4xl font-bold text-primary" id="current-level">Lv. —</div>
+                <div class="font-display text-sm font-bold text-on-surface-variant uppercase tracking-widest" id="current-tier-name">—</div>
               </div>
             </div>
 
             <!-- XP Info -->
             <div class="w-full grid grid-cols-2 gap-3">
               <div class="bg-surface-container retro-border rounded-xl p-4 text-center">
-                <div class="font-display text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-1">현재 XP</div>
-                <div class="font-display text-xl font-bold text-primary" id="current-xp">2,150</div>
+                <div class="font-display text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-1">현재 레벨 XP</div>
+                <div class="font-display text-xl font-bold text-primary tabular" id="current-xp">—</div>
               </div>
               <div class="bg-surface-container retro-border rounded-xl p-4 text-center">
-                <div class="font-display text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-1">다음 레벨</div>
-                <div class="font-display text-xl font-bold text-primary" id="next-level-xp">3,000</div>
+                <div class="font-display text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-1">레벨업 필요</div>
+                <div class="font-display text-xl font-bold text-primary tabular" id="next-level-xp">—</div>
               </div>
             </div>
 
@@ -176,12 +179,12 @@
             <div class="w-full">
               <div class="flex justify-between items-center mb-2">
                 <span class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">진행률</span>
-                <span class="font-display text-sm font-bold text-primary" id="xp-percent">62%</span>
+                <span class="font-display text-sm font-bold text-primary tabular" id="xp-percent">—</span>
               </div>
               <div class="w-full h-4 bg-surface-container retro-border rounded-full overflow-hidden">
-                <div class="h-full bg-primary rounded-full transition-all" id="xp-bar" style="width:62%;"></div>
+                <div class="h-full bg-primary rounded-full" id="xp-bar" style="width:0;"></div>
               </div>
-              <div class="text-center text-on-surface-variant text-xs mt-2" id="xp-remaining">다음 레벨까지 850 XP 남았습니다</div>
+              <div class="text-center text-on-surface-variant text-xs mt-2 tabular" id="xp-remaining" aria-live="polite">진행 상황을 불러오는 중…</div>
             </div>
           </div>
 
@@ -201,23 +204,23 @@
         <!-- Right Column: XP History + Rewards -->
         <div class="flex-1 flex flex-col gap-6">
 
-          <!-- XP Earning Summary -->
+          <!-- XP Earning Summary (누적 기준 — 총 XP = xpEvents 합계 불변식) -->
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div class="bg-white retro-border retro-shadow rounded-xl p-5 text-center">
-              <div class="font-display text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-2">총 획득 XP</div>
-              <div class="font-display text-2xl font-bold text-primary">2,150</div>
+              <div class="font-display text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-2">누적 획득 XP</div>
+              <div class="font-display text-2xl font-bold text-primary tabular" id="sum-total-xp">—</div>
             </div>
             <div class="bg-white retro-border retro-shadow rounded-xl p-5 text-center">
               <div class="font-display text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-2">이번 주 XP</div>
-              <div class="font-display text-2xl font-bold text-primary">380</div>
+              <div class="font-display text-2xl font-bold text-primary tabular" id="sum-week-xp">—</div>
             </div>
             <div class="bg-white retro-border retro-shadow rounded-xl p-5 text-center">
               <div class="font-display text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-2">오늘 XP</div>
-              <div class="font-display text-2xl font-bold text-primary">75</div>
+              <div class="font-display text-2xl font-bold text-primary tabular" id="sum-today-xp">—</div>
             </div>
             <div class="bg-white retro-border retro-shadow rounded-xl p-5 text-center">
               <div class="font-display text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-2">업적 보너스</div>
-              <div class="font-display text-2xl font-bold text-primary">600</div>
+              <div class="font-display text-2xl font-bold text-primary tabular" id="sum-ach-xp">—</div>
             </div>
           </div>
 
@@ -228,7 +231,7 @@
                 <span class="material-symbols-outlined text-primary text-base" style="font-variation-settings:'FILL' 1">history</span>
                 <span class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">최근 XP 획득 내역</span>
               </div>
-              <span class="font-display text-xs font-bold text-on-surface-variant">최근 7일</span>
+              <span class="font-display text-xs font-bold text-on-surface-variant">최근 내역</span>
             </div>
             <div class="px-5 py-2" id="xp-history">
               <!-- Populated by JS -->
@@ -305,64 +308,70 @@
 <script>
 initPage(null);
 
-// ── Tier Data ──
-const TIERS = [
-  { name: '입문자', range: 'Lv. 1 ~ 10',  icon: 'emoji_nature',      color: '#10B981', bg: '#DCFCE7' },
-  { name: '초심자', range: 'Lv. 11 ~ 20', icon: 'eco',               color: '#0284C7', bg: '#E0F2FE' },
-  { name: '중급자', range: 'Lv. 21 ~ 40', icon: 'bolt',              color: '#9333EA', bg: '#F3E8FF' },
-  { name: '숙련자', range: 'Lv. 41 ~ 60', icon: 'local_fire_department', color: '#CA8A04', bg: '#FEF9C3' },
-  { name: '전문가', range: 'Lv. 61 ~ 80', icon: 'diamond',           color: '#DC2626', bg: '#FEE2E2' },
-  { name: '마스터', range: 'Lv. 81 ~ 100',icon: 'workspace_premium', color: '#994626', bg: '#FFE9E3' },
+// 이 페이지의 모든 게이미피케이션 수치는 GamificationEngine.getStats() 단일 소스에서만 렌더한다.
+// (로컬 상수 TIERS / CURRENT_LEVEL / CURRENT_TIER_INDEX / XP_HISTORY 삭제됨)
+
+// 레벨 보상 카탈로그 (해제 여부는 현재 레벨에서 파생 — r.level <= stats.level)
+const REWARDS = [
+  { level: 5,  icon: 'palette',           label: '테마 색상 해제' },
+  { level: 10, icon: 'celebration',       label: '프로필 프레임' },
+  { level: 15, icon: 'sports_esports',    label: '새 게임 모드' },
+  { level: 20, icon: 'auto_awesome',      label: '특수 이펙트' },
+  { level: 30, icon: 'workspace_premium', label: '골드 배지' },
+  { level: 50, icon: 'diamond',           label: '마스터 칭호' },
 ];
 
-const CURRENT_LEVEL = 12;
-const CURRENT_TIER_INDEX = 1; // 초심자
-
-function renderTiers() {
+function renderTiers(currentIndex) {
   const container = document.getElementById('tier-list');
-  container.innerHTML = TIERS.map((t, i) => `
-    <div class="tier-card ${i === CURRENT_TIER_INDEX ? 'active' : ''}" style="background:${t.bg};">
+  container.innerHTML = GamificationEngine.TIERS.map((t, i) => `
+    <div class="tier-card ${i === currentIndex ? 'active' : ''}" style="background:${t.bg};">
       <div class="tier-icon" style="background:${t.bg};border-color:${t.color};">
         <span class="material-symbols-outlined" style="color:${t.color};font-size:22px;font-variation-settings:'FILL' 1">${t.icon}</span>
       </div>
       <div class="flex-1">
-        <div class="font-display text-sm font-bold" style="color:${i === CURRENT_TIER_INDEX ? '#251915' : '#58423a'}">${t.name}</div>
+        <div class="font-display text-sm font-bold" style="color:${i === currentIndex ? '#251915' : '#58423a'}">${t.name}</div>
         <div class="text-xs" style="color:#58423a">${t.range}</div>
       </div>
-      ${i === CURRENT_TIER_INDEX
+      ${i === currentIndex
         ? '<span class="font-display text-xs font-bold tracking-wider uppercase px-3 py-1 rounded-full retro-border text-white" style="background:#994626;">현재</span>'
-        : i < CURRENT_TIER_INDEX
+        : i < currentIndex
           ? '<span class="material-symbols-outlined text-lg" style="color:#16A34A;font-variation-settings:\'FILL\' 1">check_circle</span>'
           : '<span class="material-symbols-outlined text-lg text-on-surface-variant" style="font-variation-settings:\'FILL\' 1">lock</span>'
       }
     </div>
   `).join('');
+
+  // tier 카드 stagger (fade+rise) — animationend에서 인라인 애니메이션 제거해 .active 변형 유지
+  if (!prefersReducedMotion()) {
+    container.querySelectorAll('.tier-card').forEach((el, i) => {
+      el.style.animation = 'levelCardRise 350ms var(--ease-out) both';
+      el.style.animationDelay = `${i * 60}ms`;
+      el.addEventListener('animationend', () => { el.style.animation = ''; el.style.animationDelay = ''; }, { once: true });
+    });
+  }
 }
 
-// ── XP History ──
-const XP_HISTORY = [
-  { date: '2026.06.06', label: '완전 그립 훈련 완료', xp: 75, icon: 'fitness_center', color: '#994626' },
-  { date: '2026.06.05', label: '핀치 그립 훈련 완료', xp: 65, icon: 'fitness_center', color: '#994626' },
-  { date: '2026.06.05', label: '별 3개 달성 보너스', xp: 50, icon: 'star', color: '#CA8A04' },
-  { date: '2026.06.04', label: '측면 그립 훈련 완료', xp: 80, icon: 'fitness_center', color: '#994626' },
-  { date: '2026.06.03', label: '7일 연속 출석 보너스', xp: 200, icon: 'local_fire_department', color: '#DC2626' },
-  { date: '2026.06.03', label: '크레인 게임 완료', xp: 110, icon: 'sports_esports', color: '#9333EA' },
-  { date: '2026.06.02', label: '풍선 게임 완료', xp: 90, icon: 'sports_esports', color: '#9333EA' },
-  { date: '2026.06.01', label: '「꾸준함의 왕」 업적 달성', xp: 300, icon: 'emoji_events', color: '#16A34A' },
-];
-
-function renderXPHistory() {
+function renderXPHistory(events) {
   const container = document.getElementById('xp-history');
-  container.innerHTML = XP_HISTORY.map(h => `
+  const list = (events || []).slice(0, 8);
+  if (!list.length) {
+    container.innerHTML = `
+      <div class="empty-state" style="border:none;background:transparent;padding:28px 8px;">
+        <div class="empty-state-icon"><span class="material-symbols-outlined">history</span></div>
+        <p class="empty-state-desc">훈련을 시작하면 XP 내역이 쌓입니다.</p>
+      </div>`;
+    return;
+  }
+  container.innerHTML = list.map(h => `
     <div class="xp-row">
       <div class="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style="background:${h.color}20;border:2px solid ${h.color};">
         <span class="material-symbols-outlined text-sm" style="color:${h.color};font-variation-settings:'FILL' 1">${h.icon}</span>
       </div>
       <div class="flex-1">
         <div class="font-display text-sm font-bold">${h.label}</div>
-        <div class="text-on-surface-variant text-xs">${h.date}</div>
+        <div class="text-on-surface-variant text-xs tabular">${formatKoreanDate(h.date)}</div>
       </div>
-      <div class="xp-badge" style="background:#DCFCE7;color:#16A34A;border-color:#16A34A;">
+      <div class="xp-badge tabular" style="background:${h.color}1A;color:${h.color};border-color:${h.color};">
         +${h.xp}
         <span class="text-xs">XP</span>
       </div>
@@ -370,40 +379,88 @@ function renderXPHistory() {
   `).join('');
 }
 
-// ── Rewards ──
-const REWARDS = [
-  { level: 5,  icon: 'palette',           label: '테마 색상 해제',    unlocked: true },
-  { level: 10, icon: 'celebration',        label: '프로필 프레임',     unlocked: true },
-  { level: 15, icon: 'sports_esports',     label: '새 게임 모드',     unlocked: false },
-  { level: 20, icon: 'auto_awesome',       label: '특수 이펙트',      unlocked: false },
-  { level: 30, icon: 'workspace_premium',  label: '골드 배지',        unlocked: false },
-  { level: 50, icon: 'diamond',            label: '마스터 칭호',      unlocked: false },
-];
-
-function renderRewards() {
+function renderRewards(currentLevel) {
   const container = document.getElementById('rewards-grid');
-  container.innerHTML = REWARDS.map(r => `
-    <div class="reward-card ${r.unlocked ? 'unlocked' : 'locked'}">
+  container.innerHTML = REWARDS.map(r => {
+    const unlocked = r.level <= currentLevel;
+    return `
+    <div class="reward-card ${unlocked ? 'unlocked' : 'locked'}">
       <div class="w-12 h-12 rounded-full mx-auto mb-3 flex items-center justify-center"
-           style="background:${r.unlocked ? '#FFE9E3' : '#f5ded7'};border:2px solid ${r.unlocked ? '#0F172A' : '#dfc0b6'};">
+           style="background:${unlocked ? '#FFE9E3' : '#f5ded7'};border:2px solid ${unlocked ? '#0F172A' : '#dfc0b6'};">
         <span class="material-symbols-outlined text-xl"
-              style="color:${r.unlocked ? '#994626' : '#94A3B8'};font-variation-settings:'FILL' 1">${r.icon}</span>
+              style="color:${unlocked ? '#994626' : 'var(--ink-muted)'};font-variation-settings:'FILL' 1">${r.icon}</span>
       </div>
       <div class="font-display text-xs font-bold tracking-wider uppercase mb-1">${r.label}</div>
       <div class="font-display text-[10px] font-bold tracking-widest text-on-surface-variant uppercase">
-        ${r.unlocked
+        ${unlocked
           ? '<span style="color:#16A34A;">해제됨 ✓</span>'
-          : `Lv. ${r.level} 필요`
-        }
+          : `Lv. ${r.level} 필요`}
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
-// Render all
-renderTiers();
-renderXPHistory();
-renderRewards();
+(async function renderLevel() {
+  const stats = await GamificationEngine.getStats();
+  const rm = prefersReducedMotion();
+
+  // ── 레벨 서클 카드 ──
+  document.getElementById('current-level').textContent     = `Lv. ${stats.level}`;
+  document.getElementById('current-tier-name').textContent = stats.tier.name;
+
+  const intoLevel = stats.xpIntoLevel;   // 현재 레벨 진입 후 쌓은 XP
+  const forNext   = stats.xpForNext;      // 이번 레벨업에 필요한 XP (0 = 만렙)
+  const pct       = stats.progressPct;    // 정확한 float (표시 시 반올림)
+  const atMax     = forNext <= 0;
+  // 산술 정합: remaining = forNext - intoLevel,  pct = intoLevel / forNext * 100,
+  //           ring offset = 597 * (1 - pct/100). 화면 4곳(XP/퍼센트/링/남은 XP)이 모두 일치.
+  const remaining = atMax ? 0 : Math.max(0, forNext - intoLevel);
+
+  const curXpEl  = document.getElementById('current-xp');
+  const nextXpEl = document.getElementById('next-level-xp');
+  const pctEl    = document.getElementById('xp-percent');
+  const barEl    = document.getElementById('xp-bar');
+  const remEl    = document.getElementById('xp-remaining');
+
+  animateCount(curXpEl, intoLevel);
+  if (!atMax) {
+    animateCount(nextXpEl, forNext);
+    pctEl.textContent = Math.round(pct) + '%';
+    remEl.textContent = `다음 레벨까지 ${remaining} XP 남았습니다`;
+  } else {
+    nextXpEl.textContent = 'MAX';
+    pctEl.textContent = '100%';
+    remEl.textContent = '최고 레벨에 도달했습니다';
+  }
+
+  // ── 원형 진행 링 (597 = 2πr, r=95) ──
+  const ring = document.getElementById('level-progress-ring');
+  const shownPct = atMax ? 100 : pct;
+  const targetOffset = 597 * (1 - shownPct / 100);
+  if (rm) {
+    ring.style.strokeDashoffset = targetOffset;
+    barEl.style.width = shownPct + '%';
+  } else {
+    ring.style.strokeDashoffset = 597;   // 빈 상태에서 시작
+    barEl.style.width = '0%';
+    requestAnimationFrame(() => {
+      ring.style.strokeDashoffset = targetOffset;   // CSS transition 1s로 채워짐
+      barEl.style.transition = 'width 1s var(--ease-out)';
+      barEl.style.width = shownPct + '%';
+    });
+  }
+
+  // ── XP 요약 (누적/이번 주/오늘/업적 — 모두 xpEvents와 정합) ──
+  animateCount(document.getElementById('sum-total-xp'), stats.totalXp);
+  animateCount(document.getElementById('sum-week-xp'),  stats.weeklyXp);
+  animateCount(document.getElementById('sum-today-xp'), stats.todayXp);
+  animateCount(document.getElementById('sum-ach-xp'),   stats.achievementXp);
+
+  // ── 티어 / XP 내역 / 보상 ──
+  renderTiers(stats.tierIndex);
+  renderXPHistory(stats.xpEvents);
+  renderRewards(stats.level);
+})();
 </script>
 </body>
 </html>

@@ -8,6 +8,13 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=DM+Sans:wght@400;500;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="shared.css"/>
 <script src="tailwind-config.js"></script>
+<style>
+  /* Card entrance (fade + rise 16px) — cleared on animationend so hover transforms work */
+  @keyframes homeCardRise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+  /* Unified bento hover: lift -2/-2px, hard shadow 4px→6px (blur 0) */
+  .bento-hover { transition: transform var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out); }
+  .bento-hover:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0px 0px var(--ink); }
+</style>
 </head>
 <body class="bg-background-sky text-on-surface">
 
@@ -20,32 +27,32 @@
     <div class="max-w-[1100px] mx-auto px-8 py-8 flex flex-col gap-6">
 
       <!-- Greeting -->
-      <section class="bg-surface retro-border retro-shadow rounded-xl p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative overflow-hidden">
+      <section id="greeting-section" class="bg-surface retro-border retro-shadow rounded-xl p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative overflow-hidden">
         <div class="absolute -right-8 -top-8 opacity-10 pointer-events-none select-none">
           <span class="material-symbols-outlined" style="font-size:180px">sports_esports</span>
         </div>
         <div class="relative z-10">
-          <h1 class="font-display text-4xl md:text-5xl font-bold text-ink-black mb-2 uppercase tracking-tight leading-tight">
+          <h1 id="greeting-title" class="font-display text-4xl md:text-5xl font-bold text-ink-black mb-2 uppercase tracking-tight leading-tight">
             안녕하세요,<br/>사용자님! <span class="inline-block animate-bounce origin-bottom">👋</span>
           </h1>
-          <p class="text-on-surface-variant text-lg max-w-xl">오늘도 목표를 향해 나아갈 준비가 되셨나요? 꾸준한 노력이 큰 변화를 만듭니다.</p>
+          <p id="greeting-sub" class="text-on-surface-variant text-lg max-w-xl">오늘도 목표를 향해 나아갈 준비가 되셨나요? 꾸준한 노력이 큰 변화를 만듭니다.</p>
         </div>
         <a href="level.html" class="no-underline bg-surface-container-highest p-5 rounded-xl retro-border retro-shadow-sm relative z-10 text-center min-w-[130px] hover:opacity-90 transition-opacity block">
           <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-2">현재 레벨</div>
           <div class="font-display text-xl font-bold text-primary flex items-center justify-center gap-2">
             <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1">military_tech</span>
-            Lv. 12
+            <span id="home-level">Lv. —</span>
           </div>
-          <div class="text-sm text-on-surface-variant mt-1">초심자</div>
+          <div class="text-sm text-on-surface-variant mt-1" id="home-tier">—</div>
           <div class="text-xs text-primary mt-1 font-display font-bold uppercase tracking-wider">상세보기 →</div>
         </a>
       </section>
 
       <!-- Bento Grid -->
-      <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+      <div id="bento" class="grid grid-cols-1 md:grid-cols-12 gap-6">
 
         <!-- Main CTA -->
-        <div class="md:col-span-8 rounded-xl retro-border retro-shadow p-8 flex flex-col justify-between min-h-[280px] relative overflow-hidden group"
+        <div class="md:col-span-8 bento-hover rounded-xl retro-border retro-shadow p-8 flex flex-col justify-between min-h-[280px] relative overflow-hidden group"
              style="background-color:#FFB38E;">
           <div class="absolute inset-0 opacity-10"
                style="background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.3) 0,rgba(255,255,255,.3) 10px,transparent 10px,transparent 20px);background-size:28px 28px;"></div>
@@ -70,77 +77,51 @@
 
         <!-- Today Stats -->
         <div class="md:col-span-4 flex flex-col gap-4">
-          <div class="bg-surface rounded-xl retro-border retro-shadow p-5 flex items-center gap-4">
+          <div class="bg-surface rounded-xl retro-border retro-shadow p-5 flex items-center gap-4 bento-hover">
             <div class="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center retro-border flex-shrink-0">
               <span class="material-symbols-outlined text-primary" style="font-variation-settings:'FILL' 1">local_fire_department</span>
             </div>
             <div>
               <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">연속 출석</div>
-              <div class="font-display text-2xl font-bold text-primary">7일</div>
+              <div class="font-display text-2xl font-bold text-primary tabular" id="home-streak">—</div>
             </div>
           </div>
-          <div class="bg-surface rounded-xl retro-border retro-shadow p-5 flex items-center gap-4">
+          <div class="bg-surface rounded-xl retro-border retro-shadow p-5 flex items-center gap-4 bento-hover">
             <div class="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center retro-border flex-shrink-0">
               <span class="material-symbols-outlined text-primary" style="font-variation-settings:'FILL' 1">trending_up</span>
             </div>
             <div>
               <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">이번 주 악력</div>
-              <div class="font-display text-2xl font-bold text-primary">+12%</div>
+              <div class="font-display text-2xl font-bold text-primary tabular" id="home-force-delta" aria-live="polite">—</div>
             </div>
           </div>
-          <div class="bg-surface rounded-xl retro-border retro-shadow p-5 flex items-center gap-4">
+          <div class="bg-surface rounded-xl retro-border retro-shadow p-5 flex items-center gap-4 bento-hover">
             <div class="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center retro-border flex-shrink-0">
               <span class="material-symbols-outlined text-primary" style="font-variation-settings:'FILL' 1">workspace_premium</span>
             </div>
             <div>
               <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">획득 배지</div>
-              <div class="font-display text-2xl font-bold text-primary">3 / 5</div>
+              <div class="font-display text-2xl font-bold text-primary tabular" id="home-badges" aria-live="polite">—</div>
             </div>
           </div>
         </div>
 
         <!-- Progress Bar Card -->
-        <div class="md:col-span-6 bg-surface rounded-xl retro-border retro-shadow p-6">
+        <div class="md:col-span-6 bg-surface rounded-xl retro-border retro-shadow p-6 bento-hover">
           <div class="flex items-center justify-between mb-4">
             <h3 class="font-display text-base font-bold uppercase tracking-wide">이번 주 목표 달성률</h3>
-            <span class="font-display text-2xl font-bold text-primary">5 / 7일</span>
+            <span class="font-display text-2xl font-bold text-primary tabular" id="home-weekly-count" aria-live="polite">—</span>
           </div>
           <div class="w-full h-5 bg-surface-container rounded-full retro-border overflow-hidden mb-2">
-            <div class="h-full bg-primary rounded-full transition-all" style="width:71%;"></div>
+            <div class="h-full bg-primary rounded-full" id="home-weekly-bar" style="width:0;"></div>
           </div>
-          <p class="text-on-surface-variant text-sm">목표까지 2일 남았습니다. 화이팅!</p>
+          <p class="text-on-surface-variant text-sm" id="home-weekly-msg" aria-live="polite">주간 목표를 불러오는 중…</p>
         </div>
 
         <!-- Recent Session -->
-        <div class="md:col-span-6 bg-surface rounded-xl retro-border retro-shadow p-6">
+        <div class="md:col-span-6 bg-surface rounded-xl retro-border retro-shadow p-6 bento-hover">
           <h3 class="font-display text-base font-bold uppercase tracking-wide mb-4">최근 세션</h3>
-          <div class="space-y-3">
-            <div class="flex items-center justify-between py-2 border-b border-outline-variant">
-              <div>
-                <div class="font-display text-sm font-bold">완전 그립 훈련</div>
-                <div class="text-on-surface-variant text-xs">2026.06.05 · 25분 · 8세트</div>
-              </div>
-              <div class="flex gap-0.5">
-                <span class="material-symbols-outlined text-yellow-400 text-base" style="font-variation-settings:'FILL' 1">star</span>
-                <span class="material-symbols-outlined text-yellow-400 text-base" style="font-variation-settings:'FILL' 1">star</span>
-                <span class="material-symbols-outlined text-yellow-400 text-base" style="font-variation-settings:'FILL' 1">star</span>
-              </div>
-            </div>
-            <div class="flex items-center justify-between py-2 border-b border-outline-variant">
-              <div>
-                <div class="font-display text-sm font-bold">핀치 그립 훈련</div>
-                <div class="text-on-surface-variant text-xs">2026.06.04 · 18분 · 6세트</div>
-              </div>
-              <div class="flex gap-0.5">
-                <span class="material-symbols-outlined text-yellow-400 text-base" style="font-variation-settings:'FILL' 1">star</span>
-                <span class="material-symbols-outlined text-yellow-400 text-base" style="font-variation-settings:'FILL' 1">star</span>
-                <span class="material-symbols-outlined text-base text-on-surface-variant">star</span>
-              </div>
-            </div>
-            <div class="text-center mt-2">
-              <a href="history.html" class="text-primary text-sm font-display font-bold uppercase tracking-wide hover:underline">전체 기록 보기 →</a>
-            </div>
-          </div>
+          <div class="space-y-3" id="home-recent"></div>
         </div>
 
         <!-- Quick Nav Tiles -->
@@ -172,6 +153,106 @@
 </div>
 
 <script src="shared.js"></script>
-<script>initPage('home');</script>
+<script>
+initPage('home');
+
+// 이 페이지의 모든 게이미피케이션 수치는 GamificationEngine.getStats() 단일 소스에서만 렌더한다.
+(async function renderHome() {
+  const stats   = await GamificationEngine.getStats();
+  const profile = DataService.getProfileSync();
+  const empty   = stats.totalSessions === 0;
+  const rm      = prefersReducedMotion();
+  const wave    = '<span class="inline-block animate-bounce origin-bottom">👋</span>';
+
+  // ── 인사말 ──
+  const name = profile.name || '사용자';
+  if (empty) {
+    document.getElementById('greeting-title').innerHTML = `첫 훈련을<br/>시작해 보세요 ${wave}`;
+    document.getElementById('greeting-sub').textContent = '센서를 연결하고 첫 세션을 완료하면 여기에 진행 상황이 채워집니다.';
+  } else {
+    document.getElementById('greeting-title').innerHTML = `안녕하세요,<br/>${name}님! ${wave}`;
+  }
+
+  // ── 레벨 칩 ──
+  document.getElementById('home-level').textContent = `Lv. ${stats.level}`;
+  document.getElementById('home-tier').textContent  = stats.tier.name;
+
+  // ── 오늘의 통계 ──
+  animateCount(document.getElementById('home-streak'), stats.streak, { suffix: '일' });
+
+  const d = stats.weeklyForceDeltaPct;               // null 가능
+  document.getElementById('home-force-delta').textContent =
+    d == null ? '—' : `${d > 0 ? '+' : ''}${Math.round(d)}%`;
+
+  document.getElementById('home-badges').textContent = `${stats.earnedCount} / ${stats.totalAchievements}`;
+
+  // ── 주간 목표 ──
+  const done = stats.weeklyDoneDays, goal = stats.weeklyGoalDays;
+  document.getElementById('home-weekly-count').textContent = `${done} / ${goal}일`;
+  const pct = goal > 0 ? Math.min(100, (done / goal) * 100) : 0;
+  const bar = document.getElementById('home-weekly-bar');
+  document.getElementById('home-weekly-msg').textContent =
+    (goal > 0 && done >= goal) ? '이번 주 목표를 달성했어요. 훌륭해요.'
+                               : `목표까지 ${Math.max(0, goal - done)}일 남았습니다.`;
+  if (rm) {
+    bar.style.width = pct + '%';
+  } else {
+    bar.style.transition = 'width 600ms var(--ease-out)';
+    requestAnimationFrame(() => { bar.style.width = pct + '%'; });
+  }
+
+  // ── 최근 세션 (상위 2건) ──
+  const recentEl = document.getElementById('home-recent');
+  if (empty) {
+    renderEmptyState(recentEl, {
+      icon: 'sports_esports',
+      title: '아직 훈련 기록이 없어요',
+      desc: '첫 세션을 완료하면 최근 기록이 여기에 표시됩니다.',
+      ctaHref: 'training.html',
+      ctaLabel: '첫 훈련 시작하기',
+    });
+  } else {
+    const starRow = (n) => {
+      let out = '';
+      for (let i = 1; i <= 3; i++) {
+        const on = i <= (n || 0);
+        out += `<span class="material-symbols-outlined text-base ${on ? 'text-yellow-400' : 'text-on-surface-variant'}"${on ? " style=\"font-variation-settings:'FILL' 1\"" : ''}>star</span>`;
+      }
+      return out;
+    };
+    const rows = stats.recentSessions.slice(0, 2).map(s => {
+      const mins = s.durationMin ?? Math.round((s.durationSec || 0) / 60);
+      return `
+      <div class="flex items-center justify-between py-2 border-b border-outline-variant">
+        <div class="flex items-center gap-3">
+          <span class="material-symbols-outlined text-primary" style="font-variation-settings:'FILL' 1">${s.icon}</span>
+          <div>
+            <div class="font-display text-sm font-bold">${s.label || '훈련'}</div>
+            <div class="text-on-surface-variant text-xs tabular">${formatKoreanDate(s.date)} · ${mins}분 · ${s.sets || 0}세트</div>
+          </div>
+        </div>
+        <div class="flex gap-0.5">${starRow(s.stars)}</div>
+      </div>`;
+    }).join('');
+    recentEl.innerHTML = rows + `
+      <div class="text-center mt-2">
+        <a href="history.html" class="text-primary text-sm font-display font-bold uppercase tracking-wide hover:underline">전체 기록 보기 →</a>
+      </div>`;
+  }
+
+  // ── 카드 entrance stagger (fade+rise 16px, 350ms, 70ms 간격) ──
+  if (!rm) {
+    const cards = [
+      document.getElementById('greeting-section'),
+      ...document.querySelectorAll('#bento > div'),
+    ].filter(Boolean);
+    cards.forEach((el, i) => {
+      el.style.animation = 'homeCardRise 350ms var(--ease-out) both';
+      el.style.animationDelay = `${i * 70}ms`;
+      el.addEventListener('animationend', () => { el.style.animation = ''; el.style.animationDelay = ''; }, { once: true });
+    });
+  }
+})();
+</script>
 </body>
 </html>
