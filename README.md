@@ -115,13 +115,15 @@ python -m http.server 8000
 ## 🔌 센서 연결
 
 ### 하드웨어 요구사항
-- Arduino 또는 Raspberry Pi
+- **ESP32** (WiFi 내장 — 무선 연결 우선)
 - FSR (Force Sensitive Resistor) 센서
 - WebSocket 서버 (포트 8080 권장)
 
 ### 연결 방법
 
-센서 장치에서 WebSocket 서버를 실행하고, JSON 형식으로 데이터를 전송합니다:
+무선(WiFi)이 기본입니다. ESP32가 같은 공유기(또는 SoftAP)에서 WebSocket 서버를 실행하고,
+브라우저가 `ws://<esp32-ip>:8080`으로 접속해 JSON 데이터를 수신합니다.
+(BLE·USB 유선(Web Serial)은 확장 전송 옵션 — `docs/backend/04-sensor-data-policy.md` ADR-04-0 참조)
 
 ```javascript
 // 센서 데이터 형식
@@ -134,8 +136,8 @@ python -m http.server 8000
 앱에서 연결:
 
 ```javascript
-// 센서 연결
-SensorService.connect('ws://localhost:8080');
+// 센서 연결 (ESP32의 로컬 IP)
+SensorService.connect('ws://192.168.0.42:8080');
 
 // 악력 데이터 수신
 SensorService.onForceUpdate(force => {
@@ -146,18 +148,26 @@ SensorService.onForceUpdate(force => {
 SensorService.disconnect();
 ```
 
-### Arduino 예시 코드
+### ESP32 예시 코드 (Arduino 프레임워크)
 
 ```cpp
+#include <WiFi.h>
 #include <WebSocketsServer.h>
 
 WebSocketsServer ws(8080);
 
+void setup() {
+  WiFi.begin("YOUR_SSID", "YOUR_PASSWORD");
+  while (WiFi.status() != WL_CONNECTED) delay(200);
+  // Serial.println(WiFi.localIP());  // 이 IP로 SensorService.connect()
+  ws.begin();
+}
+
 void loop() {
-  int raw = analogRead(A0);
-  float force = map(raw, 0, 1023, 0, 100);
-  
-  String json = "{\"force\":" + String(force) + 
+  ws.loop();
+  int raw = analogRead(34);                    // FSR on GPIO34 (ADC1)
+  float force = raw / 4095.0f * 100.0f;        // ESP32 ADC는 12bit(0~4095)
+  String json = "{\"force\":" + String(force) +
                 ",\"timestamp\":" + String(millis()) + "}";
   ws.broadcastTXT(json);
   delay(50);  // 20Hz

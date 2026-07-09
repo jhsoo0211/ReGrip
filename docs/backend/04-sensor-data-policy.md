@@ -12,11 +12,45 @@
 
 ---
 
+## ADR-04-0: 기기 전송 계층 — ESP32 무선(WiFi WebSocket) 우선
+
+### 배경(Context)
+
+센서 기기는 **ESP32**(WiFi + BLE 내장 MCU)다. 연결 방식은 무선/유선 양쪽이 가능하며, 제품 방향은 **무선 우선**이다. 브라우저에서 사용할 수 있는 전송 후보는 세 가지다.
+
+| 전송 | 방식 | 브라우저 지원 | 비고 |
+|---|---|---|---|
+| **WiFi WebSocket** (권장) | ESP32가 같은 공유기(또는 SoftAP)에서 WS 서버 구동, 브라우저가 `ws://<esp32-ip>:8080` 접속 | 전 브라우저 (iOS Safari 포함) | 현 `SensorService.connect()` 설계와 **무수정 호환** |
+| BLE (Web Bluetooth) | GATT notify로 force 스트림 | Chrome/Edge만, secure context 필요, **iOS 미지원** | 공유기 없는 환경에 유리하나 지원 폭이 좁음 |
+| USB 유선 (Web Serial) | 시리얼 스트림 | Chrome/Edge만, secure context 필요 | 유선 폴백·개발 디버깅용 |
+
+### 결정(Decision)
+
+**WiFi WebSocket을 1차 전송으로 채택**한다. ESP32는 로컬망에서 WS 서버(`{force, timestamp}` JSON, 20Hz)를 구동하고, 프론트 `SensorService.connect('ws://<esp32-ip>:8080')`가 그대로 연결한다. BLE·Web Serial은 `SensorService`에 어댑터(transport) 계층을 추가하는 확장 과제로 보류한다.
+
+### 근거(Why)
+
+1. **현행 코드 호환**: `SensorService`가 이미 WS 상태 머신(재연결·상태 이벤트·캘리브레이션 정규화)을 갖추고 있어 기기 펌웨어만 맞추면 된다.
+2. **지원 폭**: BLE(Web Bluetooth)는 iOS Safari가 미지원이라 재활 환자 태블릿/아이패드 시나리오를 배제하게 된다. WiFi WS는 전 브라우저에서 동작한다.
+3. **대역**: 20Hz JSON은 WiFi에서 무시 가능한 트래픽이고 BLE notify 한계와도 무관하다.
+
+### 주의(Constraints)
+
+- **Mixed content**: HTTPS로 서빙되는 페이지는 비보안 `ws://` 연결이 차단된다. 프로토타입(로컬 서빙)은 무관하나, 정식 배포 시 ① 로컬 훈련 페이지를 `http://localhost` 헬퍼로 열거나 ② ESP32 mDNS + 로컬 게이트웨이 등 연결 전략을 별도 설계해야 한다(백엔드 MVP 범위 외, 기기 펌웨어 과제와 함께 결정).
+- 기기 식별: 세션 제출 시 `deviceSerial`(ESP32 시리얼)을 함께 보내 [01-erd.md](./01-erd.md) `devices`/`calibrations`와 연결한다.
+
+### 기각된 대안(Rejected)
+
+- **BLE 1차 채택**: iOS 미지원 + secure context 제약으로 지원 폭이 좁다. 공유기 없는 환경 요구가 실측되면 어댑터로 추가한다.
+- **유선(Web Serial) 1차 채택**: 무선 우선이라는 제품 방향과 상충. 개발/폴백 용도로만 유지.
+
+---
+
 ## ADR-04-1: 센서 실시간 데이터는 로컬 처리, 서버는 세션 요약만 수신
 
 ### 배경(Context)
 
-FSR 악력 센서는 Arduino/RPi에서 로컬 WebSocket(`ws://localhost:8080`)으로 `{force: 0~100, timestamp}`를 약 20Hz(설계상 최대 30~60Hz까지 가능)로 브라우저에 흘려보낸다. 브라우저 게임 루프(`requestAnimationFrame`)가 이 값을 받아 풍선/크레인을 실시간으로 움직인다. 센서와 브라우저는 **같은 로컬 네트워크**에 있다.
+FSR 악력 센서는 ESP32에서 로컬 WebSocket(`ws://<esp32-ip>:8080`, ADR-04-0)으로 `{force: 0~100, timestamp}`를 약 20Hz(설계상 최대 30~60Hz까지 가능)로 브라우저에 흘려보낸다. 브라우저 게임 루프(`requestAnimationFrame`)가 이 값을 받아 풍선/크레인을 실시간으로 움직인다. 센서와 브라우저는 **같은 로컬 네트워크**에 있다.
 
 질문: 이 고빈도 스트림을 서버로 보내야 하는가?
 
@@ -95,7 +129,7 @@ Content-Type: application/octet-stream (또는 gzip 압축 바이너리)
 ## 요약: 데이터 흐름
 
 ```
-[FSR 센서 20~60Hz] --ws://localhost:8080--> [브라우저 게임 루프(rAF, 로컬 처리)]
+[ESP32 + FSR 센서 20~60Hz] --WiFi ws://<esp32-ip>:8080--> [브라우저 게임 루프(rAF, 로컬 처리)]
                                                      |
                                     세션 종료 시 요약 계산(avg/max/score/1Hz series)
                                                      |

@@ -283,10 +283,11 @@ const DataService = {
 // ═══════════════════════════════════════════════════════════════════════════════
 // SENSOR SERVICE — simulation now, WebSocket / Serial later
 //
-// Arduino/RPi integration:
-//   1. Run a WebSocket server on the device (port 8080)
-//   2. Send JSON: { "force": 73.5, "timestamp": 1717648200000 }
-//   3. Call: SensorService.connect('ws://localhost:8080')
+// ESP32 integration (wireless-first — see docs/backend/04-sensor-data-policy.md ADR-04-0):
+//   1. ESP32 runs a WebSocket server on the local network (port 8080)
+//   2. Sends JSON: { "force": 73.5, "timestamp": 1717648200000 }
+//   3. Call: SensorService.connect('ws://<esp32-ip>:8080')
+//   (BLE / Web Serial are future transport adapters; wired USB is the fallback.)
 //
 // Status machine: 'simulation' | 'connecting' | 'connected' | 'disconnected'
 //   connect()  → 'connecting'  (onopen → 'connected')
