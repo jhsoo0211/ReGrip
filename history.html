@@ -9,7 +9,18 @@
 <link rel="stylesheet" href="shared.css"/>
 <script src="tailwind-config.js"></script>
 <style>
-  .tab-btn { transition: background 0.15s, color 0.15s, box-shadow 0.1s; }
+  /* Tabs — appearance driven ONLY by .tab-btn / .tab-btn.active (no inline styles) */
+  .tab-btn {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    color: #58423a;
+    border: 2px solid #0F172A;
+    box-shadow: none;
+    transition: background 0.15s, color 0.15s, box-shadow 0.1s, transform 0.1s;
+  }
   .tab-btn.active {
     background: #994626;
     color: #fff;
@@ -23,8 +34,46 @@
   .bar-col { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; }
   .bar-track { width: 100%; background: #FFE9E3; border: 2px solid #0F172A; border-radius: 4px; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; }
   .bar-fill  { background: #994626; border-radius: 2px; transition: height 0.6s ease; }
-  .bar-label { font-family: 'Space Grotesk', sans-serif; font-size: 11px; font-weight: 700; color: #58423a; text-align: center; }
-  .bar-val   { font-family: 'Space Grotesk', sans-serif; font-size: 12px; font-weight: 700; color: #251915; }
+  .bar-label { font-family: 'Space Grotesk', sans-serif; font-size: 12px; font-weight: 700; color: #58423a; text-align: center; }
+  .bar-val   { font-family: 'Space Grotesk', sans-serif; font-size: 12px; font-weight: 700; color: #251915; transition: transform 0.15s ease, color 0.15s ease; }
+  .bar-col:hover .bar-val  { transform: scale(1.18); color: #994626; }
+  .bar-col:hover .bar-fill { filter: brightness(1.08); }
+
+  /* Stats empty-state helpers */
+  .stat-muted { color: var(--ink-muted) !important; }
+  .chart-placeholder {
+    flex: 1;
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    border: 2px dashed #0F172A;
+    border-radius: 12px;
+    color: var(--ink-secondary);
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 16px;
+  }
+
+  /* Session card entrance + hover (own CSS so hover transform never fights Tailwind) */
+  .session-card { opacity: 0; transform: translateY(14px); transition: opacity 0.4s var(--ease-out), transform 0.4s var(--ease-out); }
+  .session-card.in { opacity: 1; transform: translateY(0); }
+  .session-card.in:hover { transform: translateY(-3px); }
+
+  /* Decorative number marker (number-details) */
+  .card-index {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.14em;
+    color: #dfc0b6;
+    width: 22px;
+    text-align: center;
+    flex-shrink: 0;
+  }
 
   /* Session Detail Modal */
   #session-detail-modal {
@@ -130,12 +179,12 @@
 
       <!-- Tabs -->
       <div class="flex gap-3">
-        <button onclick="switchTab('log')" id="tab-log"
-                class="tab-btn active font-display font-bold text-sm uppercase tracking-wider px-6 py-2.5 rounded retro-border bg-primary text-white">
+        <button type="button" onclick="switchTab('log')" id="tab-log"
+                class="tab-btn active font-display font-bold text-sm uppercase tracking-wider px-6 py-2.5 rounded">
           기록
         </button>
-        <button onclick="switchTab('stats')" id="tab-stats"
-                class="tab-btn font-display font-bold text-sm uppercase tracking-wider px-6 py-2.5 rounded retro-border bg-white text-on-surface-variant">
+        <button type="button" onclick="switchTab('stats')" id="tab-stats"
+                class="tab-btn font-display font-bold text-sm uppercase tracking-wider px-6 py-2.5 rounded">
           통계
         </button>
       </div>
@@ -195,17 +244,15 @@
 <script>
 initPage('history');
 
+let _allSessions = [];
+let _lastFocused = null;
+
 function switchTab(name) {
   ['log', 'stats'].forEach(t => {
     document.getElementById(`content-${t}`).classList.toggle('active', t === name);
-    const btn = document.getElementById(`tab-${t}`);
-    btn.classList.toggle('active', t === name);
-    if (t !== name) {
-      btn.style.background = '#fff';
-      btn.style.color = '#58423a';
-      btn.style.boxShadow = '';
-    }
+    document.getElementById(`tab-${t}`).classList.toggle('active', t === name);
   });
+  if (name === 'stats') animateChart();
 }
 
 function starsHtml(n) {
@@ -222,34 +269,27 @@ function starsHtmlLg(n) {
   ).join('');
 }
 
-// Generate simulated set data for a session
-function generateSetData(session) {
-  const sets = [];
-  for (let i = 0; i < session.sets; i++) {
-    const variation = (Math.random() - 0.5) * 20;
-    const force = Math.min(100, Math.max(10, Math.round(session.avgForce + variation)));
-    const reps = 6 + Math.floor(Math.random() * 5);
-    const holdTime = (2 + Math.random() * 4).toFixed(1);
-    sets.push({ setNum: i + 1, force, reps, holdTime });
-  }
-  return sets;
-}
-
 function openSessionDetail(sessionIndex) {
-  const session = window._allSessions[sessionIndex];
+  const session = _allSessions[sessionIndex];
   if (!session) return;
 
+  _lastFocused = document.activeElement;
   const modal = document.getElementById('session-detail-modal');
   const card = document.getElementById('detail-card-content');
-  const setData = generateSetData(session);
-
-  const exerciseIcons = {
-    '완전 그립 훈련': 'fitness_center',
-    '핀치 그립 훈련': 'pinch',
-    '측면 그립 훈련': 'pan_tool',
-    '손가락 펴기': 'back_hand',
-  };
-  const icon = exerciseIcons[session.label] || 'fitness_center';
+  const setData = deriveSetDetails(session);
+  const icon = iconForSession(session);
+  const durationMin = session.durationMin ?? Math.round((session.durationSec || 0) / 60);
+  const isCrane = gameIdOf(session) === 'crane';
+  const attemptsRow = (isCrane && typeof session.attempts === 'number') ? `
+      <div class="bg-white retro-border rounded-xl p-4 flex items-center gap-3">
+        <div class="w-9 h-9 rounded-full bg-surface-container retro-border flex items-center justify-center flex-shrink-0">
+          <span class="material-symbols-outlined text-primary text-base" style="font-variation-settings:'FILL' 1">sports_esports</span>
+        </div>
+        <div>
+          <div class="font-display text-[10px] font-bold tracking-widest text-on-surface-variant uppercase">크레인 시도</div>
+          <div class="font-bold text-sm">시도 ${session.attempts}회 중 ${session.sets}개 성공</div>
+        </div>
+      </div>` : '';
 
   card.innerHTML = `
     <!-- Banner -->
@@ -263,7 +303,8 @@ function openSessionDetail(sessionIndex) {
           <div class="text-on-surface-variant text-xs">${formatKoreanDate(session.date)}</div>
         </div>
       </div>
-      <button onclick="closeSessionDetail()" class="w-9 h-9 rounded-lg retro-border bg-white flex items-center justify-center hover:bg-surface-container transition-colors">
+      <button type="button" data-modal-close onclick="closeSessionDetail()" aria-label="닫기"
+              class="w-11 h-11 rounded-lg retro-border bg-white flex items-center justify-center hover:bg-surface-container transition-colors">
         <span class="material-symbols-outlined text-base">close</span>
       </button>
     </div>
@@ -280,33 +321,35 @@ function openSessionDetail(sessionIndex) {
       <div class="grid grid-cols-3 gap-3">
         <div class="bg-white retro-border rounded-xl p-4 text-center">
           <div class="font-display text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-1">소요 시간</div>
-          <div class="font-display text-xl font-bold text-primary">${session.durationMin}</div>
+          <div class="font-display text-xl font-bold text-primary tabular">${durationMin}</div>
           <div class="text-xs text-on-surface-variant">분</div>
         </div>
         <div class="bg-white retro-border rounded-xl p-4 text-center">
           <div class="font-display text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-1">총 세트</div>
-          <div class="font-display text-xl font-bold text-primary">${session.sets}</div>
+          <div class="font-display text-xl font-bold text-primary tabular">${session.sets}</div>
           <div class="text-xs text-on-surface-variant">세트</div>
         </div>
         <div class="bg-white retro-border rounded-xl p-4 text-center">
           <div class="font-display text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-1">최대 악력</div>
-          <div class="font-display text-xl font-bold text-primary">${session.maxForce}</div>
+          <div class="font-display text-xl font-bold text-primary tabular">${session.maxForce}</div>
           <div class="text-xs text-on-surface-variant">%</div>
         </div>
       </div>
+
+      ${attemptsRow}
 
       <!-- Force Bars -->
       <div class="bg-white retro-border rounded-xl p-4">
         <div class="flex justify-between items-center mb-3">
           <span class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">평균 악력</span>
-          <span class="font-display text-lg font-bold text-primary">${session.avgForce}%</span>
+          <span class="font-display text-lg font-bold text-primary tabular">${session.avgForce}%</span>
         </div>
         <div class="force-bar-bg">
           <div class="force-bar-fill bg-primary" style="width:${session.avgForce}%"></div>
         </div>
         <div class="flex justify-between items-center mb-3 mt-4">
           <span class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">최대 악력</span>
-          <span class="font-display text-lg font-bold" style="color:#16A34A">${session.maxForce}%</span>
+          <span class="font-display text-lg font-bold tabular" style="color:#16A34A">${session.maxForce}%</span>
         </div>
         <div class="force-bar-bg">
           <div class="force-bar-fill" style="width:${session.maxForce}%;background:#16A34A"></div>
@@ -322,11 +365,11 @@ function openSessionDetail(sessionIndex) {
         <div class="px-4 py-2">
           ${setData.map(s => `
             <div class="set-row">
-              <div class="set-num">${s.setNum}</div>
+              <div class="set-num tabular">${s.setNum}</div>
               <div class="flex-1">
                 <div class="flex justify-between items-center mb-1">
                   <span class="text-sm font-bold">${s.reps}회 반복</span>
-                  <span class="font-display text-sm font-bold text-primary">${s.force}%</span>
+                  <span class="font-display text-sm font-bold text-primary tabular">${s.force}%</span>
                 </div>
                 <div class="force-bar-bg" style="height:8px;">
                   <div class="force-bar-fill bg-primary" style="width:${s.force}%;height:100%"></div>
@@ -334,7 +377,7 @@ function openSessionDetail(sessionIndex) {
               </div>
               <div class="text-right flex-shrink-0" style="min-width:50px;">
                 <div class="text-xs text-on-surface-variant">유지</div>
-                <div class="font-display text-sm font-bold">${s.holdTime}초</div>
+                <div class="font-display text-sm font-bold tabular">${s.holdSecs}초</div>
               </div>
             </div>
           `).join('')}
@@ -342,7 +385,7 @@ function openSessionDetail(sessionIndex) {
       </div>
 
       <!-- Close Button -->
-      <button onclick="closeSessionDetail()"
+      <button type="button" onclick="closeSessionDetail()"
               class="w-full bg-primary text-white font-display font-bold text-sm uppercase tracking-wider py-3 rounded-xl retro-border retro-shadow hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
         <span class="material-symbols-outlined text-base">arrow_back</span>
         기록 목록으로 돌아가기
@@ -351,10 +394,15 @@ function openSessionDetail(sessionIndex) {
   `;
 
   modal.classList.add('open');
+  const closeBtn = card.querySelector('[data-modal-close]');
+  if (closeBtn) closeBtn.focus();
 }
 
 function closeSessionDetail() {
-  document.getElementById('session-detail-modal').classList.remove('open');
+  const modal = document.getElementById('session-detail-modal');
+  if (!modal.classList.contains('open')) return;
+  modal.classList.remove('open');
+  if (_lastFocused && typeof _lastFocused.focus === 'function') _lastFocused.focus();
 }
 
 // Close on backdrop click
@@ -367,85 +415,126 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeSessionDetail();
 });
 
+function staggerIn(nodes) {
+  const reduce = prefersReducedMotion();
+  nodes.forEach((n, i) => {
+    const d = reduce ? 0 : Math.min(i * 50, 400);
+    setTimeout(() => n.classList.add('in'), d);
+  });
+}
+
 function renderLog(sessions) {
   const list = document.getElementById('session-list');
   if (!sessions.length) {
-    list.innerHTML = `<div class="text-center py-16 text-on-surface-variant font-display font-bold uppercase tracking-wide">아직 세션 기록이 없습니다.<br/><a href="training.html" class="text-primary mt-2 inline-block">첫 훈련 시작하기 →</a></div>`;
+    renderEmptyState(list, {
+      icon: 'timeline',
+      title: '아직 세션 기록이 없습니다',
+      desc: '첫 훈련을 완료하면 여기에 세션 기록이 쌓입니다.',
+      ctaHref: 'training.html',
+      ctaLabel: '첫 훈련 시작하기',
+      secondaryHref: 'history.html?demo=1',
+      secondaryLabel: '데모 데이터 보기',
+    });
     return;
   }
-  list.innerHTML = sessions.map((s, idx) => `
-    <div class="bg-white retro-border retro-shadow rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:-translate-y-0.5 transition-transform cursor-pointer"
-         onclick="openSessionDetail(${idx})">
+  list.innerHTML = sessions.map((s, idx) => {
+    const durationMin = s.durationMin ?? Math.round((s.durationSec || 0) / 60);
+    return `
+    <div class="session-card bg-white retro-border retro-shadow rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer"
+         role="button" tabindex="0" aria-label="${s.label} 세션 상세 보기"
+         onclick="openSessionDetail(${idx})"
+         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSessionDetail(${idx});}">
       <div class="flex items-center gap-4">
+        <span class="card-index tabular" aria-hidden="true">${String(idx + 1).padStart(2, '0')}</span>
         <div class="w-10 h-10 rounded-full bg-surface-container retro-border flex items-center justify-center flex-shrink-0">
-          <span class="material-symbols-outlined text-primary text-lg" style="font-variation-settings:'FILL' 1">fitness_center</span>
+          <span class="material-symbols-outlined text-primary text-lg" style="font-variation-settings:'FILL' 1">${iconForSession(s)}</span>
         </div>
         <div>
           <div class="font-display font-bold text-base">${s.label}</div>
-          <div class="text-on-surface-variant text-sm">${formatKoreanDate(s.date)} · ${s.durationMin}분 · ${s.sets}세트</div>
+          <div class="text-on-surface-variant text-sm">${formatKoreanDate(s.date)} · ${durationMin}분 · ${s.sets}세트</div>
         </div>
       </div>
       <div class="flex items-center gap-4 flex-shrink-0">
         <div class="text-center">
           <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">평균 악력</div>
-          <div class="font-display text-lg font-bold text-primary">${s.avgForce}%</div>
+          <div class="font-display text-lg font-bold text-primary tabular">${s.avgForce}%</div>
         </div>
         <div class="flex gap-0.5">${starsHtml(s.stars)}</div>
         <span class="material-symbols-outlined text-on-surface-variant text-lg">chevron_right</span>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
+  staggerIn(Array.from(list.querySelectorAll('.session-card')));
 }
 
-function renderStats(sessions) {
-  if (!sessions.length) return;
-
-  document.getElementById('stat-max-force').textContent = Math.max(...sessions.map(s => s.maxForce));
-  document.getElementById('stat-total').textContent = sessions.length;
-  document.getElementById('stat-avg-sets').textContent = Math.round(sessions.reduce((a,s) => a + s.sets, 0) / sessions.length);
-
-  // Streak: count consecutive days from today
-  const today = new Date(); today.setHours(0,0,0,0);
-  let streak = 0;
-  const usedDays = new Set();
-  for (const s of sessions) {
-    const d = new Date(s.date); d.setHours(0,0,0,0);
-    const key = d.toDateString();
-    if (!usedDays.has(key)) { usedDays.add(key); streak++; }
-    else break;
+function animateChart() {
+  const fills = document.querySelectorAll('#force-chart .bar-fill');
+  if (!fills.length) return;
+  if (prefersReducedMotion()) {
+    fills.forEach(f => { f.style.height = (f.dataset.h || 0) + '%'; });
+    return;
   }
-  document.getElementById('stat-streak').textContent = streak;
+  fills.forEach(f => { f.style.height = '0%'; });
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    fills.forEach(f => { f.style.height = (f.dataset.h || 0) + '%'; });
+  }));
+}
 
-  // 7-day chart
+function renderStats(sessions, stats) {
+  const els = {
+    max:    document.getElementById('stat-max-force'),
+    total:  document.getElementById('stat-total'),
+    avg:    document.getElementById('stat-avg-sets'),
+    streak: document.getElementById('stat-streak'),
+  };
+  const chart = document.getElementById('force-chart');
+
+  if (!sessions.length) {
+    Object.values(els).forEach(el => { el.textContent = '—'; el.classList.add('stat-muted'); });
+    chart.innerHTML = `<div class="chart-placeholder">훈련 데이터가 쌓이면<br/>주간 차트가 표시됩니다</div>`;
+    return;
+  }
+
+  Object.values(els).forEach(el => el.classList.remove('stat-muted'));
+  els.max.textContent    = stats.maxForce;
+  els.total.textContent  = stats.totalSessions;
+  els.avg.textContent    = stats.avgSets;
+  els.streak.textContent = stats.streak;
+
+  // 7-day average-force chart (bars start at 0; animateChart plays them in)
+  const today = new Date(); today.setHours(0,0,0,0);
+  const dayLabels = ['일','월','화','수','목','금','토'];
   const last7 = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date(today); d.setDate(d.getDate() - i);
     const dayStr = d.toDateString();
     const daySessions = sessions.filter(s => new Date(s.date).toDateString() === dayStr);
-    const avg = daySessions.length ? Math.round(daySessions.reduce((a,s) => a + s.avgForce, 0) / daySessions.length) : 0;
-    const dayLabels = ['일','월','화','수','목','금','토'];
+    const avg = daySessions.length ? Math.round(daySessions.reduce((a,s) => a + (s.avgForce || 0), 0) / daySessions.length) : 0;
     last7.push({ label: dayLabels[d.getDay()], value: avg });
   }
-
   const maxVal = Math.max(...last7.map(d => d.value), 1);
-  const chart = document.getElementById('force-chart');
   chart.innerHTML = last7.map(d => `
     <div class="bar-col">
-      <div class="bar-val">${d.value > 0 ? d.value+'%' : ''}</div>
+      <div class="bar-val tabular">${d.value > 0 ? d.value + '%' : ''}</div>
       <div class="bar-track" style="height:140px;">
-        <div class="bar-fill" style="height:${Math.round((d.value/maxVal)*100)}%;"></div>
+        <div class="bar-fill" data-h="${Math.round((d.value / maxVal) * 100)}" style="height:0%;"></div>
       </div>
       <div class="bar-label">${d.label}</div>
     </div>
   `).join('');
 }
 
-// Render
-const sessions = loadSessions();
-window._allSessions = sessions;
-document.getElementById('total-sessions').textContent = sessions.length;
-renderLog(sessions);
-renderStats(sessions);
+// Render — one stats read gives streak + aggregates; getSessions gives the full source list.
+(async () => {
+  const [stats, sessions] = await Promise.all([
+    GamificationEngine.getStats(),
+    DataService.getSessions(),
+  ]);
+  _allSessions = sessions;
+  animateCount(document.getElementById('total-sessions'), sessions.length);
+  renderLog(sessions);
+  renderStats(sessions, stats);
+})();
 </script>
 </body>
 </html>

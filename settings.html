@@ -10,25 +10,28 @@
 <script src="tailwind-config.js"></script>
 <style>
   /* Toggle switch */
-  .toggle-switch { position:relative; display:inline-block; width:48px; height:26px; }
-  .toggle-switch input { opacity:0; width:0; height:0; }
+  .toggle-switch { position:relative; display:inline-block; width:58px; height:34px; }
+  .toggle-switch input { position:absolute; inset:0; opacity:0; width:100%; height:100%; margin:0; cursor:pointer; }
   .toggle-track {
-    position:absolute; inset:0; cursor:pointer;
+    position:absolute; inset:0; cursor:pointer; pointer-events:none;
     background:#f5ded7; border:2px solid #0F172A; border-radius:9999px;
     transition:background 0.2s;
   }
   .toggle-track::after {
-    content:''; position:absolute; height:18px; width:18px; left:2px; top:2px;
+    content:''; position:absolute; height:24px; width:24px; left:3px; top:3px;
     background:#fff; border-radius:50%; border:2px solid #0F172A;
     transition:transform 0.2s;
   }
   .toggle-switch input:checked + .toggle-track { background:#994626; }
-  .toggle-switch input:checked + .toggle-track::after { transform:translateX(22px); }
+  .toggle-switch input:checked + .toggle-track::after { transform:translateX(24px); }
+  .toggle-switch input:focus-visible + .toggle-track { outline:3px solid var(--primary); outline-offset:2px; }
 
   /* Radio pill */
   .radio-pill { display:flex; gap:0; }
   .radio-pill input[type=radio] { display:none; }
   .radio-pill label {
+    display:inline-flex; align-items:center; justify-content:center;
+    min-height:44px;
     padding:8px 18px;
     font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:13px;
     text-transform:uppercase; letter-spacing:0.08em;
@@ -87,9 +90,10 @@
           <div>
             <div class="settings-row-label">ReGrip Sensor v2</div>
             <div class="settings-row-sub">배터리 87% · 신호 강도 우수</div>
+            <div class="settings-row-sub" style="color:var(--ink-muted);font-size:11px;letter-spacing:0.08em;text-transform:uppercase;margin-top:2px;">시뮬레이션 값</div>
           </div>
           <div class="flex items-center gap-3">
-            <span class="font-display text-xs font-bold tracking-wider uppercase px-3 py-1 rounded-full retro-border text-white" style="background:#16A34A;">연결됨</span>
+            <span id="sensor-badge" class="flex items-center gap-2 font-display text-xs font-bold tracking-wider uppercase px-3 py-1 rounded-full retro-border bg-white" style="min-height:28px;"></span>
             <button onclick="openFeedbackModal()" class="retro-border retro-shadow rounded-lg px-4 py-2 font-display font-bold text-sm uppercase tracking-wider bg-white hover:bg-surface-container transition-colors">
               해제
             </button>
@@ -98,7 +102,7 @@
         <!-- Sensor Name -->
         <div class="settings-row flex-col items-start gap-3">
           <div class="settings-row-label">센서 이름</div>
-          <input type="text" value="ReGrip Sensor"
+          <input type="text" id="sensor-name" value="ReGrip Sensor"
                  class="w-full border-2 border-ink-black rounded-lg px-4 py-2 font-display font-bold text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-surface-container"
                  placeholder="센서 이름 입력"/>
         </div>
@@ -152,6 +156,17 @@
             <button onclick="adjustRest(5)"  class="w-9 h-9 retro-border retro-shadow rounded-lg font-display font-bold text-lg bg-white hover:bg-surface-container transition-colors flex items-center justify-center">+</button>
           </div>
         </div>
+        <!-- Reduced Motion -->
+        <div class="settings-row" data-toggle-row>
+          <div>
+            <div class="settings-row-label">모션 줄이기</div>
+            <div class="settings-row-sub">화면 애니메이션을 최소화합니다</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="reduced-motion-toggle" onchange="toggleReducedMotion(this)"/>
+            <span class="toggle-track"></span>
+          </label>
+        </div>
       </div>
 
       <!-- 3. 알림 -->
@@ -160,7 +175,7 @@
           <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1">notifications</span>
           알림
         </div>
-        <div class="settings-row">
+        <div class="settings-row" data-toggle-row>
           <div>
             <div class="settings-row-label">일일 훈련 리마인더</div>
             <div class="settings-row-sub">매일 지정한 시간에 알림을 보냅니다</div>
@@ -172,16 +187,16 @@
         </div>
         <div class="settings-row" id="reminder-time-row">
           <div class="settings-row-label">알림 시간</div>
-          <input type="time" value="09:00"
+          <input type="time" id="reminder-time" value="09:00"
                  class="border-2 border-ink-black rounded-lg px-3 py-2 font-display font-bold text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-surface-container"/>
         </div>
-        <div class="settings-row">
+        <div class="settings-row" data-toggle-row>
           <div>
             <div class="settings-row-label">세션 완료 요약</div>
             <div class="settings-row-sub">훈련 후 결과 요약 알림을 받습니다</div>
           </div>
           <label class="toggle-switch">
-            <input type="checkbox" checked/>
+            <input type="checkbox" id="summary-toggle" checked/>
             <span class="toggle-track"></span>
           </label>
         </div>
@@ -196,6 +211,16 @@
         <div class="settings-row">
           <div class="settings-row-label">버전</div>
           <span class="font-display text-sm font-bold text-on-surface-variant">1.0.0 (프로토타입)</span>
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-label">데모 데이터 채우기</div>
+            <div class="settings-row-sub">체험용 훈련 기록을 생성합니다</div>
+          </div>
+          <button onclick="fillDemoData()" class="retro-border retro-shadow rounded-lg px-4 py-2 font-display font-bold text-sm uppercase tracking-wider bg-white hover:bg-surface-container transition-colors flex items-center gap-2">
+            <span class="material-symbols-outlined text-base">science</span>
+            채우기
+          </button>
         </div>
         <div class="settings-row">
           <div>
@@ -245,27 +270,82 @@ function toggleReminder(el) {
   document.getElementById('reminder-time-row').style.opacity = el.checked ? '1' : '0.4';
 }
 
-function saveSettings() {
-  const hand       = document.querySelector('input[name=hand]:checked')?.value;
-  const difficulty = document.querySelector('input[name=difficulty]:checked')?.value;
-  localStorage.setItem('regrip_settings', JSON.stringify({ hand, difficulty, restSeconds }));
+function toggleReducedMotion(el) {
+  // Apply immediately (shared.css stops all motion when the attribute is present).
+  document.documentElement.toggleAttribute('data-reduced-motion', el.checked);
+}
 
-  const btn = event.target;
-  const orig = btn.textContent;
-  btn.textContent = '저장 완료 ✓';
-  btn.style.background = '#10B981';
-  setTimeout(() => { btn.textContent = orig; btn.style.background = '#994626'; }, 1800);
+// Retro toast (uses shared .retro-toast).
+function showToast(msg, icon = 'check_circle') {
+  const t = document.createElement('div');
+  t.className = 'retro-toast';
+  t.innerHTML = `<span class="material-symbols-outlined" style="color:var(--primary);font-variation-settings:'FILL' 1">${icon}</span><span>${msg}</span>`;
+  document.body.appendChild(t);
+  setTimeout(() => {
+    t.style.transition = 'opacity 0.3s';
+    t.style.opacity = '0';
+    setTimeout(() => t.remove(), 300);
+  }, 2000);
+}
+
+function saveSettings() {
+  // Merge onto existing so unrelated keys other pages may store aren't clobbered.
+  const settings = {
+    ...DataService.getSettingsSync(),
+    hand: document.querySelector('input[name=hand]:checked')?.value,
+    difficulty: document.querySelector('input[name=difficulty]:checked')?.value,
+    restSeconds,
+    reminderEnabled: document.getElementById('reminder-toggle').checked,
+    reminderTime: document.getElementById('reminder-time').value,
+    summaryEnabled: document.getElementById('summary-toggle').checked,
+    sensorName: document.getElementById('sensor-name').value,
+    reducedMotion: document.getElementById('reduced-motion-toggle').checked,
+  };
+  DataService.saveSettings(settings);
+  document.documentElement.toggleAttribute('data-reduced-motion', settings.reducedMotion);
+  showToast('설정이 저장되었습니다');
 }
 
 function clearData() {
-  if (confirm('모든 훈련 기록을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
-    localStorage.removeItem('regrip_sessions');
-    alert('데이터가 초기화되었습니다.');
+  openConfirmModal({
+    title: '데이터 초기화',
+    body: '모든 훈련 기록과 센서 보정 데이터를 삭제합니다. 이 작업은 되돌릴 수 없습니다.',
+    confirmLabel: '초기화',
+    cancelLabel: '취소',
+    danger: true,
+    onConfirm: () => {
+      localStorage.removeItem('regrip_sessions');
+      localStorage.removeItem('regrip_calibration');
+      location.reload();
+    },
+  });
+}
+
+function fillDemoData() {
+  if (seedDemoData()) {
+    location.reload();
+  } else {
+    showToast('이미 훈련 데이터가 있습니다', 'info');
   }
 }
 
-// Load saved settings
-const saved = JSON.parse(localStorage.getItem('regrip_settings') || '{}');
+// Whole-row click toggles the switch (keyboard handled natively by the checkbox).
+document.querySelectorAll('[data-toggle-row]').forEach(row => {
+  const input = row.querySelector('.toggle-switch input');
+  if (!input) return;
+  row.style.cursor = 'pointer';
+  row.addEventListener('click', e => {
+    if (e.target.closest('.toggle-switch')) return;   // let the native switch handle its own clicks
+    input.checked = !input.checked;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+});
+
+// Live sensor status badge.
+bindSensorBadge(document.getElementById('sensor-badge'));
+
+// ── Load / restore all persisted settings via DataService ──
+const saved = DataService.getSettingsSync();
 if (saved.hand) {
   const el = document.getElementById(`hand-${saved.hand}`);
   if (el) el.checked = true;
@@ -274,10 +354,20 @@ if (saved.difficulty) {
   const el = document.getElementById(`diff-${saved.difficulty}`);
   if (el) el.checked = true;
 }
-if (saved.restSeconds) {
+if (typeof saved.restSeconds === 'number') {
   restSeconds = saved.restSeconds;
   document.getElementById('rest-val').textContent = restSeconds + '초';
 }
+if (typeof saved.reminderEnabled === 'boolean') {
+  const t = document.getElementById('reminder-toggle');
+  t.checked = saved.reminderEnabled;
+  toggleReminder(t);
+}
+if (saved.reminderTime) document.getElementById('reminder-time').value = saved.reminderTime;
+if (typeof saved.summaryEnabled === 'boolean') document.getElementById('summary-toggle').checked = saved.summaryEnabled;
+if (saved.sensorName) document.getElementById('sensor-name').value = saved.sensorName;
+// initPage already set data-reduced-motion from saved.reducedMotion; mirror the toggle state.
+if (typeof saved.reducedMotion === 'boolean') document.getElementById('reduced-motion-toggle').checked = saved.reducedMotion;
 </script>
 </body>
 </html>
