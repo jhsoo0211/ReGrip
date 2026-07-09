@@ -8,11 +8,18 @@
   --surface-warm:  #FFF1ED;
   --ink:           #0F172A;
   --ink-secondary: #475569;
-  --ink-muted:     #94A3B8;
+  --ink-muted:     #64748B;   /* was #94A3B8 — bumped for AA contrast on light surfaces */
   --success:       #16A34A;
+  --success-text:  #15803D;   /* AA-contrast success text */
   --warning:       #CA8A04;
   --error:         #DC2626;
   --border-radius: 0.5rem;
+
+  /* Motion tokens (see animation-systems skill) */
+  --dur-fast: 150ms;
+  --dur-base: 220ms;
+  --dur-slow: 400ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -359,4 +366,184 @@ button.retro-shadow:active:not(:disabled) {
   font-size: 14px;
   color: var(--ink-secondary);
   line-height: 1.5;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ADDITIONS — retro buttons, states, a11y, motion (v2 shared base)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Retro buttons ── */
+.btn-retro,
+.btn-retro-primary,
+.btn-retro-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 12px 20px;
+  border: 2px solid var(--ink);
+  border-radius: var(--border-radius);
+  box-shadow: 2px 2px 0px 0px var(--ink);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.03em;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-fast) var(--ease-out),
+              filter var(--dur-fast) var(--ease-out);
+}
+.btn-retro:hover,
+.btn-retro-primary:hover,
+.btn-retro-danger:hover { filter: brightness(0.98); }
+.btn-retro:active:not(:disabled),
+.btn-retro-primary:active:not(:disabled),
+.btn-retro-danger:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: none;
+}
+.btn-retro-primary { background: var(--primary); color: #fff; }
+.btn-retro-danger  { background: var(--error);   color: #fff; }
+.btn-retro:disabled,
+.btn-retro-primary:disabled,
+.btn-retro-danger:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
+
+/* ── Empty state ── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+  padding: 40px 24px;
+  background: var(--surface);
+  border: 2px dashed var(--ink);
+  border-radius: 16px;
+}
+.empty-state-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--surface-warm);
+  border: 2px solid var(--ink);
+  box-shadow: 2px 2px 0px 0px var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.empty-state-icon .material-symbols-outlined { font-size: 36px; color: var(--primary); }
+.empty-state-title { font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 700; color: var(--ink); }
+.empty-state-desc  { color: var(--ink-secondary); font-size: 14px; line-height: 1.6; max-width: 42ch; }
+.empty-state-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 4px; }
+
+/* ── Skeleton loader (stepped pulse, no blur shimmer) ── */
+.skeleton {
+  background: var(--surface-warm);
+  border: 2px solid var(--ink);
+  border-radius: var(--border-radius);
+  animation: skeletonPulse 1s steps(2, end) infinite;
+}
+@keyframes skeletonPulse {
+  0%   { opacity: 1; }
+  100% { opacity: 0.55; }
+}
+
+/* ── Numeric alignment ── */
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* ── Retro toast (bottom-right) ── */
+.retro-toast {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  background: var(--surface);
+  border: 2px solid var(--ink);
+  box-shadow: 4px 4px 0px 0px var(--ink);
+  border-radius: var(--border-radius);
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink);
+  animation: toastSlideUp var(--dur-base) var(--ease-out);
+}
+@keyframes toastSlideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Confirm modal (retro replacement for native confirm) ── */
+.confirm-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 250;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.6);
+  opacity: 0;
+  transition: opacity var(--dur-base) var(--ease-out);
+}
+.confirm-modal-overlay.open { opacity: 1; }
+.confirm-modal-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--surface);
+  border: 3px solid var(--ink);
+  box-shadow: 6px 6px 0px 0px var(--ink);
+  border-radius: 16px;
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transform: translateY(8px) scale(0.98);
+  transition: transform var(--dur-base) var(--ease-out);
+}
+.confirm-modal-overlay.open .confirm-modal-card { transform: translateY(0) scale(1); }
+.confirm-modal-title { font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 700; color: var(--ink); }
+.confirm-modal-body  { color: var(--ink-secondary); font-size: 15px; line-height: 1.6; }
+.confirm-modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 6px; }
+
+/* ── Bottom-nav touch target + label size ── */
+#nav-bottom .nav-bottom-item { min-height: 56px; font-size: 11px; }
+
+/* ── Focus ring (a11y, keyboard nav) ── */
+a:focus-visible,
+button:focus-visible,
+[role="button"]:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* ── Reduced motion — media query AND [data-reduced-motion] root attribute ──
+   The universal `*` selector also neutralizes page-defined infinite animations
+   (e.g. cloudDrift) by forcing a single, near-instant iteration. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+[data-reduced-motion] *,
+[data-reduced-motion] *::before,
+[data-reduced-motion] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
 }

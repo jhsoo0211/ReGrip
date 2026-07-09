@@ -212,22 +212,44 @@ ReGrip은 **네오 레트로 (Neo-Retro)** 디자인 스타일을 사용합니�
 
 | 키 | 내용 |
 |----|------|
-| `regrip_profile` | 프로필 정보 (이름, 나이, 재활 정보 등) |
-| `regrip_sessions` | 훈련 세션 배열 |
-| `regrip_settings` | 앱 설정 (손, 난이도, 휴식 시간) |
+| `regrip_profile` | 프로필 정보 (이름, 나이, 재활 정보, 아바타 등) |
+| `regrip_sessions` | 훈련 세션 배열 (최신순, `schema:2` — `gameId`, `sets`, `avgForce`, `maxForce`, `stars`, `attempts`, `durationSec`, `setDetails`) |
+| `regrip_settings` | 앱 설정 (`hand`, `difficulty`, `restSeconds`, `reducedMotion`) |
+| `regrip_calibration` | 센서 캘리브레이션 기준값 (`baseline0`, `baseline100`) |
+
+### DataService API
+
+`DataService`는 localStorage와 REST 백엔드를 동일한 인터페이스로 다룹니다.
+
+| 메서드 | 로컬 키 | REST 경로 |
+|--------|---------|-----------|
+| `getProfile()` / `getProfileSync()` / `saveProfile(data)` | `regrip_profile` | `GET` / `PUT /api/profile` |
+| `getSessions()` / `saveSession(data)` | `regrip_sessions` | `GET` / `POST /api/sessions` |
+| `getSettings()` / `getSettingsSync()` / `saveSettings(data)` | `regrip_settings` | `GET` / `PUT /api/settings` |
+| `getCalibration()` / `saveCalibration(data)` | `regrip_calibration` | `GET` / `PUT /api/calibration` |
+
+- **동기 미러**: `getProfileSync()` · `getSettingsSync()`는 localStorage 미러를 즉시 반환합니다. REST 모드에서도 `getX()` 성공 시 응답을 미러에 캐시하므로 동기 조회가 계속 동작합니다.
+- **폴백**: REST 요청 실패 시 조회는 로컬 미러를, 저장은 경고 후 로컬 저장으로 폴백하여 데이터 유실을 방지합니다.
+- 레거시 전역 `loadSessions()` / `saveSession()` 함수와 `EXERCISE_SETS` 상수는 제거되었습니다. 세션 조회는 `await DataService.getSessions()`, 저장은 `await DataService.saveSession(data)`를 사용하세요.
 
 ### REST API로 전환
 
-`DataService`는 REST API 백엔드로 쉽게 전환할 수 있습니다:
-
 ```javascript
-// REST 모드로 전환
-DataService.setBackend('rest', 'https://api.yourserver.com');
+// REST 모드로 전환 (선택적으로 공통 헤더 병합)
+DataService.setBackend('rest', 'https://api.yourserver.com', { Authorization: 'Bearer …' });
 
 // 이후 모든 데이터 호출이 API를 통해 이루어짐
 const profile = await DataService.getProfile();
-await DataService.saveProfile({ name: '홍길동', ... });
+await DataService.saveProfile({ name: '홍길동', /* … */ });
 ```
+
+### 데모 데이터
+
+빈 상태에서 화면을 확인하려면 데모 세션 14일치를 생성할 수 있습니다:
+
+- URL 쿼리로 `?demo=1`을 붙여 페이지를 열면 `seedDemoData()`가 자동 실행됩니다 (예: `index.html?demo=1`).
+- 설정 페이지의 데모 데이터 버튼으로도 호출할 수 있습니다.
+- 기존 세션이 하나라도 있으면 아무 것도 하지 않고 `false`를 반환합니다 (덮어쓰지 않음).
 
 ---
 
