@@ -19,7 +19,8 @@ const NAV_ITEMS = [
   { key: 'settings',     label: '설정', icon: 'settings',          href: 'settings.html' },
 ];
 
-const DEFAULT_AVATAR = 'https://lh3.googleusercontent.com/aida-public/AB6AXuAMD1C_MGkOFfAqI9jQHYlgL_uT4Mol13UMOieb5zW6vv9HR8PZzl4r0P_6cJeWzKiRZYRAOTJlzJglaAKqo4xkycQn4MXGHCCzI9LAjRS2Fx_KrcEXFH7jn9kXiMBicZW1voTZ-gA05R0gvzJPd8Qk8-po2W-MfoBauuZ0Q13ASGls1awQYOXR3c5aBqBHQxgA4_ZrFZ4aMDQHLRSwbeDck73EFwM4c1s9L6ijUXzb8FbZAL2Cw2rHCCcpCKucafQPWS6Iba3tT58';
+// Inline SVG default avatar (retro person glyph) — no external hotlink, works offline.
+const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' fill='%23FFE9E3'/%3E%3Ccircle cx='48' cy='36' r='16' fill='%23994626'/%3E%3Cpath d='M16 90c4-20 17-28 32-28s28 8 32 28z' fill='%23994626'/%3E%3C/svg%3E";
 
 function injectNav(activeKey) {
   const sidebar = document.getElementById('nav-sidebar');
