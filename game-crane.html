@@ -34,9 +34,21 @@
   #donut-arc {
     stroke-dasharray: 100;
     stroke-dashoffset: 100;
-    transition: stroke-dashoffset 0.1s linear;
+    transition: stroke-dashoffset 0.1s linear, stroke 0.18s ease;
     stroke-linecap: round;
   }
+  #donut-arc-claw { transition: stroke-dashoffset 0.1s linear, stroke 0.18s ease; }
+
+  /* Hold donut early-release feedback */
+  @keyframes donutShake {
+    0%,100% { transform: translateX(-50%); }
+    20% { transform: translateX(-50%) translateX(-4px); }
+    40% { transform: translateX(-50%) translateX(4px); }
+    60% { transform: translateX(-50%) translateX(-3px); }
+    80% { transform: translateX(-50%) translateX(3px); }
+  }
+  #hold-donut-wrap.donut-shake { animation: donutShake 0.2s ease-in-out; }
+  #donut-ring.donut-flash { border-color: var(--error) !important; }
 
   /* Capsules */
   .capsule {
@@ -64,15 +76,24 @@
     100% { transform: translateY(-80px) scale(0.5); opacity:0; }
   }
 
-  /* Capsule drop in chute */
+  /* Capsule drop in chute (bounce) */
   .chute-capsule {
     width:28px; height:36px; border-radius:50%;
     border:2px solid #0F172A;
     animation: chuteSlide 0.5s ease forwards;
   }
   @keyframes chuteSlide {
-    from { transform: translateY(-40px); opacity:0; }
-    to   { transform: translateY(0);    opacity:1; }
+    0%   { transform: translateY(-40px); opacity:0; }
+    70%  { transform: translateY(4px);   opacity:1; }
+    100% { transform: translateY(0);     opacity:1; }
+  }
+
+  /* Floating +1 label */
+  .plus-one {
+    position: absolute; z-index: 20; pointer-events: none;
+    font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 28px;
+    color: #10B981; text-shadow: 2px 2px 0 #0F172A;
+    transform: translate(-50%, -50%);
   }
 
   /* Floor dot pattern */
@@ -82,13 +103,28 @@
     background-color: #f5ded7;
   }
 
+  /* Timer last-10s warning */
+  @keyframes timerPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+  #timer-display.timer-warning { color: var(--error) !important; transform-origin: left center; animation: timerPulse 0.6s ease-in-out infinite; }
+
   /* Result overlay */
   #result-overlay { display:none; }
   #result-overlay.open { display:flex; }
+  #result-overlay .result-card {
+    transform: translateY(24px); opacity: 0;
+    transition: transform 0.4s var(--ease-out), opacity 0.4s var(--ease-out);
+  }
+  #result-overlay.shown .result-card { transform: translateY(0); opacity: 1; }
+  @keyframes starPop { 0% { transform: scale(0); opacity: 0; } 70% { transform: scale(1.25); } 100% { transform: scale(1); opacity: 1; } }
+  #result-stars .star-pop { display: inline-block; animation: starPop 0.34s var(--ease-out) both; }
 
   /* Gauge */
-  #gauge-fill { transition: height 0.08s linear; }
-  #target-line { position:absolute; left:0; right:0; background:#994626; height:3px; }
+  #gauge-track { transition: border-color 0.18s ease; }
+  #gauge-track.gauge-hot { border-color: #16A34A; }
+  #gauge-fill { transition: height 0.08s linear, background 0.18s ease; }
+  .gauge-tick { position:absolute; left:2px; right:2px; height:2px; background:rgba(15,23,42,0.22); z-index:2; pointer-events:none; }
+  #target-line { position:absolute; left:0; right:0; background:#994626; height:3px; z-index:3; transition: background 0.18s ease, height 0.18s ease; }
+  #gauge-track.gauge-hot #target-line { background:#16A34A; height:4px; }
 </style>
 </head>
 <body style="background:#1a0a05;">
@@ -103,10 +139,8 @@
       <div class="font-display text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full text-on-surface-variant animate-pulse" style="background:#FFE9E3;border:2px solid #dfc0b6;">
         SPACE / 클릭 홀드
       </div>
-      <div class="font-display text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full flex items-center gap-2" style="background:#DCFCE7;border:2px solid #0F172A;">
-        <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse inline-block"></span>
-        시뮬레이션
-      </div>
+      <!-- Sensor status (filled by bindSensorBadge) -->
+      <div id="sensor-badge" class="font-display text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full flex items-center gap-2" style="background:#FFF8F6;border:2px solid #0F172A;"></div>
       <button onclick="confirmExit()" class="font-display font-bold text-sm uppercase tracking-wider px-4 py-2 rounded" style="background:#FFF8F6;border:2px solid #0F172A;box-shadow:2px 2px 0 #0F172A;">
         종료
       </button>
@@ -120,12 +154,12 @@
       <!-- Timer -->
       <div class="rounded-xl p-4" style="background:#fff;border:4px solid #0F172A;box-shadow:4px 4px 0 #0F172A;border-top:6px solid #994626;">
         <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">남은 시간</div>
-        <div id="timer-display" class="font-display text-5xl font-bold text-primary">1:00</div>
+        <div id="timer-display" class="font-display text-5xl font-bold text-primary tabular">1:00</div>
       </div>
       <!-- Score -->
       <div class="rounded-xl p-4" style="background:#fff;border:4px solid #0F172A;box-shadow:4px 4px 0 #0F172A;border-top:6px solid #10B981;">
         <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">수집한 캡슐</div>
-        <div id="score-display" class="font-display text-5xl font-bold" style="color:#10B981;">0</div>
+        <div id="score-display" class="font-display text-5xl font-bold tabular" style="color:#10B981;" aria-live="polite">0</div>
       </div>
       <!-- Hold gauge display -->
       <div class="rounded-xl p-4" style="background:#fff;border:2px solid #0F172A;">
@@ -138,7 +172,7 @@
                     transform="rotate(-90 18 18)"/>
           </svg>
           <div>
-            <div id="hold-secs" class="font-display text-lg font-bold text-on-surface">0.0s</div>
+            <div id="hold-secs" class="font-display text-lg font-bold text-on-surface tabular">0.0s</div>
             <div class="font-display text-xs text-on-surface-variant">/ 3.0s</div>
           </div>
         </div>
@@ -179,7 +213,7 @@
         <!-- Hold donut (overlay) -->
         <div id="hold-donut-wrap" class="absolute opacity-0 transition-opacity duration-200"
              style="top:60px;left:50%;transform:translateX(-50%);">
-          <div class="relative w-16 h-16 flex items-center justify-center"
+          <div id="donut-ring" class="relative w-16 h-16 flex items-center justify-center"
                style="background:rgba(255,248,246,0.92);border:3px solid #0F172A;border-radius:50%;">
             <svg class="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 36 36">
               <circle cx="18" cy="18" r="14" stroke="#FFE9E3" stroke-width="4" fill="none"/>
@@ -208,14 +242,20 @@
     <aside class="w-28 p-4 flex flex-col items-center flex-shrink-0" style="background:#FFF8F6;border-left:4px solid #0F172A;">
       <div class="font-display text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-3 text-center">악력</div>
       <div class="font-display text-sm text-on-surface-variant mb-1">100%</div>
-      <div class="flex-1 w-10 relative rounded-full overflow-hidden" style="background:#F0F9FF;border:2px solid #0F172A;">
-        <!-- 80% target line -->
-        <div id="target-line" style="bottom:80%;"></div>
-        <div class="absolute font-display text-xs font-bold text-primary" style="bottom:80%;right:100%;margin-right:4px;white-space:nowrap;">80%</div>
+      <div id="gauge-track" role="meter" aria-label="악력 게이지" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"
+           class="flex-1 w-10 relative rounded-full overflow-hidden" style="background:#F0F9FF;border:2px solid #0F172A;">
+        <!-- Scale ticks -->
+        <div class="gauge-tick" style="bottom:25%;"></div>
+        <div class="gauge-tick" style="bottom:50%;"></div>
+        <div class="gauge-tick" style="bottom:75%;"></div>
+        <!-- Target line (position set from TARGET_FORCE) -->
+        <div id="target-line"></div>
+        <div id="target-line-label" class="absolute font-display text-xs font-bold text-primary" style="right:100%;margin-right:4px;white-space:nowrap;">80%</div>
         <div id="gauge-fill" class="absolute bottom-0 left-0 right-0 rounded-full" style="height:0%;background:#994626;"></div>
       </div>
       <div class="mt-2 mb-1 font-display text-sm text-on-surface-variant">0%</div>
-      <div id="force-pct" class="font-display text-2xl font-bold text-primary mt-2">0%</div>
+      <div id="force-pct" class="font-display text-2xl font-bold text-primary mt-2 tabular">0%</div>
+      <span id="force-live" class="sr-only" aria-live="polite"></span>
     </aside>
 
   </div>
@@ -224,30 +264,30 @@
 
 <!-- ══ RESULT OVERLAY ═══════════════════════════════════════════════════ -->
 <div id="result-overlay" class="fixed inset-0 z-50 items-center justify-center p-6" style="background:rgba(15,23,42,0.75);">
-  <div class="w-full max-w-md overflow-hidden" style="background:#FFF8F6;border:4px solid #0F172A;box-shadow:8px 8px 0 #0F172A;border-radius:16px;">
+  <div class="result-card w-full max-w-md overflow-hidden" style="background:#FFF8F6;border:4px solid #0F172A;box-shadow:8px 8px 0 #0F172A;border-radius:16px;">
     <div class="p-8 flex flex-col items-center gap-3 text-center" style="background:#FFB38E;">
       <div class="w-16 h-16 rounded-full flex items-center justify-center" style="background:#fff;border:3px solid #0F172A;">
         <span class="material-symbols-outlined text-3xl text-primary" style="font-variation-settings:'FILL' 1">emoji_events</span>
       </div>
-      <h2 class="font-display text-3xl font-bold uppercase tracking-tight text-ink-black">게임 완료!</h2>
+      <h2 class="font-display text-3xl font-bold uppercase tracking-tight text-ink-black">게임 완료</h2>
       <div id="result-stars" class="flex gap-1"></div>
     </div>
     <div class="p-6 grid grid-cols-2 gap-3">
       <div class="rounded-xl p-4 text-center" style="background:#FFE9E3;border:2px solid #0F172A;">
         <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">획득 캡슐</div>
-        <div id="res-score" class="font-display text-3xl font-bold text-primary">0</div>
+        <div id="res-score" class="font-display text-3xl font-bold text-primary tabular">0</div>
       </div>
       <div class="rounded-xl p-4 text-center" style="background:#FFE9E3;border:2px solid #0F172A;">
         <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">최대 악력</div>
-        <div id="res-max" class="font-display text-3xl font-bold text-primary">0%</div>
+        <div id="res-max" class="font-display text-3xl font-bold text-primary tabular">0%</div>
       </div>
       <div class="rounded-xl p-4 text-center" style="background:#FFE9E3;border:2px solid #0F172A;">
         <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">평균 악력</div>
-        <div id="res-avg" class="font-display text-3xl font-bold text-primary">0%</div>
+        <div id="res-avg" class="font-display text-3xl font-bold text-primary tabular">0%</div>
       </div>
       <div class="rounded-xl p-4 text-center" style="background:#FFE9E3;border:2px solid #0F172A;">
         <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">시도 횟수</div>
-        <div id="res-attempts" class="font-display text-3xl font-bold text-primary">0</div>
+        <div id="res-attempts" class="font-display text-3xl font-bold text-primary tabular">0</div>
       </div>
     </div>
     <div class="px-6 pb-6 flex gap-3">
@@ -269,7 +309,7 @@
 <script>
 // ── Constants ────────────────────────────────────────────────────────────
 const GAME_DURATION  = 60;
-const TARGET_FORCE   = 80;    // % needed to close claw
+const TARGET_FORCE   = 80;    // % needed to close claw AND the on-gauge target line (single source)
 const HOLD_NEEDED    = 3.0;   // seconds to grab
 const CRANE_SPEED    = 180;   // px/second
 const CAPSULE_COLORS = ['#F472B6','#10B981','#FBBF24','#60A5FA','#A78BFA'];
@@ -287,24 +327,76 @@ let capsules    = [];
 let forceSamples = [];
 let maxForce    = 0;
 let attempts    = 0;
+let setDetails  = [];      // per-grab rows for session v2
+let wasClamping = false;
+let donutBusy   = false;   // guards the early-release feedback window
+let ariaAccum   = 0;       // 1s throttle accumulator for aria mirror
 let sessionStart = Date.now();
+let rafId       = null;
+let sensorBadgeUnsub = null;
+
+// ── Reduced motion (settings toggle + OS preference) ─────────────────────────
+// Game pages don't call initPage(), so apply the saved reducedMotion setting here
+// too — this makes both shared.css's global stop and prefersReducedMotion() honor it.
+try {
+  const st = DataService.getSettingsSync();
+  if (st && st.reducedMotion) document.documentElement.setAttribute('data-reduced-motion', '');
+} catch {}
+// Real-hardware path: apply saved sensor calibration (games skip initPage which normally does this).
+try { SensorService.loadCalibration(); } catch {}
+let reducedMotion = prefersReducedMotion();
+if (window.matchMedia) {
+  const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const upd = () => { reducedMotion = prefersReducedMotion(); };
+  if (mq.addEventListener) mq.addEventListener('change', upd);
+  else if (mq.addListener) mq.addListener(upd);
+}
 
 // ── DOM refs ─────────────────────────────────────────────────────────────
 const craneAssembly  = document.getElementById('crane-assembly');
+const craneSvg       = document.getElementById('crane-svg');
 const clawGroup      = document.getElementById('claw-group');
 const holdDonutWrap  = document.getElementById('hold-donut-wrap');
+const donutRing      = document.getElementById('donut-ring');
 const donutArcClaw   = document.getElementById('donut-arc-claw');
 const donutText      = document.getElementById('donut-text');
 const donutArcLeft   = document.getElementById('donut-arc');   // sidebar arc
 const holdSecsEl     = document.getElementById('hold-secs');
 const gaugeFill      = document.getElementById('gauge-fill');
+const gaugeTrack     = document.getElementById('gauge-track');
 const forcePctEl     = document.getElementById('force-pct');
+const forceLive      = document.getElementById('force-live');
 const gripStatusEl   = document.getElementById('grip-status');
 const timerEl        = document.getElementById('timer-display');
 const scoreEl        = document.getElementById('score-display');
+const targetLine     = document.getElementById('target-line');
+const targetLineLabel = document.getElementById('target-line-label');
 const capsuleContainer = document.getElementById('capsule-container');
 const chuteItems     = document.getElementById('chute-items');
 const viewport       = document.getElementById('game-viewport');
+
+// Gauge target line — derived from TARGET_FORCE (single source with the clamp threshold).
+targetLine.style.bottom      = TARGET_FORCE + '%';
+targetLineLabel.style.bottom = TARGET_FORCE + '%';
+targetLineLabel.textContent  = TARGET_FORCE + '%';
+
+// ── Reduced-motion helper for +1 float ───────────────────────────────────
+function floatPlusOne(cx, cy) {
+  if (reducedMotion) return;
+  const el = document.createElement('div');
+  el.className = 'plus-one';
+  el.textContent = '+1';
+  el.style.left = cx + 'px';
+  el.style.top  = cy + 'px';
+  viewport.appendChild(el);
+  if (el.animate) {
+    const a = el.animate(
+      [{ transform: 'translate(-50%,-50%) translateY(0)', opacity: 1 },
+       { transform: 'translate(-50%,-50%) translateY(-46px)', opacity: 0 }],
+      { duration: 600, easing: 'cubic-bezier(0.22,1,0.36,1)' });
+    a.onfinish = () => el.remove();
+  } else { setTimeout(() => el.remove(), 600); }
+}
 
 // ── Capsule management ───────────────────────────────────────────────────
 function spawnCapsules() {
@@ -340,7 +432,8 @@ document.addEventListener('mouseup',   stopPress);
 document.addEventListener('touchstart', e => { e.preventDefault(); startPress(); }, {passive:false});
 document.addEventListener('touchend',   stopPress);
 
-SensorService.onForceUpdate(f => { gripForce = f; });
+const onForce = f => { gripForce = f; };
+SensorService.onForceUpdate(onForce);
 
 // ── Find nearest capsule under crane ────────────────────────────────────
 function nearestCapsule() {
@@ -359,8 +452,10 @@ function grabCapsule(cap) {
   cap.grabbed = true;
   score++;
   attempts++;
-  scoreEl.textContent = score;
+  scoreEl.textContent = score;                    // essential (always)
+  setDetails.push({ setNum: score, force: Math.round(gripForce), holdSecs: HOLD_NEEDED });
 
+  const capRect = cap.el.getBoundingClientRect();
   cap.el.classList.add('grabbed');
   setTimeout(() => cap.el.remove(), 450);
 
@@ -370,6 +465,19 @@ function grabCapsule(cap) {
   chItem.style.background = cap.color;
   chuteItems.appendChild(chItem);
 
+  // Juice
+  if (!reducedMotion) {
+    if (scoreEl.animate) scoreEl.animate(
+      [{ transform: 'scale(1.4)' }, { transform: 'scale(1)' }],
+      { duration: 320, easing: 'cubic-bezier(0.34,1.56,0.64,1)' });
+    if (craneSvg.animate) craneSvg.animate(   // crane body recoil (~2px)
+      [{ transform: 'translateY(0)' }, { transform: 'translateY(2px)' }, { transform: 'translateY(0)' }],
+      { duration: 180, easing: 'ease-out' });
+    const vpRect = viewport.getBoundingClientRect();
+    floatPlusOne(capRect.left - vpRect.left + capRect.width / 2,
+                 capRect.top  - vpRect.top  + capRect.height / 2);
+  }
+
   // Re-spawn when all grabbed
   setTimeout(() => {
     if (running && capsules.every(c => c.grabbed)) spawnCapsules();
@@ -378,13 +486,14 @@ function grabCapsule(cap) {
   holdTime = 0;
 }
 
-// ── Timer ─────────────────────────────────────────────────────────────────
+// ── Timer (paused while tab hidden) ──────────────────────────────────────
 const timerInterval = setInterval(() => {
-  if (!running) return;
+  if (!running || document.hidden) return;
   timeLeft--;
   const m = Math.floor(timeLeft / 60);
   const s = timeLeft % 60;
   timerEl.textContent = `${m}:${String(s).padStart(2,'0')}`;
+  if (timeLeft <= 10) timerEl.classList.add('timer-warning');
   if (timeLeft <= 0) endGame();
 }, 1000);
 
@@ -392,7 +501,7 @@ const timerInterval = setInterval(() => {
 let lastTick = Date.now();
 
 function gameTick() {
-  if (!running) return;
+  if (!running) { rafId = null; return; }
 
   const now = Date.now();
   const dt  = (now - lastTick) / 1000;
@@ -400,11 +509,8 @@ function gameTick() {
 
   // Simulated grip
   if (SensorService.getMode() === 'simulation') {
-    if (pressActive) {
-      gripForce = Math.min(100, gripForce + 60 * dt);
-    } else {
-      gripForce = Math.max(0, gripForce - 50 * dt);
-    }
+    gripForce = pressActive ? Math.min(100, gripForce + 60 * dt)
+                            : Math.max(0, gripForce - 50 * dt);
     SensorService.setSimulatedForce(gripForce);
   }
 
@@ -418,7 +524,7 @@ function gameTick() {
   if (craneX < 50)  { craneX = 50;  craneDir = 1;  }
   craneAssembly.style.left = (craneX - 50) + 'px';
 
-  // Claw open / closed
+  // Claw open / closed — threshold at TARGET_FORCE (same constant as gauge line)
   const clamping = gripForce >= TARGET_FORCE;
   if (clamping) {
     clawGroup.classList.remove('claw-open');
@@ -426,21 +532,44 @@ function gameTick() {
     gripStatusEl.textContent = '집게 닫힘 — 유지!';
     gripStatusEl.style.color = '#994626';
     holdDonutWrap.style.opacity = '1';
+    // Target reached — donut active color + gauge top emphasis (no blur shadow)
+    donutArcClaw.style.stroke = '#16A34A';
+    donutArcLeft.style.stroke = '#16A34A';
+    gaugeTrack.classList.add('gauge-hot');
 
     holdTime += dt;
     if (holdTime >= HOLD_NEEDED) {
       const cap = nearestCapsule();
-      if (cap) { grabCapsule(cap); attempts = Math.max(0, attempts); }
-      else     { holdTime = 0; attempts++; }  // missed
+      if (cap) { grabCapsule(cap); }
+      else     { holdTime = 0; attempts++; }  // completed hold but no capsule under crane
     }
   } else {
     clawGroup.classList.add('claw-open');
     clawGroup.classList.remove('claw-closed');
     gripStatusEl.textContent = '집게 열림';
     gripStatusEl.style.color = '#64748B';
-    holdDonutWrap.style.opacity = '0';
+    donutArcClaw.style.stroke = '#994626';
+    donutArcLeft.style.stroke = '#994626';
+    gaugeTrack.classList.remove('gauge-hot');
+
+    // Early release (had meaningful progress) → donut shake + red border flash once
+    if (wasClamping && holdTime > 0.3 && !reducedMotion && !donutBusy) {
+      donutBusy = true;
+      holdDonutWrap.style.opacity = '1';
+      holdDonutWrap.classList.add('donut-shake');
+      donutRing.classList.add('donut-flash');
+      setTimeout(() => {
+        holdDonutWrap.classList.remove('donut-shake');
+        donutRing.classList.remove('donut-flash');
+        holdDonutWrap.style.opacity = '0';
+        donutBusy = false;
+      }, 220);
+    } else if (!donutBusy) {
+      holdDonutWrap.style.opacity = '0';
+    }
     holdTime = Math.max(0, holdTime - dt * 1.5);
   }
+  wasClamping = clamping;
 
   // Donut arcs
   const progress = Math.min(holdTime / HOLD_NEEDED, 1);
@@ -452,43 +581,68 @@ function gameTick() {
   donutArcLeft.style.strokeDashoffset = sideCirc * (1 - progress);
   holdSecsEl.textContent = holdTime.toFixed(1) + 's';
 
-  // Gauge
+  // Gauge fill + color state
   gaugeFill.style.height = gripForce + '%';
   forcePctEl.textContent = Math.round(gripForce) + '%';
-
-  // Gauge fill color changes above target
   gaugeFill.style.background = gripForce >= TARGET_FORCE ? '#16A34A' : '#994626';
 
-  requestAnimationFrame(gameTick);
+  // A11y — meter value + throttled (1s) live mirror for the per-frame force number
+  ariaAccum += dt;
+  if (ariaAccum >= 1) {
+    ariaAccum = 0;
+    const fv = Math.round(gripForce);
+    gaugeTrack.setAttribute('aria-valuenow', fv);
+    if (forceLive) forceLive.textContent = '악력 ' + fv + '퍼센트';
+  }
+
+  rafId = requestAnimationFrame(gameTick);
 }
 
 function endGame() {
   running = false;
   clearInterval(timerInterval);
+  if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
 
   const avgF = forceSamples.length
     ? Math.round(forceSamples.reduce((a,b) => a+b,0) / forceSamples.length) : 0;
-  const stars = score >= 8 ? 3 : score >= 4 ? 2 : 1;
+  const stars = starsForScore('crane', score);
+  const elapsedSec  = Math.round((Date.now() - sessionStart) / 1000);
+  const durationMin = Math.max(1, Math.round(elapsedSec / 60));
 
-  document.getElementById('res-score').textContent    = score;
-  document.getElementById('res-max').textContent      = Math.round(maxForce) + '%';
-  document.getElementById('res-avg').textContent      = avgF + '%';
-  document.getElementById('res-attempts').textContent = attempts;
-  document.getElementById('result-stars').innerHTML   =
-    [1,2,3].map(i => `<span class="material-symbols-outlined text-3xl ${i<=stars?'text-yellow-400':'text-on-surface-variant'}"
-      style="font-variation-settings:'FILL' ${i<=stars?1:0}">star</span>`).join('');
+  // Stars — sequential pop (120ms stagger); no motion under reduced.
+  document.getElementById('result-stars').innerHTML =
+    [1,2,3].map(i => {
+      const on = i <= stars;
+      const cls = reducedMotion ? '' : ' star-pop';
+      const delay = reducedMotion ? '' : `;animation-delay:${(i-1)*120}ms`;
+      return `<span class="material-symbols-outlined text-3xl${cls} ${on?'text-yellow-400':'text-on-surface-variant'}"
+        style="font-variation-settings:'FILL' ${on?1:0}${delay}">star</span>`;
+    }).join('');
 
+  // Session v2 (schema 2) — includes attempts (총 시도 수) so no data is lost.
   window._sessionResult = {
-    date:       new Date().toISOString(),
-    label:      '크레인 게임',
-    durationMin: Math.round((Date.now() - sessionStart) / 60000) || 1,
-    sets:       score,
-    avgForce:   avgF,
-    maxForce:   Math.round(maxForce),
+    date:        new Date().toISOString(),
+    gameId:      'crane',
+    label:       GAME_DEFS.crane.label,
+    durationMin,
+    durationSec: elapsedSec,
+    sets:        score,              // 크레인 = 캡슐 수
+    attempts,                        // 총 시도 수(성공+실패)
+    avgForce:    avgF,
+    maxForce:    Math.round(maxForce),
     stars,
+    setDetails,
+    schema:      2,
   };
 
-  document.getElementById('result-overlay').classList.add('open');
+  const overlay = document.getElementById('result-overlay');
+  overlay.classList.add('open');
+  requestAnimationFrame(() => overlay.classList.add('shown'));   // slideUp entrance
+
+  animateCount(document.getElementById('res-score'),    score,                { duration: 700 });
+  animateCount(document.getElementById('res-max'),      Math.round(maxForce), { suffix: '%', duration: 700 });
+  animateCount(document.getElementById('res-avg'),      avgF,                 { suffix: '%', duration: 700 });
+  animateCount(document.getElementById('res-attempts'), attempts,             { duration: 700 });
 }
 
 function restartGame() { window.location.reload(); }
@@ -499,15 +653,39 @@ function saveAndHistory() {
 }
 
 function confirmExit() {
-  if (confirm('게임을 종료하고 나가시겠습니까?')) window.location.href = 'training.html';
+  openConfirmModal({
+    title: '게임 종료',
+    body: '지금 종료하면 이번 세션은 저장되지 않습니다. 종료할까요?',
+    confirmLabel: '종료',
+    cancelLabel: '계속하기',
+    danger: true,
+    onConfirm: () => { cleanup(); window.location.href = 'training.html'; },
+  });
 }
+
+// ── Cleanup + visibility gating (optimize-web-animations) ────────────────────
+function cleanup() {
+  running = false;
+  clearInterval(timerInterval);
+  if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+  if (sensorBadgeUnsub) { sensorBadgeUnsub(); sensorBadgeUnsub = null; }
+  SensorService.offForceUpdate(onForce);
+}
+window.addEventListener('pagehide', cleanup);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+  } else if (running && rafId === null) {
+    lastTick = Date.now();   // avoid a dt spike after resume
+    rafId = requestAnimationFrame(gameTick);
+  }
+});
 
 // ── Init ──────────────────────────────────────────────────────────────────
 injectFeedbackModal();
-seedMockData();
-// Start claw open
-clawGroup.classList.add('claw-open');
-requestAnimationFrame(gameTick);
+sensorBadgeUnsub = bindSensorBadge(document.getElementById('sensor-badge'));
+clawGroup.classList.add('claw-open');   // start claw open
+rafId = requestAnimationFrame(gameTick);
 </script>
 </body>
 </html>
