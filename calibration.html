@@ -8,6 +8,129 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=DM+Sans:wght@400;500;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="shared.css"/>
 <script src="tailwind-config.js"></script>
+<style>
+  /* ── Calibration step state machine (.step-active / .step-done / .step-locked) ── */
+  .cal-step {
+    border: 2px solid var(--ink);
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+    background: #fff;
+    transition: background-color var(--dur-base) var(--ease-out),
+                box-shadow var(--dur-base) var(--ease-out),
+                opacity var(--dur-base) var(--ease-out);
+  }
+  .cal-step.step-active { background: #fff;             box-shadow: 4px 4px 0px var(--ink); }
+  .cal-step.step-locked { background: var(--surface);   opacity: 0.5; pointer-events: none; }
+  .cal-step.step-done   { background: #F0FFF8; }
+
+  /* Step number marker — number-details grammar (01 / 02), morphs to check on done */
+  .cal-step-num {
+    width: 2.75rem; height: 2.75rem;
+    border-radius: 9999px;
+    border: 2px solid var(--ink);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700; font-size: 0.95rem; letter-spacing: 0.05em;
+    background: var(--bg-app);
+    flex-shrink: 0;
+    transition: background-color var(--dur-base) var(--ease-out),
+                color var(--dur-base) var(--ease-out);
+  }
+  .step-active .cal-step-num { background: var(--primary);  color: #fff; }
+  .step-locked .cal-step-num { background: var(--surface);  color: var(--ink-muted); }
+  .step-done   .cal-step-num { background: #10B981;         color: #fff; }
+  .cal-step-num.check-pop { animation: checkPop 200ms var(--ease-out) 1; }
+  @keyframes checkPop {
+    0%   { transform: scale(0.6); }
+    60%  { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+
+  /* ── Capture buttons (≥48px touch target) ── */
+  .cal-capture-btn {
+    min-height: 48px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 0 1.25rem;
+    background: var(--ink-muted); color: #fff;
+    font-family: 'Space Grotesk', sans-serif; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.875rem;
+    border: 2px solid var(--ink); border-radius: var(--border-radius);
+    box-shadow: 2px 2px 0px var(--ink);
+    cursor: pointer;
+    transition: transform var(--dur-fast) var(--ease-out),
+                box-shadow var(--dur-fast) var(--ease-out),
+                filter var(--dur-fast) var(--ease-out);
+  }
+  .step-active .cal-capture-btn { background: var(--ink); }
+  .cal-capture-btn:hover:not(:disabled)  { filter: brightness(0.97); }
+  .cal-capture-btn:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: none; }
+  .cal-capture-btn:disabled { cursor: default; box-shadow: none; }
+  .cal-capture-btn.captured { background: #10B981; }
+
+  /* ── Start button — locked → unlocked with pop + retro-shadow entrance ── */
+  #btn-start {
+    background: var(--surface-warm);
+    color: var(--ink-muted);
+    box-shadow: 4px 4px 0px var(--ink-muted);
+    cursor: not-allowed;
+    transition: background-color var(--dur-base) var(--ease-out),
+                color var(--dur-base) var(--ease-out),
+                box-shadow var(--dur-base) var(--ease-out);
+  }
+  #btn-start.unlocked {
+    background: var(--primary);
+    color: #fff;
+    box-shadow: 4px 4px 0px var(--ink);
+    cursor: pointer;
+  }
+  #btn-start.unlocked.pop { animation: unlockPop 260ms var(--ease-out) 1; }
+  @keyframes unlockPop {
+    0%   { transform: scale(1); }
+    50%  { transform: scale(1.04); }
+    100% { transform: scale(1); }
+  }
+
+  /* ── Meter baseline dash markers + capture flash ── */
+  .meter-baseline {
+    position: absolute;
+    left: 0; right: 0;
+    height: 0;
+    border-top: 2px dashed var(--ink);
+    z-index: 3;
+    pointer-events: none;
+  }
+  .meter-baseline .meter-baseline-label {
+    position: absolute;
+    left: calc(100% + 6px);
+    top: -0.65em;
+    white-space: nowrap;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700; font-size: 0.65rem; letter-spacing: 0.04em;
+    color: var(--ink);
+  }
+  .meter-flash {
+    position: absolute; inset: 0;
+    border-radius: 9999px;
+    background: #10B981;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 2;
+  }
+  .meter-flash.flash { animation: meterFlash 420ms ease-out 1; }
+  @keyframes meterFlash {
+    0%   { opacity: 0; }
+    30%  { opacity: 0.55; }
+    100% { opacity: 0; }
+  }
+
+  /* ── Existing-calibration info box ── */
+  .cal-info-box {
+    border: 2px solid var(--ink);
+    background: var(--surface-warm);
+    border-radius: 0.75rem;
+    padding: 0.75rem 1rem;
+  }
+</style>
 </head>
 <body class="bg-background-sky text-on-surface min-h-screen flex flex-col items-center justify-center p-6">
 
@@ -27,18 +150,26 @@
     <section class="flex-1 p-8 md:p-10 border-b-4 md:border-b-0 md:border-r-4 border-ink-black flex flex-col justify-between">
       <div>
         <h1 class="font-display text-4xl font-bold mb-1 uppercase tracking-tight">캘리브레이션 룸</h1>
-        <p class="text-cool-gray text-base mb-8">0–100% 관절 가동 범위 기준 설정</p>
+        <p class="text-cool-gray text-base mb-6">0–100% 관절 가동 범위 기준 설정</p>
+
+        <!-- Existing calibration (populated on load if a record exists) -->
+        <div id="existing-cal" class="cal-info-box mb-6 hidden">
+          <div class="flex items-start gap-2">
+            <span class="material-symbols-outlined text-primary text-xl flex-shrink-0" style="font-variation-settings:'FILL' 1">history</span>
+            <div class="text-sm">
+              <div id="existing-cal-detail" class="font-display font-bold text-on-surface">—</div>
+              <div class="text-cool-gray mt-1">아래 단계를 다시 진행하면 새 기준으로 덮어씁니다.</div>
+            </div>
+          </div>
+        </div>
 
         <div class="space-y-4">
 
           <!-- Step 1 -->
-          <div id="step-1" class="retro-border rounded-xl p-5 bg-white transition-colors duration-300">
+          <div id="step-1" class="cal-step step-active">
             <div class="flex items-start justify-between">
               <div class="flex gap-4">
-                <div id="step-1-number"
-                     class="w-11 h-11 rounded-full retro-border flex items-center justify-center font-display font-bold text-lg bg-background-sky flex-shrink-0">
-                  1
-                </div>
+                <div id="step-1-number" class="cal-step-num">01</div>
                 <div>
                   <h3 class="font-display text-lg font-bold mb-1">0% 기준 (힘 빼기)</h3>
                   <p class="text-cool-gray text-sm">손에 힘을 완전히 빼세요.</p>
@@ -47,22 +178,15 @@
               <span class="material-symbols-outlined text-3xl text-cool-gray flex-shrink-0" style="font-variation-settings:'FILL' 0">front_hand</span>
             </div>
             <div class="mt-4 flex justify-end">
-              <button id="btn-cap-1"
-                      onclick="captureBaseline(1)"
-                      class="bg-cool-gray text-white font-display font-bold uppercase tracking-wider px-5 py-2.5 rounded retro-border retro-shadow text-sm">
-                0% 기록
-              </button>
+              <button id="btn-cap-1" onclick="captureBaseline(1)" class="cal-capture-btn">0% 기록</button>
             </div>
           </div>
 
           <!-- Step 2 -->
-          <div id="step-2" class="retro-border rounded-xl p-5 bg-surface opacity-50 pointer-events-none transition-all duration-300">
+          <div id="step-2" class="cal-step step-locked">
             <div class="flex items-start justify-between">
               <div class="flex gap-4">
-                <div id="step-2-number"
-                     class="w-11 h-11 rounded-full retro-border flex items-center justify-center font-display font-bold text-lg bg-surface text-cool-gray flex-shrink-0">
-                  2
-                </div>
+                <div id="step-2-number" class="cal-step-num">02</div>
                 <div>
                   <h3 class="font-display text-lg font-bold mb-1">100% 최대 악력</h3>
                   <p class="text-cool-gray text-sm">안전한 범위 내에서 <span class="font-bold underline">최대한 세게</span> 쥐세요.</p>
@@ -71,11 +195,7 @@
               <span class="material-symbols-outlined text-3xl text-on-surface flex-shrink-0" style="font-variation-settings:'FILL' 1">back_hand</span>
             </div>
             <div class="mt-4 flex justify-end">
-              <button id="btn-cap-2"
-                      onclick="captureBaseline(2)"
-                      class="bg-cool-gray text-white font-display font-bold uppercase tracking-wider px-5 py-2.5 rounded retro-border retro-shadow text-sm">
-                100% 기록
-              </button>
+              <button id="btn-cap-2" onclick="captureBaseline(2)" class="cal-capture-btn">100% 기록</button>
             </div>
           </div>
 
@@ -87,18 +207,17 @@
         <button id="btn-start"
                 disabled
                 onclick="window.location.href='training.html'"
-                class="w-full bg-surface-container text-cool-gray font-display font-bold text-xl uppercase tracking-wider py-4 rounded retro-border cursor-not-allowed transition-all duration-300"
-                style="box-shadow:4px 4px 0px #64748B;">
+                class="w-full font-display font-bold text-xl uppercase tracking-wider py-4 rounded retro-border">
           운동 시작
         </button>
       </div>
     </section>
 
     <!-- Right: Live Meter -->
-    <section class="w-full md:w-[280px] bg-surface p-8 flex flex-col items-center justify-center">
+    <section id="meter-wrap" class="w-full md:w-[280px] bg-surface p-8 flex flex-col items-center justify-center select-none">
       <h3 class="font-display text-xs font-bold uppercase tracking-widest text-cool-gray mb-6 text-center">실시간 센서<br/>데이터</h3>
 
-      <div class="relative h-[360px] w-10 flex flex-col items-center">
+      <div id="tube-wrap" class="relative h-[360px] w-10 flex flex-col items-center">
         <!-- 100% label -->
         <div class="absolute -top-5 right-14 font-display font-bold text-on-surface text-sm">100%</div>
         <div class="absolute top-0 right-12 w-8 border-t-2 border-dashed border-cool-gray opacity-40"></div>
@@ -107,17 +226,26 @@
         <div class="w-full h-full bg-background-sky rounded-full retro-border overflow-hidden relative shadow-inner">
           <div id="live-meter-fill"
                class="absolute bottom-0 left-0 right-0 transition-all duration-100 ease-out rounded-full"
-               style="height:15%;background:#994626;"></div>
+               style="height:0%;background:#994626;"></div>
+          <div id="meter-flash" class="meter-flash"></div>
         </div>
 
         <!-- 0% label -->
         <div class="absolute -bottom-5 right-14 font-display font-bold text-on-surface text-sm">0%</div>
         <div class="absolute bottom-0 right-12 w-8 border-t-2 border-dashed border-cool-gray opacity-40"></div>
+
+        <!-- Captured baseline dash markers -->
+        <div id="baseline-marker-0"   class="meter-baseline hidden"><span class="meter-baseline-label"></span></div>
+        <div id="baseline-marker-100" class="meter-baseline hidden"><span class="meter-baseline-label"></span></div>
       </div>
 
-      <div id="live-value" class="mt-8 font-display text-3xl font-bold text-on-surface">15%</div>
+      <div id="live-value" class="mt-8 font-display text-3xl font-bold text-on-surface tabular" aria-live="polite" aria-atomic="true">0%</div>
 
-      <!-- Baseline indicators -->
+      <p id="sim-hint" class="mt-2 text-[11px] font-display font-bold uppercase tracking-wider text-cool-gray text-center leading-snug">
+        SPACE 또는 미터를 홀드해<br/>쥐는 힘을 조절하세요
+      </p>
+
+      <!-- Baseline indicators (text mirror of tube markers) -->
       <div id="baseline-info" class="mt-4 text-xs font-display font-bold uppercase tracking-wider text-cool-gray text-center space-y-1 hidden">
         <div id="b0-info">0% 기준: —</div>
         <div id="b100-info">100% 기준: —</div>
@@ -130,80 +258,181 @@
   <script>
     injectFeedbackModal();
 
-    let simulatedValue = 15;
-    let baseline0 = null;
-    let baseline100 = null;
+    // Wizard page skips initPage() — honor the app-level reduced-motion setting here too.
+    try {
+      if (DataService.getSettingsSync().reducedMotion) {
+        document.documentElement.setAttribute('data-reduced-motion', '');
+      }
+    } catch {}
 
-    const meterFill = document.getElementById('live-meter-fill');
-    const liveValueText = document.getElementById('live-value');
+    // ── State ──
+    let baseline0     = null;
+    let baseline100   = null;
+    let liveForce     = SensorService.getForce();   // logical 0–100 (never Math.random)
+    let pressActive   = false;
+    let rafId         = null;
+    let lastTick      = performance.now();
+    let lastAriaWrite = performance.now();
 
-    setInterval(() => {
-      simulatedValue += (Math.random() - 0.5) * 5;
-      simulatedValue = Math.max(0, Math.min(100, simulatedValue));
-      meterFill.style.height = `${simulatedValue}%`;
-      liveValueText.textContent = `${Math.round(simulatedValue)}%`;
-    }, 100);
+    const meterFill   = document.getElementById('live-meter-fill');
+    const liveValueEl = document.getElementById('live-value');
+    const flashEl     = document.getElementById('meter-flash');
+    const meterWrap   = document.getElementById('meter-wrap');
+    const hintEl      = document.getElementById('sim-hint');
 
-    function captureBaseline(step) {
-      if (step === 1) {
-        baseline0 = simulatedValue;
+    // Seed the initial readout (no more hard-coded 15%).
+    meterFill.style.height  = liveForce + '%';
+    liveValueEl.textContent = Math.round(liveForce) + '%';
 
-        const btn1 = document.getElementById('btn-cap-1');
-        btn1.textContent = '기록됨 ✓';
-        btn1.style.background = '#10B981';
-        btn1.disabled = true;
-        btn1.style.boxShadow = 'none';
+    // ── Live meter driven by SensorService (onForceUpdate), NOT Math.random ──
+    function onForce(f) { liveForce = f; }
+    SensorService.onForceUpdate(onForce);
 
-        document.getElementById('step-1').style.background = '#F0FFF8';
-
-        const num1 = document.getElementById('step-1-number');
-        num1.innerHTML = '<span class="material-symbols-outlined text-sm">check</span>';
-        num1.style.background = '#10B981';
-        num1.style.color = '#fff';
-
-        // Unlock Step 2
-        const step2 = document.getElementById('step-2');
-        step2.classList.remove('opacity-50', 'pointer-events-none');
-        step2.style.background = '#fff';
-
-        const btn2 = document.getElementById('btn-cap-2');
-        btn2.style.background = '#0F172A';
-        btn2.style.color = '#fff';
-
-        const num2 = document.getElementById('step-2-number');
-        num2.style.background = '#994626';
-        num2.style.color = '#fff';
-
-        document.getElementById('baseline-info').classList.remove('hidden');
-        document.getElementById('b0-info').textContent = `0% 기준: ${Math.round(baseline0)}%`;
-
-      } else if (step === 2) {
-        baseline100 = simulatedValue;
-
-        const btn2 = document.getElementById('btn-cap-2');
-        btn2.textContent = '기록됨 ✓';
-        btn2.style.background = '#10B981';
-        btn2.disabled = true;
-        btn2.style.boxShadow = 'none';
-
-        document.getElementById('step-2').style.background = '#F0FFF8';
-
-        const num2 = document.getElementById('step-2-number');
-        num2.innerHTML = '<span class="material-symbols-outlined text-sm">check</span>';
-        num2.style.background = '#10B981';
-        num2.style.color = '#fff';
-
-        document.getElementById('b100-info').textContent = `100% 기준: ${Math.round(baseline100)}%`;
-
-        // Unlock Start
-        const btnStart = document.getElementById('btn-start');
-        btnStart.disabled = false;
-        btnStart.style.background = '#994626';
-        btnStart.style.color = '#fff';
-        btnStart.style.cursor = 'pointer';
-        btnStart.style.boxShadow = '4px 4px 0px #0F172A';
+    function renderMeter(now) {
+      meterFill.style.height = liveForce + '%';
+      // aria-live throttle: mirror the numeric value at most ~1×/sec.
+      if (now - lastAriaWrite >= 1000) {
+        liveValueEl.textContent = Math.round(liveForce) + '%';
+        lastAriaWrite = now;
       }
     }
+
+    function tick(now) {
+      const dt = Math.min(0.05, (now - lastTick) / 1000);
+      lastTick = now;
+
+      // Simulation (sensor not connected): the user "grips" via SPACE / hold to
+      // ramp force up (+55%/s) and it decays on release (-45%/s) — game pattern.
+      if (SensorService.getStatus() !== 'connected') {
+        liveForce = pressActive
+          ? Math.min(100, liveForce + 55 * dt)
+          : Math.max(0, liveForce - 45 * dt);
+        SensorService.setSimulatedForce(liveForce);   // routes back through onForce
+      }
+
+      renderMeter(now);
+      rafId = requestAnimationFrame(tick);
+    }
+    rafId = requestAnimationFrame(tick);
+
+    // ── Grip-simulation input: SPACE anywhere + hold on the meter panel ──
+    function startPress() { pressActive = true; }
+    function stopPress()  { pressActive = false; }
+    function onKeyDown(e) { if (e.code === 'Space') { e.preventDefault(); startPress(); } }
+    function onKeyUp(e)   { if (e.code === 'Space') stopPress(); }
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('keyup',   onKeyUp);
+    meterWrap.addEventListener('pointerdown',  (e) => { e.preventDefault(); startPress(); });
+    meterWrap.addEventListener('pointerup',     stopPress);
+    meterWrap.addEventListener('pointerleave',  stopPress);
+    meterWrap.addEventListener('pointercancel', stopPress);
+
+    // Hide the grip hint when a real sensor is connected.
+    function syncHint() { hintEl.style.display = SensorService.getStatus() === 'connected' ? 'none' : ''; }
+    syncHint();
+    SensorService.onStatusChange(syncHint);
+
+    // ── Tube baseline dash markers ──
+    function showBaselineMarker(id, value, label) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.style.bottom = value + '%';
+      el.querySelector('.meter-baseline-label').textContent = `${label} ${Math.round(value)}%`;
+      el.classList.remove('hidden');
+    }
+
+    // ── Capture-moment green flash (decorative → skipped under reduced motion) ──
+    function flashMeter() {
+      if (prefersReducedMotion() || !flashEl) return;
+      flashEl.classList.remove('flash');
+      void flashEl.offsetWidth;              // restart the animation
+      flashEl.classList.add('flash');
+    }
+
+    // ── Step state helpers (class-based, replaces imperative style writes) ──
+    function markStepDone(stepEl, numEl, captureBtn) {
+      stepEl.classList.remove('step-active', 'step-locked');
+      stepEl.classList.add('step-done');
+      numEl.innerHTML = '<span class="material-symbols-outlined" style="font-size:1.4rem">check</span>';
+      if (!prefersReducedMotion()) {
+        numEl.classList.remove('check-pop');
+        void numEl.offsetWidth;
+        numEl.classList.add('check-pop');    // scale pop morph
+      }
+      captureBtn.textContent = '기록됨 ✓';
+      captureBtn.classList.add('captured');
+      captureBtn.disabled = true;
+    }
+
+    function activateStep(stepEl) {
+      stepEl.classList.remove('step-locked');
+      stepEl.classList.add('step-active');
+    }
+
+    // ── Capture handler (async: persists on the 100% step) ──
+    async function captureBaseline(step) {
+      if (step === 1) {
+        baseline0 = Math.round(liveForce);
+        markStepDone(
+          document.getElementById('step-1'),
+          document.getElementById('step-1-number'),
+          document.getElementById('btn-cap-1')
+        );
+        activateStep(document.getElementById('step-2'));
+        document.getElementById('baseline-info').classList.remove('hidden');
+        document.getElementById('b0-info').textContent = `0% 기준: ${baseline0}%`;
+        showBaselineMarker('baseline-marker-0', baseline0, '0%');
+        flashMeter();
+
+      } else if (step === 2) {
+        baseline100 = Math.round(liveForce);
+        markStepDone(
+          document.getElementById('step-2'),
+          document.getElementById('step-2-number'),
+          document.getElementById('btn-cap-2')
+        );
+        document.getElementById('b100-info').textContent = `100% 기준: ${baseline100}%`;
+        showBaselineMarker('baseline-marker-100', baseline100, '100%');
+        flashMeter();
+
+        // ── Persist both baselines + apply to the sensor pipeline (core wiring) ──
+        await DataService.saveCalibration({ baseline0, baseline100, date: new Date().toISOString() });
+        SensorService.setCalibration({ baseline0, baseline100 });
+
+        // Unlock the start button (scale pop + retro-shadow entrance).
+        const btnStart = document.getElementById('btn-start');
+        btnStart.disabled = false;
+        btnStart.classList.add('unlocked');
+        if (!prefersReducedMotion()) {
+          btnStart.classList.add('pop');
+          btnStart.addEventListener('animationend', () => btnStart.classList.remove('pop'), { once: true });
+        }
+      }
+    }
+    window.captureBaseline = captureBaseline;   // referenced by inline onclick
+
+    // ── Existing calibration → top info box ──
+    (async () => {
+      let cal = null;
+      try { cal = await DataService.getCalibration(); } catch {}
+      if (cal && typeof cal.baseline0 === 'number' && typeof cal.baseline100 === 'number') {
+        const when = cal.date ? ` (${formatKoreanDate(cal.date)})` : '';
+        document.getElementById('existing-cal-detail').textContent =
+          `기존 캘리브레이션: 0%=${cal.baseline0}, 100%=${cal.baseline100}${when}`;
+        document.getElementById('existing-cal').classList.remove('hidden');
+      }
+    })();
+
+    // ── Cleanup on page leave: unsubscribe + stop the rAF loop + drop listeners ──
+    function cleanup() {
+      SensorService.offForceUpdate(onForce);
+      SensorService.offStatusChange(syncHint);
+      if (rafId) cancelAnimationFrame(rafId);
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('keyup', onKeyUp);
+    }
+    window.addEventListener('pagehide', cleanup);
+    window.addEventListener('beforeunload', cleanup);
   </script>
 </body>
 </html>

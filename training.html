@@ -28,6 +28,56 @@
   .difficulty-dot { width:10px; height:10px; border-radius:50%; border:2px solid #0F172A; display:inline-block; }
   .dot-filled { background:#994626; }
   .dot-empty  { background:#FFE9E3; }
+
+  /* Decorative number-details marker (01 / 02) — low-contrast, mono, card corner */
+  .card-number {
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    z-index: 20;
+    font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    color: rgba(15, 23, 42, 0.32);   /* ink @ low alpha — architectural, not primary */
+    pointer-events: none;
+  }
+
+  /* Card entrance — fade + rise, 350ms, 70ms stagger */
+  .card-enter { display: flex; animation: cardRise 350ms var(--ease-out) both; }
+  .card-enter > .game-card { flex: 1; }
+  .card-enter:nth-child(2) { animation-delay: 70ms; }
+  @keyframes cardRise {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Calibration banner — emphasized state (no calibration on record) */
+  #cal-banner.cal-emphasis { border-color: var(--primary); }
+  #cal-banner.cal-emphasis .cal-banner-icon { animation: calBannerPulse 600ms var(--ease-out) 1; }
+  @keyframes calBannerPulse {
+    0%   { transform: scale(1); }
+    50%  { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+
+  /* Preview hover micro-motion (reduced-motion neutralized by shared.css) */
+  .game-card:hover .preview-balloon { animation: balloonFloat 1.6s ease-in-out infinite; }
+  @keyframes balloonFloat {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-2px); }
+  }
+  .crane-prong-l, .crane-prong-r { transform-box: fill-box; transform-origin: top center; }
+  .game-card:hover .crane-prong-l { animation: cranePronL 520ms var(--ease-out) 1; }
+  .game-card:hover .crane-prong-r { animation: cranePronR 520ms var(--ease-out) 1; }
+  @keyframes cranePronL {
+    0%, 100% { transform: rotate(0deg); }
+    50%      { transform: rotate(-9deg); }
+  }
+  @keyframes cranePronR {
+    0%, 100% { transform: rotate(0deg); }
+    50%      { transform: rotate(9deg); }
+  }
 </style>
 </head>
 <body class="bg-background-sky text-on-surface">
@@ -47,12 +97,12 @@
         <p class="text-on-surface-variant text-lg">재활 목적에 맞는 게임을 선택하세요. 모든 게임은 실제 악력 데이터를 기록합니다.</p>
       </section>
 
-      <!-- Calibration reminder -->
-      <div class="bg-surface-container retro-border rounded-xl p-4 flex items-center gap-4">
-        <span class="material-symbols-outlined text-primary text-2xl flex-shrink-0" style="font-variation-settings:'FILL' 1">tune</span>
+      <!-- Calibration reminder (state reflects DataService.getCalibration()) -->
+      <div id="cal-banner" class="bg-surface-container retro-border rounded-xl p-4 flex items-center gap-4 transition-colors duration-200">
+        <span class="cal-banner-icon material-symbols-outlined text-primary text-2xl flex-shrink-0" style="font-variation-settings:'FILL' 1">tune</span>
         <div class="flex-1">
-          <span class="font-display font-bold text-sm">처음 사용하신다면 캘리브레이션을 먼저 진행하세요.</span>
-          <span class="text-on-surface-variant text-sm ml-2">정확한 0%~100% 기준을 설정합니다.</span>
+          <span id="cal-banner-title" class="font-display font-bold text-sm">처음 사용하신다면 캘리브레이션을 먼저 진행하세요.</span>
+          <span id="cal-banner-sub" class="text-on-surface-variant text-sm ml-2">정확한 0%~100% 기준을 설정합니다.</span>
         </div>
         <a href="calibration.html"
            class="font-display font-bold text-xs uppercase tracking-wider text-primary hover:underline no-underline flex-shrink-0">
@@ -64,10 +114,12 @@
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 
         <!-- Balloon Game -->
+        <div class="card-enter">
         <a href="game-balloon.html" class="game-card">
           <!-- Preview Banner -->
           <div class="h-48 relative overflow-hidden flex items-center justify-center"
                style="background:linear-gradient(135deg,#E0F2FE 0%,#BAE6FD 60%,#7DD3FC 100%);">
+            <span class="card-number" aria-hidden="true">01</span>
             <!-- Clouds -->
             <div class="absolute top-4 left-6 w-16 h-8 bg-white rounded-full opacity-70"></div>
             <div class="absolute top-2 left-14 w-10 h-6 bg-white rounded-full opacity-60"></div>
@@ -76,7 +128,7 @@
             <div class="absolute w-full" style="top:25%;height:18%;background:rgba(16,185,129,0.2);border-top:3px dashed #10B981;border-bottom:3px dashed #10B981;"></div>
             <!-- Balloon SVG -->
             <div class="relative z-10" style="bottom:0;">
-              <svg width="80" height="110" viewBox="0 0 80 110" fill="none">
+              <svg class="preview-balloon" width="80" height="110" viewBox="0 0 80 110" fill="none">
                 <ellipse cx="40" cy="42" rx="32" ry="40" fill="#F472B6" stroke="#0F172A" stroke-width="3"/>
                 <ellipse cx="30" cy="28" rx="10" ry="14" fill="rgba(255,255,255,0.35)" transform="rotate(-20 30 28)"/>
                 <path d="M34 82 Q40 92 46 82" stroke="#0F172A" stroke-width="2.5" fill="none"/>
@@ -103,7 +155,7 @@
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2">
                 <span class="font-display text-xs font-bold text-on-surface-variant uppercase tracking-wider">난이도</span>
-                <div class="flex gap-1">
+                <div class="flex gap-1" role="img" aria-label="난이도 2/5">
                   <span class="difficulty-dot dot-filled"></span>
                   <span class="difficulty-dot dot-filled"></span>
                   <span class="difficulty-dot dot-empty"></span>
@@ -118,12 +170,15 @@
             </div>
           </div>
         </a>
+        </div>
 
         <!-- Crane Game -->
+        <div class="card-enter">
         <a href="game-crane.html" class="game-card">
           <!-- Preview Banner -->
           <div class="h-48 relative overflow-hidden flex items-end justify-center pb-4"
                style="background:linear-gradient(135deg,#FFF1ED 0%,#FFE4D4 60%,#FFD4BC 100%);">
+            <span class="card-number" aria-hidden="true">02</span>
             <!-- Dots bg -->
             <div class="absolute inset-0 opacity-20"
                  style="background-image:radial-gradient(#994626 2px,transparent 2px);background-size:24px 24px;"></div>
@@ -135,9 +190,9 @@
               <rect x="42" y="55" width="36" height="22" rx="4" fill="#994626" stroke="#0F172A" stroke-width="3"/>
               <circle cx="60" cy="66" r="6" fill="white" stroke="#0F172A" stroke-width="2"/>
               <!-- Left prong -->
-              <path d="M50 77 Q38 90 36 110" stroke="#0F172A" stroke-width="4" fill="none" stroke-linecap="round"/>
+              <path class="crane-prong-l" d="M50 77 Q38 90 36 110" stroke="#0F172A" stroke-width="4" fill="none" stroke-linecap="round"/>
               <!-- Right prong -->
-              <path d="M70 77 Q82 90 84 110" stroke="#0F172A" stroke-width="4" fill="none" stroke-linecap="round"/>
+              <path class="crane-prong-r" d="M70 77 Q82 90 84 110" stroke="#0F172A" stroke-width="4" fill="none" stroke-linecap="round"/>
             </svg>
             <!-- Capsules -->
             <div class="flex gap-6 z-10">
@@ -167,7 +222,7 @@
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2">
                 <span class="font-display text-xs font-bold text-on-surface-variant uppercase tracking-wider">난이도</span>
-                <div class="flex gap-1">
+                <div class="flex gap-1" role="img" aria-label="난이도 3/5">
                   <span class="difficulty-dot dot-filled"></span>
                   <span class="difficulty-dot dot-filled"></span>
                   <span class="difficulty-dot dot-filled"></span>
@@ -182,6 +237,7 @@
             </div>
           </div>
         </a>
+        </div>
 
       </div>
 
@@ -201,6 +257,30 @@
 </div>
 
 <script src="shared.js"></script>
-<script>initPage('training');</script>
+<script>
+  initPage('training');
+
+  // Calibration banner — reflect whether a calibration record exists.
+  (async () => {
+    const banner = document.getElementById('cal-banner');
+    const title  = document.getElementById('cal-banner-title');
+    const sub    = document.getElementById('cal-banner-sub');
+    let cal = null;
+    try { cal = await DataService.getCalibration(); } catch {}
+
+    if (!cal) {
+      // No calibration yet → emphasized state (primary border + one-shot icon pulse).
+      banner.classList.add('cal-emphasis');
+      title.textContent = '게임 전 캘리브레이션을 권장합니다.';
+      sub.textContent   = '정확한 0%~100% 기준을 먼저 설정하세요.';
+    } else {
+      // Calibration on record → muted confirmation state.
+      title.textContent = '캘리브레이션 기준이 설정되어 있습니다.';
+      sub.textContent   = cal.date
+        ? `최근 캘리브레이션: ${formatKoreanDate(cal.date)}`
+        : '언제든 다시 측정할 수 있습니다.';
+    }
+  })();
+</script>
 </body>
 </html>
