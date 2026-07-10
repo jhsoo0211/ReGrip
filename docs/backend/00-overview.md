@@ -143,3 +143,23 @@ ReGrip은 손 재활을 게이미피케이션한 O2O(Online-to-Offline) 플랫�
 
 > 게이미피케이션 계산 자체는 프론트 `GamificationEngine`과 백엔드 `services/gamification.py`가
 > **동일 상수·동일 공식**으로 검증되어 있다(세션 XP 370 케이스 양쪽 일치). 전환 시 서버 값이 진실이다.
+
+### 부록 갱신 (2026-07-10, `feature/frontend-backend-integration`)
+
+위 6건은 **전부 해소되었다.** 프론트 `DataService`가 `/api/v1` 경로·페이로드·envelope을
+직접 다루고, `AuthService`가 JWT 로그인/갱신을 담당한다. REST 모드에서는 게이미피케이션
+수치를 **서버(`/users/me/stats`, `/achievements`, `/xp-events`)에서 가져와 표시**하며,
+서버 호출이 실패하면 로컬 계산으로 폴백한다.
+
+| 항목 | 해소 방식 |
+|---|---|
+| 경로 | `DataService._apiUrl()` → `{base}/api/v1{path}` |
+| 인증 | `AuthService` + `login.html`, 401 → refresh 1회 → 재시도 |
+| 세션 페이로드 | `saveSession`이 `clientSessionId` 생성·보관(오프라인 재전송 멱등) 후 변환 |
+| 목록 envelope | `data` 언랩 + 서버→프론트 세션 매핑 |
+| 캘리브레이션 | `POST /calibrations`, `GET /calibrations/latest`(없으면 204) |
+| 필드명 | `sessionSummaryEnabled`·`timezone` 정렬, `birthDate` 승격 |
+
+**운영 제약**: refresh 쿠키가 `SameSite=Strict`이므로 프론트와 API의 **호스트명이 같아야**
+한다(둘 다 `localhost` 또는 둘 다 `127.0.0.1`; 포트는 달라도 무방). 프론트 origin은 백엔드
+`CORS_ORIGINS` 화이트리스트에 있어야 한다.
