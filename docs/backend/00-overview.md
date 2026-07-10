@@ -122,3 +122,24 @@ ReGrip은 손 재활을 게이미피케이션한 O2O(Online-to-Offline) 플랫�
 - 주요 의사결정마다 **결정 / 근거 / 기각된 대안** ADR 블록을 붙였다. 왜 이렇게 정했는지 되짚을 때 이 블록을 먼저 보라.
 - DDL, JSON, mermaid 다이어그램은 실제 구현에 바로 옮길 수 있는 구체성을 목표로 한다.
 - 이 문서는 **확정된 설계의 기록**이다. 재설계가 필요하면 별도 논의 후 문서를 개정한다.
+
+---
+
+## 부록. 프론트–백엔드 통합 잔여 과제 (2026-07-10 검토 기준)
+
+현재 프론트 `shared.js`의 `DataService`는 **로컬(localStorage) 모드로만 동작**하며, REST 모드는
+프로토타입 시절의 경로/페이로드를 유지하고 있다. 백엔드 MVP(`backend/`)와 다음 간극이 존재하므로,
+`setBackend('rest', ...)`로 전환하기 전에 프론트 어댑터 작업이 선행되어야 한다.
+(현 상태에서 REST 모드는 사용하지 않으므로 사용자에게 노출되는 결함은 없다.)
+
+| # | 항목 | 프론트 현재 | 백엔드 실제 | 필요한 작업 |
+|---|---|---|---|---|
+| 1 | 경로 | `/api/profile`, `/api/sessions`, `/api/settings`, `/api/calibration` | `/api/v1/users/me/...` | 경로 매핑 |
+| 2 | 인증 | 헤더 주입 지원만 있고 로그인 플로우 없음 | JWT Bearer + refresh 쿠키 | 로그인 화면·토큰 갱신 |
+| 3 | 세션 페이로드 | `{gameId, sets:<정수>, durationSec, setDetails[]}` | `{clientSessionId, exerciseType, score, sets:[...]}` | 변환 어댑터(+멱등키 생성) |
+| 4 | 세션 목록 응답 | 배열 기대 | `{data:[], meta:{nextCursor}}` | 언랩 + 커서 페이지네이션 |
+| 5 | 캘리브레이션 | `PUT /api/calibration {baseline0,baseline100}` | `POST .../calibrations`, `GET .../latest` | 메서드·필드명 정렬 |
+| 6 | 설정/프로필 필드 | `summaryEnabled`, `age` 등 | `sessionSummaryEnabled`, `birthDate` 등 | 필드명 정렬(+timezone 신규) |
+
+> 게이미피케이션 계산 자체는 프론트 `GamificationEngine`과 백엔드 `services/gamification.py`가
+> **동일 상수·동일 공식**으로 검증되어 있다(세션 XP 370 케이스 양쪽 일치). 전환 시 서버 값이 진실이다.
