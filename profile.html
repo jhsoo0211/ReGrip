@@ -105,7 +105,7 @@
               <div class="rounded-full overflow-hidden" style="width:120px;height:120px;">
                 <img id="avatar-preview" src="" alt="프로필 사진" role="button" tabindex="0" aria-label="프로필 사진 변경" onclick="triggerAvatar()" onkeydown="onAvatarKey(event)" style="width:100%;height:100%;object-fit:cover;cursor:pointer;border:4px solid #0F172A;border-radius:50%;box-shadow:4px 4px 0px #0F172A;transition:opacity 0.2s;"/>
               </div>
-              <input type="file" id="avatar-input" accept="image/*" onchange="handleAvatarUpload(this)"/>
+              <input type="file" id="avatar-input" accept="image/png,image/jpeg,image/webp" onchange="handleAvatarUpload(this)"/>
               <div class="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-primary retro-border flex items-center justify-center cursor-pointer" aria-hidden="true"
                    onclick="triggerAvatar()">
                 <span class="material-symbols-outlined text-white text-sm">photo_camera</span>
@@ -159,8 +159,9 @@
                 <input id="f-name" type="text" class="field-input" placeholder="이름 입력"/>
               </div>
               <div>
-                <label class="field-label" for="f-age">나이</label>
-                <input id="f-age" type="number" class="field-input" placeholder="예: 35" min="1" max="120"/>
+                <label class="field-label" for="f-birth-date">생년월일</label>
+                <input id="f-birth-date" type="date" class="field-input"/>
+                <div id="birth-caption" class="text-xs text-on-surface-variant mt-1" style="min-height:18px;line-height:1.4;"></div>
               </div>
               <div>
                 <label class="field-label" for="f-gender">성별</label>
@@ -256,6 +257,26 @@
 <script>
 initPage(null);
 
+// 서버 연결 모드 여부 (shared.js 미반영 상태에서도 안전하게 로컬로 폴백).
+function isRest() {
+  return typeof DataService.isRest === 'function' && DataService.isRest();
+}
+
+// 생년월일 → 만 나이 (로컬 헬퍼 — shared.js 수정 금지 원칙에 따라 이 파일에 둔다).
+function ageFromBirthDate(birthDate) {
+  if (!birthDate) return null;
+  const b = new Date(birthDate);
+  if (isNaN(b.getTime())) return null;
+  const now = new Date();
+  let age = now.getFullYear() - b.getFullYear();
+  const m = now.getMonth() - b.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < b.getDate())) age--;
+  return (age >= 0 && age <= 150) ? age : null;
+}
+
+// 레거시 나이(생년월일 없이 age만 저장된 구 프로필)를 캡션에 안내하기 위해 보관.
+let legacyAge = null;
+
 // 프로필 로드. 주요 손(hand)의 단일 소스는 settings다 — profile에는 저장하지 않는다.
 const profile = DataService.getProfileSync();
 
@@ -270,7 +291,11 @@ const profile = DataService.getProfileSync();
 
 function loadIntoForm(p) {
   document.getElementById('f-name').value    = p.name    || '';
-  document.getElementById('f-age').value     = p.age     || '';
+  // 생년월일: 서버는 birthDate('YYYY-MM-DD')만 저장하고 age는 유도값이다.
+  document.getElementById('f-birth-date').value = p.birthDate || '';
+  // 레거시 마이그레이션: birthDate 없이 age만 있으면 캡션으로만 안내(입력칸은 비움).
+  legacyAge = (!p.birthDate && p.age) ? p.age : null;
+  updateBirthCaption();
   document.getElementById('f-gender').value  = p.gender  || '';
   document.getElementById('f-phone').value   = p.phone   || '';
   // 주요 손은 settings에서 읽는다 (단일 소스 = settings)
@@ -284,14 +309,41 @@ function loadIntoForm(p) {
   }
   if (p.goalDays) document.getElementById('f-goal-days').value = p.goalDays;
 
-  // Avatar (기존 FileReader base64 로직 유지)
+  // Avatar 표시 우선순위: 로컬 미리보기(base64) → 서버 avatarUrl → 기본 아바타
   const avatar = document.getElementById('avatar-preview');
-  avatar.src = p.avatarBase64 || DEFAULT_AVATAR;   // shared.js의 인라인 SVG 기본 아바타
+  // 서버 avatarUrl은 상대경로(/static/...)라 API origin으로 해석해야 한다.
+  avatar.src = p.avatarBase64 || DataService.assetUrl(p.avatarUrl) || DEFAULT_AVATAR;
 
   document.getElementById('display-name').textContent = p.name || 'ReGrip 사용자';
 }
 
+// 생년월일 캡션: 값이 있으면 "만 N세", 없고 레거시 나이만 있으면 마이그레이션 안내.
+function updateBirthCaption() {
+  const bd  = document.getElementById('f-birth-date').value;
+  const cap = document.getElementById('birth-caption');
+  if (!cap) return;
+  if (bd) {
+    const age = ageFromBirthDate(bd);
+    cap.textContent = (age != null) ? `만 ${age}세` : '';
+    cap.style.color = '';
+  } else if (legacyAge) {
+    cap.textContent = `기존 입력 나이: ${legacyAge}세 (생년월일을 입력하면 정확한 나이로 갱신됩니다)`;
+    cap.style.color = 'var(--warning)';
+  } else {
+    cap.textContent = '';
+  }
+}
+
 loadIntoForm(profile);
+
+// 생년월일 변경 시 캡션 갱신
+document.getElementById('f-birth-date').addEventListener('input', updateBirthCaption);
+document.getElementById('f-birth-date').addEventListener('change', updateBirthCaption);
+
+// rest 모드: 마운트 직후 서버 프로필로 폼을 1회 갱신(로컬 미러가 비어있거나 stale일 수 있음).
+if (isRest()) {
+  DataService.getProfile().then(p => { if (p) loadIntoForm(p); }).catch(() => {});
+}
 
 // 표시 이름 실시간 갱신
 document.getElementById('f-name').addEventListener('input', function () {
@@ -321,6 +373,20 @@ function onAvatarKey(e) {
 function handleAvatarUpload(input) {
   const file = input.files[0];
   if (!file) return;
+
+  // 클라이언트 측 가드 — 서버의 415(SVG 등)/413(2MiB 초과)을 사전 차단.
+  const ALLOWED = ['image/png', 'image/jpeg', 'image/webp'];
+  if (!ALLOWED.includes(file.type)) {
+    showToast('PNG, JPEG, WebP 이미지만 업로드할 수 있습니다', 'error');
+    input.value = '';
+    return;
+  }
+  if (file.size > 2 * 1024 * 1024) {   // 2MiB
+    showToast('이미지는 2MB 이하만 가능합니다', 'error');
+    input.value = '';
+    return;
+  }
+
   const reader = new FileReader();
   reader.onload = e => {
     document.getElementById('avatar-preview').src = e.target.result;
@@ -329,38 +395,71 @@ function handleAvatarUpload(input) {
   reader.readAsDataURL(file);
 }
 
-// ── 저장 성공 토스트 (우하단, 2.5s, role="status") ──
-function showToast(msg) {
+// ── 토스트 (우하단). 성공: role="status"/2.5s, 실패: --error 계열/role="alert"/3.5s ──
+function showToast(msg, type = 'success') {
+  const isErr = type === 'error';
   const t = document.createElement('div');
   t.className = 'retro-toast';
-  t.setAttribute('role', 'status');
-  t.innerHTML = `<span class="material-symbols-outlined" style="color:var(--success-text)">check_circle</span>${msg}`;
+  t.setAttribute('role', isErr ? 'alert' : 'status');
+  const icon  = isErr ? 'error' : 'check_circle';
+  const color = isErr ? 'var(--error)' : 'var(--success-text)';
+  if (isErr) { t.style.borderColor = 'var(--error)'; t.style.color = 'var(--error)'; }
+  t.innerHTML = `<span class="material-symbols-outlined" style="color:${color}">${icon}</span>${msg}`;
   document.body.appendChild(t);
-  setTimeout(() => t.remove(), 2500);
+  setTimeout(() => t.remove(), isErr ? 3500 : 2500);
 }
 
+let savingProfile = false;
+
 async function saveProfile() {
-  // 주요 손(hand)은 profile이 아니라 settings에 저장한다 (단일 소스 = settings).
-  const hand = document.getElementById('f-hand').value;
+  if (savingProfile) return;           // 중복 저장 방지
+  savingProfile = true;
+  try {
+    // 주요 손(hand)은 profile이 아니라 settings에 저장한다 (단일 소스 = settings).
+    const hand = document.getElementById('f-hand').value;
+    const birthDate = document.getElementById('f-birth-date').value;
 
-  const data = {
-    name:           document.getElementById('f-name').value.trim(),
-    age:            document.getElementById('f-age').value,
-    gender:         document.getElementById('f-gender').value,
-    phone:          document.getElementById('f-phone').value.trim(),
-    // hand는 profile에서 제외 — 아래 settings로 저장
-    injuryType:     document.getElementById('f-injury').value,
-    treatmentStart: document.getElementById('f-start').value,
-    doctorName:     document.getElementById('f-doctor').value.trim(),
-    goalForce:      document.getElementById('f-goal-force').value,
-    goalDays:       document.getElementById('f-goal-days').value,
-    avatarBase64:   window._pendingAvatar || DataService.getProfileSync().avatarBase64 || null,
-  };
+    // 서버는 age를 받지 않고 birthDate에서 유도한다 → age는 프로필 객체에서 제외.
+    // (saveProfile은 객체 전체를 미러/서버에 쓰므로, age를 넣지 않으면 레거시 age가 자동 제거된다.)
+    const data = {
+      name:           document.getElementById('f-name').value.trim(),
+      birthDate:      birthDate || '',
+      gender:         document.getElementById('f-gender').value,
+      phone:          document.getElementById('f-phone').value.trim(),
+      // hand는 profile에서 제외 — 아래 settings로 저장
+      injuryType:     document.getElementById('f-injury').value,
+      treatmentStart: document.getElementById('f-start').value,
+      doctorName:     document.getElementById('f-doctor').value.trim(),
+      goalForce:      document.getElementById('f-goal-force').value,
+      goalDays:       document.getElementById('f-goal-days').value,
+      avatarBase64:   window._pendingAvatar || DataService.getProfileSync().avatarBase64 || null,
+    };
 
-  await DataService.saveProfile(data);
-  await DataService.saveSettings({ ...DataService.getSettingsSync(), hand });
+    // saveProfile은 예외를 던지지 않고 실패 시 내부적으로 로컬에 폴백 저장한다.
+    await DataService.saveProfile(data);
+    await DataService.saveSettings({ ...DataService.getSettingsSync(), hand });
 
-  showToast('프로필이 저장되었습니다');
+    // 레거시 age를 제거했으므로 캡션도 즉시 갱신(이제 birthDate 기준 "만 N세").
+    legacyAge = null;
+    updateBirthCaption();
+
+    // 저장 판정: rest 모드에서는 getProfileSync(방금 쓴 미러)와 비교하지 말고,
+    // getProfile()로 서버를 재조회해 name 반영 여부로 성공/실패를 구분한다.
+    let ok = true;
+    if (isRest()) {
+      const server = await DataService.getProfile();
+      ok = !!server && (server.name || '') === (data.name || '');
+      // 서버가 저장한 avatarUrl이 오면 미리보기를 서버 URL로 동기화(다음 저장 시 중복 업로드 방지).
+      if (ok && server && server.avatarUrl && !window._pendingAvatar) {
+        document.getElementById('avatar-preview').src = server.avatarUrl;
+      }
+    }
+
+    if (ok) showToast('프로필이 저장되었습니다');
+    else    showToast('서버에 저장하지 못했습니다. 로컬에 임시 저장됨', 'error');
+  } finally {
+    savingProfile = false;
+  }
 }
 </script>
 </body>

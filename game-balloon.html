@@ -247,15 +247,30 @@
       </div>
     </div>
     <!-- Actions -->
-    <div class="px-6 pb-6 flex gap-3">
+    <div id="result-actions" class="px-6 pb-6 flex gap-3">
       <button onclick="restartGame()" class="flex-1 font-display font-bold uppercase tracking-wider py-3 rounded text-white flex items-center justify-center gap-2" style="background:#994626;border:2px solid #0F172A;box-shadow:3px 3px 0 #0F172A;">
         <span class="material-symbols-outlined text-base">replay</span> 다시 플레이
       </button>
-      <button onclick="saveAndHistory()" class="flex-1 font-display font-bold uppercase tracking-wider py-3 rounded flex items-center justify-center gap-2" style="background:#FFF8F6;border:2px solid #0F172A;box-shadow:3px 3px 0 #0F172A;">
+      <button id="save-btn" onclick="saveAndHistory()" class="flex-1 font-display font-bold uppercase tracking-wider py-3 rounded flex items-center justify-center gap-2" style="background:#FFF8F6;border:2px solid #0F172A;box-shadow:3px 3px 0 #0F172A;">
         <span class="material-symbols-outlined text-base">save</span> 저장
       </button>
       <button onclick="window.location.href='index.html'" class="font-display font-bold uppercase tracking-wider py-3 px-4 rounded" style="background:#FFF1ED;border:2px solid #0F172A;">
         <span class="material-symbols-outlined text-base">home</span>
+      </button>
+    </div>
+
+    <!-- Reward confirmation (rest 모드에서 서버가 확정한 보상 표시) -->
+    <div id="reward-view" class="px-6 pb-6 pt-2 flex-col items-center gap-4 text-center" style="display:none;">
+      <div class="font-display text-xs font-bold tracking-widest uppercase" style="color:var(--success-text);">서버에 저장 완료</div>
+      <div class="flex items-baseline justify-center gap-1">
+        <span class="font-display text-4xl font-bold text-primary tabular">+</span>
+        <span id="reward-xp" class="font-display text-4xl font-bold text-primary tabular">0</span>
+        <span class="font-display text-xl font-bold text-primary">XP</span>
+      </div>
+      <div id="reward-levelup" class="font-display text-lg font-bold px-4 py-1 rounded-full" style="display:none;background:#FEF9C3;color:#CA8A04;border:2px solid #0F172A;">Lv. — 달성!</div>
+      <div id="reward-achievements" class="flex flex-wrap gap-2 justify-center"></div>
+      <button id="reward-go-btn" onclick="goHistory()" class="w-full font-display font-bold uppercase tracking-wider py-3 rounded text-white flex items-center justify-center gap-2" style="background:#994626;border:2px solid #0F172A;box-shadow:3px 3px 0 #0F172A;">
+        <span class="material-symbols-outlined text-base">timeline</span> 기록 보기
       </button>
     </div>
   </div>
@@ -545,6 +560,8 @@ function endGame() {
   const avgF = forceSamples.length
     ? Math.round(forceSamples.reduce((a,b) => a+b, 0) / forceSamples.length)
     : 0;
+  // 서버 제약: avgForce ≤ maxForce ≤ 100. 반올림/샘플 경로로 avg가 max를 넘지 않도록 클램프.
+  const maxF = Math.min(100, Math.max(Math.round(maxForce), avgF));
   const stars = starsForScore('balloon', score);
   const elapsedSec  = Math.round((Date.now() - sessionStart) / 1000);
   const durationMin = Math.max(1, Math.round(elapsedSec / 60));
@@ -569,7 +586,7 @@ function endGame() {
     sets:        score,              // 풍선 = 팝 수
     attempts:    score,              // 풍선: attempts === score
     avgForce:    avgF,
-    maxForce:    Math.round(maxForce),
+    maxForce:    maxF,
     stars,
     setDetails,
     schema:      2,
@@ -580,7 +597,7 @@ function endGame() {
   requestAnimationFrame(() => overlay.classList.add('shown'));   // slideUp entrance
 
   animateCount(document.getElementById('res-score'), score,              { duration: 700 });
-  animateCount(document.getElementById('res-max'),   Math.round(maxForce), { suffix: '%', duration: 700 });
+  animateCount(document.getElementById('res-max'),   maxF,               { suffix: '%', duration: 700 });
   animateCount(document.getElementById('res-avg'),   avgF,               { suffix: '%', duration: 700 });
   animateCount(document.getElementById('res-time'),  durationMin,        { suffix: '분', duration: 700 });
 }
@@ -589,9 +606,76 @@ function restartGame() {
   window.location.reload();
 }
 
-function saveAndHistory() {
-  if (window._sessionResult) DataService.saveSession(window._sessionResult);
-  window.location.href = 'history.html';
+// ── Save + server-reward flow ────────────────────────────────────────────────
+// shared.js 미반영 상태에서도 안전: isRest()이 없으면 local 모드로 폴백.
+function restMode() { return typeof DataService.isRest === 'function' && DataService.isRest(); }
+
+function goHistory() { window.location.href = 'history.html'; }
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g,
+    c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
+// 게임 화면용 간이 에러 토스트 (shared.css의 .retro-toast 재사용).
+function showSaveError(msg) {
+  const t = document.createElement('div');
+  t.className = 'retro-toast';
+  t.setAttribute('role', 'alert');
+  t.style.borderColor = 'var(--error)';
+  t.style.color = 'var(--error)';
+  t.innerHTML = `<span class="material-symbols-outlined" style="color:var(--error)">error</span>${msg}`;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+
+// 서버가 확정한 보상을 결과 오버레이에 표시. reduced-motion이면 animateCount가 스냅.
+function showReward(res) {
+  document.getElementById('result-actions').style.display = 'none';
+  const rv = document.getElementById('reward-view');
+  rv.style.display = 'flex';
+
+  animateCount(document.getElementById('reward-xp'), res.xpAwarded || 0, { duration: 700 });
+
+  if (res.levelUp) {
+    const lu = document.getElementById('reward-levelup');
+    lu.textContent = `Lv. ${res.level} 달성!`;
+    lu.style.display = 'inline-block';
+  }
+
+  const chips = Array.isArray(res.unlockedAchievements) ? res.unlockedAchievements : [];
+  document.getElementById('reward-achievements').innerHTML = chips.map(a => {
+    const rs = (typeof RARITY_STYLE !== 'undefined' && RARITY_STYLE[a.rarity]) || { color: '#994626', bg: '#FFE9E3' };
+    return `<span class="font-display text-xs font-bold px-3 py-1 rounded-full" style="background:${rs.bg};color:${rs.color};border:2px solid #0F172A;">`
+      + `${esc(a.title)} +${Number(a.rewardXp) || 0} XP</span>`;
+  }).join('');
+
+  // 추가로 읽을 내용(레벨업/업적)이 없으면 1.5초 후 자동 이동, 있으면 버튼 클릭 대기.
+  if (!res.levelUp && chips.length === 0) setTimeout(goHistory, 1500);
+}
+
+let saving = false;
+async function saveAndHistory() {
+  if (saving) return;                       // 중복 POST 방지
+  saving = true;
+  const btn = document.getElementById('save-btn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.style.cursor = 'not-allowed'; }
+
+  const res = window._sessionResult ? await DataService.saveSession(window._sessionResult) : undefined;
+
+  if (restMode()) {
+    if (res) {
+      showReward(res);                      // 서버 확정 보상 표시
+    } else {
+      // 서버 저장 실패 — 버튼 재활성화 + 안내(로컬에는 이미 폴백 저장됨).
+      saving = false;
+      if (btn) { btn.disabled = false; btn.style.opacity = ''; btn.style.cursor = ''; }
+      showSaveError('서버 저장 실패, 로컬에 보관됨');
+    }
+  } else {
+    // local 모드(반환값 undefined) — 기존 동작 그대로 바로 history로 이동.
+    goHistory();
+  }
 }
 
 function confirmExit() {
