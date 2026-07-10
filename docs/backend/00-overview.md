@@ -25,7 +25,7 @@
 
 ReGrip은 손 재활을 게이미피케이션한 O2O(Online-to-Offline) 플랫폼이다.
 
-- **오프라인**: FSR(Force Sensitive Resistor) 악력 센서를 Arduino/RPi에 연결해, 로컬 WebSocket(`ws://localhost:8080`)으로 `{force: 0~100, timestamp}` 데이터를 약 20Hz로 브라우저에 흘려보낸다.
+- **오프라인**: FSR(Force Sensitive Resistor) 악력 센서를 **ESP32**(WiFi 내장 MCU)에 연결해, 무선(WiFi) 로컬 WebSocket(`ws://<esp32-ip>:8080`)으로 `{force: 0~100, timestamp}` 데이터를 약 20Hz로 브라우저에 흘려보낸다. 전송 계층 결정(무선 우선, BLE/유선 폴백)은 [04-sensor-data-policy.md](./04-sensor-data-policy.md) ADR-04-0 참조.
 - **온라인**: 웹앱(현재 vanilla HTML 프로토타입)이 이 센서 값을 받아 게임(풍선/크레인 등)을 구동하고, 세션 결과를 기록한다.
 
 현재 백엔드는 **존재하지 않는다.** 모든 상태는 브라우저 `localStorage`에 저장되고, 프론트의 `shared.js` 안에 있는 `DataService`가 데이터 접근을 추상화하고 있다. 이 `DataService`가 곧 REST 전환점이다.
