@@ -97,6 +97,8 @@ class UserSettings(Base, TimestampMixin):
     reminder_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     reminder_time: Mapped[time] = mapped_column(Time, nullable=False, default=time(9, 0))
     session_summary_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # [MVP 추가] 사용자 로컬 타임존(IANA). streak/일일상한/차트의 달력일 기준.
+    timezone: Mapped[str] = mapped_column(String(64), nullable=False, default="Asia/Seoul")
 
     user: Mapped[User] = relationship(back_populates="settings")
 

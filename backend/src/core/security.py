@@ -18,6 +18,10 @@ from .config import settings
 
 _ph = PasswordHasher()
 
+# 로그인 타이밍 부채널 완화용 더미 해시(D2). 모듈 로드 시 1회 생성해, 사용자 부재 시에도
+# 실제 검증과 동등한 argon2 연산 비용을 소모시켜 응답 시간으로 계정 존재를 추론하지 못하게 한다.
+_DUMMY_HASH = _ph.hash("timing-attack-mitigation-dummy-password")
+
 
 # ─── 비밀번호 ────────────────────────────────────────────────────
 def hash_password(password: str) -> str:
@@ -29,6 +33,14 @@ def verify_password(password: str, password_hash: str) -> bool:
         return _ph.verify(password_hash, password)
     except (VerifyMismatchError, VerificationError, InvalidHashError):
         return False
+
+
+def dummy_verify() -> None:
+    """사용자 부재/비활성 경로에서 호출해 argon2 검증 비용을 균일화한다(항상 mismatch)."""
+    try:
+        _ph.verify(_DUMMY_HASH, "x")
+    except (VerifyMismatchError, VerificationError, InvalidHashError):
+        pass
 
 
 # ─── Access JWT ─────────────────────────────────────────────────

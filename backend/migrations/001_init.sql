@@ -78,6 +78,8 @@ CREATE TABLE user_settings (
   reminder_enabled        boolean NOT NULL DEFAULT true,
   reminder_time           time NOT NULL DEFAULT '09:00',
   session_summary_enabled boolean NOT NULL DEFAULT true,
+  -- [MVP 추가] 사용자 로컬 타임존(IANA). streak/일일상한/차트의 달력일 기준.
+  timezone                text NOT NULL DEFAULT 'Asia/Seoul',
   created_at              timestamptz NOT NULL DEFAULT now(),
   updated_at              timestamptz NOT NULL DEFAULT now()
 );

@@ -6,6 +6,8 @@ from datetime import time
 from fastapi import APIRouter, Depends
 
 from ..core.db import get_db
+from ..core.errors import AppError
+from ..core.timeutil import is_valid_timezone
 from ..models import User, UserSettings
 from ..schemas.settings import SettingsOut, SettingsUpdate
 from .deps import get_current_user
@@ -30,6 +32,7 @@ def _to_out(s: UserSettings) -> SettingsOut:
         reminder_enabled=s.reminder_enabled,
         reminder_time=s.reminder_time.strftime("%H:%M") if s.reminder_time else "09:00",
         session_summary_enabled=s.session_summary_enabled,
+        timezone=s.timezone,
     )
 
 
@@ -59,6 +62,13 @@ def update_settings(body: SettingsUpdate, user: User = Depends(get_current_user)
         s.reminder_time = _parse_hhmm(fields["reminder_time"])
     if "session_summary_enabled" in fields and fields["session_summary_enabled"] is not None:
         s.session_summary_enabled = fields["session_summary_enabled"]
+    if fields.get("timezone") is not None:
+        tz = fields["timezone"]
+        if not is_valid_timezone(tz):
+            raise AppError(
+                422, "VALIDATION_FAILED", "유효하지 않은 timezone 입니다.", {"field": "timezone"}
+            )
+        s.timezone = tz
     db.commit()
     db.refresh(s)
     return _to_out(s)

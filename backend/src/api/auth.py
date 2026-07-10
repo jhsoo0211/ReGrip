@@ -14,6 +14,7 @@ from ..core.db import get_db
 from ..core.errors import AppError
 from ..core.security import (
     create_access_token,
+    dummy_verify,
     generate_refresh_token,
     hash_password,
     hash_refresh_token,
@@ -116,7 +117,11 @@ def signup(body: SignupRequest, response: Response, db=Depends(get_db)):
 def login(body: LoginRequest, response: Response, db=Depends(get_db)):
     email = body.email.lower()
     user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
-    if user is None or user.status != "active" or not verify_password(body.password, user.password_hash):
+    if user is None or user.status != "active":
+        # 계정 부재/비활성이어도 argon2 검증 비용을 동일하게 소모(D2: 타이밍 부채널 완화).
+        dummy_verify()
+        raise AppError(401, "UNAUTHENTICATED", "이메일 또는 비밀번호가 올바르지 않습니다.")
+    if not verify_password(body.password, user.password_hash):
         raise AppError(401, "UNAUTHENTICATED", "이메일 또는 비밀번호가 올바르지 않습니다.")
     return _token_response(db, user, response)
 
@@ -127,14 +132,17 @@ def refresh(request: Request, response: Response, db=Depends(get_db)):
     if not raw:
         raise AppError(401, "UNAUTHENTICATED", "refresh 토큰이 없습니다.")
     token_hash = hash_refresh_token(raw)
+    # 회전을 원자화하기 위해 refresh 행을 잠근다(D1). 동시 재사용이 오면 한 트랜잭션만 회전을
+    # 진행하고 나머지는 revoked 상태를 보고 재사용 탐지로 넘어간다. (SQLite 에선 락이 no-op —
+    # PG 에서 유효.)
     rt = db.execute(
-        select(RefreshToken).where(RefreshToken.token_hash == token_hash)
+        select(RefreshToken).where(RefreshToken.token_hash == token_hash).with_for_update()
     ).scalar_one_or_none()
     if rt is None:
         raise AppError(401, "UNAUTHENTICATED", "유효하지 않은 refresh 토큰입니다.")
 
     now = datetime.now(timezone.utc)
-    # 재사용 탐지: 이미 회전/폐기된 토큰이 다시 오면 체인 전체 무효화
+    # 재사용 탐지: 이미 회전/폐기된 토큰이 다시 오면 해당 유저의 활성 refresh 전부 무효화
     if rt.revoked_at is not None:
         _revoke_all(db, rt.user_id)
         db.commit()

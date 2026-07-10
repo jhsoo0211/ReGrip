@@ -4,13 +4,20 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime, time, timedelta
 
+from src.core.config import settings
 from tests.conftest import register_and_auth
 
 
-def test_cursor_pagination_25_sessions(client):
+def test_cursor_pagination_25_sessions(client, monkeypatch):
     _, headers = register_and_auth(client)
 
-    # 서로 다른 날짜로 25건 저장 (일일 상한 20 회피 + startedAt 유일)
+    # 이 테스트는 과거 날짜로 25건을 한 번에 넣어 keyset 페이지네이션을 검증한다. A1(백데이트 72h)
+    # 과 A2(일일상한 20, 수신일 기준) 는 이 데이터 구성보다 나중에 도입된 제약이므로, 페이지네이션
+    # 자체를 검증하기 위해 두 한도만 이 테스트 범위에서 완화한다(데이터/단언은 그대로).
+    monkeypatch.setattr(settings, "backdate_limit_hours", 24 * 3650)
+    monkeypatch.setattr(settings, "max_daily_sessions", 100)
+
+    # 서로 다른 날짜로 25건 저장 (startedAt 유일 → keyset 정렬 검증)
     base = date(2026, 6, 1)
     for i in range(25):
         started = datetime.combine(base + timedelta(days=i), time(10, 0)).isoformat() + "Z"

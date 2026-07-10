@@ -7,19 +7,30 @@ totalXp 는 Σ xp_events 로 확정해 원장 불변식을 강제한다.
 """
 from __future__ import annotations
 
+import logging
 from datetime import datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from ..core.config import settings
 from ..core.errors import AppError
-from ..core.timeutil import as_aware_utc, iso_z, now_naive_utc, to_naive_utc
+from ..core.timeutil import (
+    as_aware_utc,
+    iso_z,
+    now_naive_utc,
+    resolve_zone,
+    to_naive_utc,
+    to_user_date,
+)
 from ..models import (
     AchievementDefinition,
+    Device,
     Session as SessionModel,
     SessionSet,
     UserAchievement,
+    UserSettings,
     UserStats,
     XpEvent,
 )
@@ -33,7 +44,18 @@ from .gamification import (
 )
 from .labels import EXERCISE_LABELS, label_for
 
+logger = logging.getLogger(__name__)
+
 _VALID_EXERCISE_TYPES = set(EXERCISE_LABELS.keys())
+
+# streak 재계산 시 조회하는 최근 창(일). 03 §1: 최근 90일 distinct 세션 날짜 기준.
+_STREAK_WINDOW_DAYS = 90
+
+
+def _user_zone(db, user_id: str) -> ZoneInfo:
+    """사용자 로컬 타임존(A4). user_settings.timezone → ZoneInfo, 무효/미설정 시 기본 폴백."""
+    us = db.get(UserSettings, user_id)
+    return resolve_zone(us.timezone if us is not None else None)
 
 
 def _summary(sess: SessionModel) -> dict:
@@ -62,12 +84,25 @@ def _find_existing(db, user_id: str, client_session_id: str) -> SessionModel | N
 
 def process_session_submission(db, user, payload) -> tuple[int, dict]:
     """(status_code, body) 반환. 신규=201, 멱등 중복=200."""
-    # 0) 멱등 사전 조회 — 이미 처리된 세션이면 최초 결과 그대로 반환(검증도 건너뜀).
+    # 1) user_stats FOR UPDATE — 트랜잭션에서 가장 먼저 유저 단위 직렬화 락을 확보한다 (A3, 03 §6.2).
+    #    이후 멱등 검사·일일 상한 카운트·집계가 모두 이 락 아래에서 직렬화된다 (SQLite 는 락 무시).
+    stats = db.execute(
+        select(UserStats).where(UserStats.user_id == user.id).with_for_update()
+    ).scalar_one_or_none()
+    if stats is None:
+        stats = UserStats(user_id=user.id)
+        db.add(stats)
+        db.flush()
+
+    # 2) 멱등 사전 조회 (락 이후) — 이미 처리된 세션이면 최초 결과 그대로 반환(검증도 건너뜀).
     existing = _find_existing(db, user.id, payload.client_session_id)
     if existing is not None:
         return 200, (existing.result_snapshot or {})
 
-    # 1) 도메인 검증 (422). 스키마가 0..100, duration>0 은 이미 보장.
+    # 3) 사용자 로컬 타임존 (A4): streak/일일상한 달력일의 기준.
+    zone = _user_zone(db, user.id)
+
+    # 4) 도메인 검증 (422). 스키마가 0..100, duration>0 은 이미 보장.
     if payload.exercise_type not in _VALID_EXERCISE_TYPES:
         raise AppError(
             422, "VALIDATION_FAILED", "알 수 없는 exerciseType 입니다.", {"field": "exerciseType"}
@@ -82,20 +117,34 @@ def process_session_submission(db, user, payload) -> tuple[int, dict]:
         raise AppError(
             422, "VALIDATION_FAILED", "startedAt must not be in the future", {"field": "startedAt"}
         )
+    # 백데이트 하한 (A1): 오프라인 큐 재전송 허용폭(BACKDATE_LIMIT_HOURS)을 넘는 과거는 거부.
+    if started_aware < now_aware - timedelta(hours=settings.backdate_limit_hours):
+        raise AppError(
+            422,
+            "VALIDATION_FAILED",
+            f"startedAt이 허용 범위({settings.backdate_limit_hours}시간)를 벗어났습니다",
+            {"field": "startedAt"},
+        )
+    # deviceId 존재 선검증 (C2): FK 위반(운영 PG 500)에 앞서 422 로 명확히 거부한다.
+    if payload.device_id is not None and db.get(Device, payload.device_id) is None:
+        raise AppError(
+            422, "VALIDATION_FAILED", "존재하지 않는 deviceId 입니다.", {"field": "deviceId"}
+        )
 
-    started_db = to_naive_utc(payload.started_at)  # naive UTC 저장
-    session_date = started_db.date()
-
-    # 일일 세션 상한 (422)
-    day_start = datetime.combine(session_date, time.min)
-    day_end = day_start + timedelta(days=1)
+    # 5) 일일 세션 상한 (422) — '주장된 startedAt' 이 아니라 **서버 수신 시각(created_at)** 기준의
+    #    사용자 로컬 '오늘' 로 센다 (A2). 백데이트를 여러 날짜로 분산해도 수신일이 같으면 상한에 걸린다.
+    today_user = datetime.now(zone).date()
+    day_start_utc = to_naive_utc(datetime.combine(today_user, time.min, tzinfo=zone))
+    day_end_utc = to_naive_utc(
+        datetime.combine(today_user + timedelta(days=1), time.min, tzinfo=zone)
+    )
     day_count = db.execute(
         select(func.count())
         .select_from(SessionModel)
         .where(
             SessionModel.user_id == user.id,
-            SessionModel.started_at >= day_start,
-            SessionModel.started_at < day_end,
+            SessionModel.created_at >= day_start_utc,
+            SessionModel.created_at < day_end_utc,
         )
     ).scalar_one()
     if day_count >= settings.max_daily_sessions:
@@ -106,18 +155,10 @@ def process_session_submission(db, user, payload) -> tuple[int, dict]:
             {"field": "startedAt"},
         )
 
-    # 2) user_stats FOR UPDATE — 유저 단위 직렬화 (SQLite 는 무시됨)
-    stats = db.execute(
-        select(UserStats).where(UserStats.user_id == user.id).with_for_update()
-    ).scalar_one_or_none()
-    if stats is None:
-        stats = UserStats(user_id=user.id)
-        db.add(stats)
-        db.flush()
-
+    started_db = to_naive_utc(payload.started_at)  # naive UTC 저장
     old_level = stats.level
 
-    # 3) 세션 INSERT (stars 서버 재계산)
+    # 6) 세션 INSERT (stars 서버 재계산)
     stars = compute_stars(payload.exercise_type, payload.score)
     sess = SessionModel(
         client_session_id=payload.client_session_id,
@@ -138,15 +179,18 @@ def process_session_submission(db, user, payload) -> tuple[int, dict]:
     db.add(sess)
     try:
         db.flush()
-    except IntegrityError:
-        # 동시 멱등 충돌: 롤백 후 최초 결과 반환 (XP 재적립 없음)
+    except IntegrityError as exc:
+        # 예상되는 위반은 멱등키 uq_sessions_idem(동시 재제출) 뿐이다. deviceId 는 위에서
+        # 선검증했고 중복 setIndex 는 스키마에서 걸러졌다. 롤백 후 최초 결과가 있으면 멱등 200,
+        # 없으면 uq 외의 예상 밖 위반이므로 삼키지 말고 로깅 후 재raise(→500) 한다 (C2).
         db.rollback()
         existing = _find_existing(db, user.id, payload.client_session_id)
         if existing is not None:
             return 200, (existing.result_snapshot or {})
+        logger.warning("세션 INSERT 중 예상치 못한 IntegrityError: %s", exc)
         raise
 
-    # 4) session_sets (optional)
+    # 7) session_sets (optional) — 중복 setIndex 는 스키마 검증에서 이미 422 처리 (C1)
     if payload.sets:
         for st in payload.sets:
             db.add(
@@ -160,28 +204,28 @@ def process_session_submission(db, user, payload) -> tuple[int, dict]:
                 )
             )
 
-    # 5) 세션 XP 원장
+    # 8) 세션 XP 원장
     sxp = session_xp(payload.score, stars)
     db.add(
         XpEvent(user_id=user.id, amount=sxp, reason="session", ref_type="session", ref_id=sess.id)
     )
 
-    # 6) streak 갱신 (+7일 보너스 1회/run)
-    streak_bonus = _update_streak(db, user.id, stats, session_date)
+    # 9) streak 순서무관 재계산 (+7일 보너스 1회/run) — B1/B2
+    streak_bonus = _recompute_streak(db, user.id, stats, zone, today_user)
 
-    # 7) 집계 갱신
+    # 10) 집계 갱신
     stats.total_sessions += 1
     mf = float(payload.max_force)
     stats.best_max_force = mf if stats.best_max_force is None else max(float(stats.best_max_force), mf)
 
     db.flush()
 
-    # 8) 업적 판정 (이번 세션 포함 전체 재평가)
+    # 11) 업적 판정 (이번 세션 포함 전체 재평가) — 재계산된 current_streak 사용
     unlocked, achievement_xp = _evaluate_achievements(db, user.id, stats.current_streak)
 
     db.flush()
 
-    # 9) totalXp = Σ xp_events (원장 불변식), level/tier 유도
+    # 12) totalXp = Σ xp_events (원장 불변식), level/tier 유도
     total_xp = int(
         db.execute(
             select(func.coalesce(func.sum(XpEvent.amount), 0)).where(XpEvent.user_id == user.id)
@@ -210,26 +254,50 @@ def process_session_submission(db, user, payload) -> tuple[int, dict]:
     return 201, body
 
 
-def _update_streak(db, user_id: str, stats: UserStats, session_date) -> int:
-    """last_session_date 기반 streak 갱신. 7일 도달 시 run 당 1회 +200 지급. 반환: 이번 보너스 XP."""
-    last = stats.last_session_date
-    if last is None:
-        stats.current_streak = 1
-        stats.streak_bonus_awarded_for_run = False
-    elif session_date == last:
-        pass  # 같은 날 추가 세션 — streak 유지
-    elif session_date == last + timedelta(days=1):
-        stats.current_streak += 1
-    elif session_date > last + timedelta(days=1):
-        stats.current_streak = 1
-        stats.streak_bonus_awarded_for_run = False
-    # session_date < last (과거 백필): streak 미변경
+def _run_length(dates: set) -> int:
+    """distinct 날짜 집합에서 '가장 최근 세션일에 끝나는 연속 run' 의 길이(순서 무관).
 
-    if last is None or session_date > last:
-        stats.last_session_date = session_date
+    프론트 shared.js computeStreak 의미론(연속 run 길이)과 일치한다. 앵커는 max(dates)로,
+    역순/무작위 순서로 제출되어도 같은 집합이면 같은 값이 나온다.
+    """
+    if not dates:
+        return 0
+    cursor = max(dates)
+    n = 0
+    while cursor in dates:
+        n += 1
+        cursor -= timedelta(days=1)
+    return n
 
+
+def _recompute_streak(db, user_id: str, stats: UserStats, zone, today_user) -> int:
+    """순서무관 streak 재계산 (B1) + 7일 보너스 run 당 1회 (B2). 반환: 이번 보너스 XP.
+
+    방금 INSERT 된 세션을 포함해, 사용자 TZ 기준 최근 90일 distinct 세션 날짜로 current_streak 를
+    재계산한다. 오프라인 역순 재전송(예: 07-01~07 역순 제출)이어도 최종 집합이 연속 7일이면 streak=7.
+    """
+    cutoff_date = today_user - timedelta(days=_STREAK_WINDOW_DAYS)
+    cutoff_utc = to_naive_utc(datetime.combine(cutoff_date, time.min, tzinfo=zone))
+    rows = db.execute(
+        select(SessionModel.started_at).where(
+            SessionModel.user_id == user_id,
+            SessionModel.started_at >= cutoff_utc,
+        )
+    ).all()
+    dates = {to_user_date(r[0], zone) for r in rows}
+
+    current = _run_length(dates)
+    stats.current_streak = current
+    if dates:
+        newest = max(dates)
+        # 과거 백필로는 last_session_date 를 되돌리지 않는다(최신값 유지).
+        if stats.last_session_date is None or newest > stats.last_session_date:
+            stats.last_session_date = newest
+    stats.longest_streak = max(stats.longest_streak, current)
+
+    # 7일 연속 보너스(+200): run 당 1회. run 이 끊기면(<7) 플래그를 리셋해 다음 run 을 대비 (B2).
     streak_bonus = 0
-    if stats.current_streak >= 7 and not stats.streak_bonus_awarded_for_run:
+    if current >= 7 and not stats.streak_bonus_awarded_for_run:
         streak_bonus = STREAK7_BONUS
         stats.streak_bonus_awarded_for_run = True
         db.add(
@@ -241,8 +309,9 @@ def _update_streak(db, user_id: str, stats: UserStats, session_date) -> int:
                 ref_id=None,
             )
         )
+    elif current < 7:
+        stats.streak_bonus_awarded_for_run = False
 
-    stats.longest_streak = max(stats.longest_streak, stats.current_streak)
     return streak_bonus
 
 

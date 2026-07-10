@@ -57,10 +57,18 @@ def list_achievement_defs(db=Depends(get_db)):
 
 @router.get("/users/me/achievements", response_model=UserAchievementListResponse)
 def my_achievements(user: User = Depends(get_current_user), db=Depends(get_db)):
-    from ..models import UserStats
+    from datetime import datetime
+
+    from ..core.timeutil import resolve_zone
+    from ..models import UserSettings, UserStats
+    from ..services.gamification import effective_streak
 
     stats = db.get(UserStats, user.id)
-    current_streak = stats.current_streak if stats else 0
+    # streak_days 업적 진행도도 읽기 시 감쇠된 streak 를 사용한다 (B3).
+    us = db.get(UserSettings, user.id)
+    zone = resolve_zone(us.timezone if us is not None else None)
+    today = datetime.now(zone).date()
+    current_streak = effective_streak(stats, today) if stats else 0
     ctx = AchievementContext(
         sessions=load_session_facts(db, user.id), current_streak=current_streak
     )

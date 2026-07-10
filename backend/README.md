@@ -46,6 +46,17 @@ start http://127.0.0.1:8000/docs
 python -m scripts.seed_achievements
 ```
 
+> ⚠️ **모델을 바꾼 뒤 500이 난다면 개발 DB 스키마 드리프트다.**
+> startup 의 `create_all` 은 **없는 테이블만 만들고, 기존 테이블에 컬럼을 추가하지 않는다.**
+> 컬럼을 추가·변경했다면 개발 DB 파일을 지우고 다시 띄운다(개발 데이터는 버려도 되는 값이다).
+>
+> ```powershell
+> Remove-Item .\regrip_dev.db -ErrorAction SilentlyContinue
+> ```
+>
+> 운영(PostgreSQL)은 `create_all` 이 아니라 `migrations/*.sql` 이 진실이므로,
+> 스키마 변경 시 마이그레이션 SQL 을 반드시 함께 갱신한다(§5).
+
 ## 3. 테스트
 
 ```powershell

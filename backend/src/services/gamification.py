@@ -5,6 +5,8 @@ totalXp 불변식(= Σ xp_events)이 양쪽에서 성립한다.
 """
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 from .labels import STAR_THRESHOLDS
 
 # XP 상수 (프론트 XP_RULES 와 동일)
@@ -71,3 +73,17 @@ def tier_for_level(level: int) -> str:
         if mn <= level <= mx:
             return code
     return "beginner" if level < 1 else "master"
+
+
+def effective_streak(stats, today: date) -> int:
+    """읽기 시점 감쇠(B3): last_session_date 가 오늘/어제(사용자 TZ)가 아니면 0.
+
+    저장값(current_streak)은 그대로 두고 표시값만 감쇠한다. 다음 세션 제출 시 순서무관
+    재계산이 저장값을 다시 정정한다. stats 응답의 currentStreak, 업적 streak_days 진행도에 사용.
+    """
+    last = getattr(stats, "last_session_date", None)
+    if last is None:
+        return 0
+    if last == today or last == today - timedelta(days=1):
+        return int(stats.current_streak)
+    return 0

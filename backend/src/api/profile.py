@@ -5,14 +5,39 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, File, UploadFile
 
+from ..core.config import settings
 from ..core.crypto import decrypt_phone, encrypt_phone
 from ..core.db import get_db
+from ..core.errors import AppError
 from ..models import Profile, User
 from ..schemas.profile import AvatarOut, ProfileOut, ProfileUpdate
 from ..services.storage import save_avatar_base64, save_avatar_bytes
 from .deps import get_current_user
 
 router = APIRouter(prefix="/users/me", tags=["profile"])
+
+_AVATAR_READ_CHUNK = 64 * 1024
+
+
+async def _read_limited(file: UploadFile, limit: int) -> bytes:
+    """multipart 업로드를 청크 단위로 읽되 상한(limit) 초과 시 413 으로 즉시 중단한다 (D4)."""
+    chunks: list[bytes] = []
+    size = 0
+    while True:
+        chunk = await file.read(_AVATAR_READ_CHUNK)
+        if not chunk:
+            break
+        size += len(chunk)
+        if size > limit:
+            limit_mib = limit // (1024 * 1024)
+            raise AppError(
+                413,
+                "PAYLOAD_TOO_LARGE",
+                f"아바타 크기가 상한({limit_mib}MiB)을 초과했습니다.",
+                {"field": "file"},
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
 
 
 def _compute_age(bd: date | None) -> int | None:
@@ -93,7 +118,7 @@ async def upload_avatar(
     user: User = Depends(get_current_user),
     db=Depends(get_db),
 ):
-    raw = await file.read()
+    raw = await _read_limited(file, settings.avatar_max_bytes)
     url = save_avatar_bytes(user.id, raw, file.content_type)
     p = _get_or_create_profile(db, user)
     p.avatar_url = url

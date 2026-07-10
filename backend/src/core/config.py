@@ -44,6 +44,13 @@ class Settings(BaseSettings):
     # 도메인 규칙
     max_daily_sessions: int = 20
     started_at_skew_sec: int = 300
+    # 백데이트 허용 하한(시간). 오프라인 큐 재전송을 허용하는 폭이며, 이를 넘는 과거
+    # startedAt 은 422 로 거부한다(무제한 백데이트/일일상한 우회 차단).
+    backdate_limit_hours: int = 72
+    # 사용자 기본 타임존(IANA). user_settings.timezone 미설정/무효 시 폴백.
+    default_timezone: str = "Asia/Seoul"
+    # 아바타 업로드 크기 상한(바이트). 기본 2 MiB.
+    avatar_max_bytes: int = 2 * 1024 * 1024
 
     # 정적 파일(아바타) 저장 경로
     storage_dir: str = "./storage"

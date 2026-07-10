@@ -13,6 +13,7 @@ class SettingsOut(CamelModel):
     reminder_enabled: bool = True
     reminder_time: str = "09:00"  # HH:MM
     session_summary_enabled: bool = True
+    timezone: str = "Asia/Seoul"  # IANA tz
 
 
 class SettingsUpdate(CamelModel):
@@ -22,3 +23,4 @@ class SettingsUpdate(CamelModel):
     reminder_enabled: bool | None = None
     reminder_time: str | None = None
     session_summary_enabled: bool | None = None
+    timezone: str | None = None  # IANA tz (유효성은 라우터에서 검증, 무효 시 422)

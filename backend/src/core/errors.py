@@ -35,6 +35,8 @@ _STATUS_CODE = {
     403: "FORBIDDEN",
     404: "NOT_FOUND",
     409: "CONFLICT",
+    413: "PAYLOAD_TOO_LARGE",  # [MVP 추가] 아바타 업로드 상한 초과 (D4)
+    415: "UNSUPPORTED_MEDIA_TYPE",  # [MVP 추가] 허용되지 않는 아바타 포맷 (D3)
     422: "VALIDATION_FAILED",
     429: "RATE_LIMITED",
 }

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from .base import CamelModel
 
@@ -21,17 +21,30 @@ class SessionCreate(CamelModel):
     exercise_type: str
     started_at: datetime
     duration_sec: int = Field(gt=0)
-    score: int = Field(ge=0)  # = set_count
+    # score(=set_count)/attempts 상한: SMALLINT 오버플로 및 단일 제출 업적 파밍 차단.
+    score: int = Field(ge=0, le=500)  # = set_count
     avg_force: float = Field(ge=0, le=100)
     max_force: float = Field(ge=0, le=100)
-    attempts: int = Field(default=0, ge=0)
+    attempts: int = Field(default=0, ge=0, le=1000)
     difficulty: str | None = None
     hand_used: str | None = None
     device_id: str | None = None
-    force_series: list[float] | None = None
+    # 1Hz 다운샘플 시계열 길이 상한(약 1시간). 과대 페이로드 차단.
+    force_series: list[float] | None = Field(default=None, max_length=3600)
     sets: list[SessionSetIn] | None = None
     # stars 는 보내도 무시된다 (서버 재계산). 필드 자체는 받아 삼킨다.
     stars: int | None = None
+
+    @model_validator(mode="after")
+    def _no_duplicate_set_index(self):
+        """sets[] 의 setIndex 중복은 uq_session_sets 위반(500) 이전에 422 로 거부한다 (C1)."""
+        if self.sets:
+            seen: set[int] = set()
+            for st in self.sets:
+                if st.set_index in seen:
+                    raise ValueError("중복된 setIndex 입니다.")
+                seen.add(st.set_index)
+        return self
 
 
 class SessionSetOut(CamelModel):
