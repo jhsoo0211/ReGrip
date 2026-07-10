@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ReGrip — 로그인</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=DM+Sans:wght@400;500;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="shared.css"/>
+<script src="tailwind-config.js"></script>
+</head>
+<body>
+
+<div class="auth-shell">
+  <form id="auth-form" class="auth-card" novalidate autocomplete="on">
+    <div>
+      <div class="auth-logo">ReGrip</div>
+      <p class="auth-sub" id="auth-subtitle">계정에 로그인하세요</p>
+    </div>
+
+    <!-- Backend server address -->
+    <div class="auth-field">
+      <label class="auth-label" for="server-url">백엔드 서버 주소</label>
+      <input class="auth-input" type="url" id="server-url" name="server-url"
+             inputmode="url" placeholder="http://localhost:8000" value="http://localhost:8000"/>
+    </div>
+
+    <!-- Hostname-match notice -->
+    <div class="auth-note">
+      <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1">info</span>
+      <span>프론트와 백엔드는 같은 호스트명(둘 다 <strong>localhost</strong> 또는 둘 다 <strong>127.0.0.1</strong>)이어야 로그인 상태가 유지됩니다. 포트는 달라도 됩니다.</span>
+    </div>
+
+    <!-- Login / Signup tabs -->
+    <div class="auth-tabs" role="tablist">
+      <button type="button" class="auth-tab active" id="tab-login"  role="tab" aria-selected="true"  onclick="setMode('login')">로그인</button>
+      <button type="button" class="auth-tab"        id="tab-signup" role="tab" aria-selected="false" onclick="setMode('signup')">회원가입</button>
+    </div>
+
+    <!-- Email -->
+    <div class="auth-field">
+      <label class="auth-label" for="email">이메일</label>
+      <input class="auth-input" type="email" id="email" name="email"
+             autocomplete="email" placeholder="you@example.com"/>
+    </div>
+
+    <!-- Password -->
+    <div class="auth-field">
+      <label class="auth-label" for="password">비밀번호</label>
+      <input class="auth-input" type="password" id="password" name="password"
+             autocomplete="current-password" placeholder="8자 이상"/>
+    </div>
+
+    <!-- Signup-only fields -->
+    <div id="signup-fields" style="display:none; flex-direction:column; gap:18px;">
+      <div class="auth-field">
+        <label class="auth-label" for="name">이름</label>
+        <input class="auth-input" type="text" id="name" name="name" autocomplete="name" placeholder="홍길동"/>
+      </div>
+      <div class="auth-field">
+        <label class="auth-label" for="birth-date">생년월일 (선택)</label>
+        <input class="auth-input" type="date" id="birth-date" name="birth-date"/>
+      </div>
+      <label class="auth-consent">
+        <input type="checkbox" id="consent-sensitive"/>
+        <span>재활 훈련 데이터(건강정보) 수집·이용에 동의합니다. <strong>(필수)</strong></span>
+      </label>
+      <label class="auth-consent">
+        <input type="checkbox" id="consent-terms"/>
+        <span>이용약관 및 개인정보 처리방침에 동의합니다. <strong>(필수)</strong></span>
+      </label>
+    </div>
+
+    <!-- Inline error -->
+    <div class="auth-error" id="auth-error" role="alert" aria-live="assertive"></div>
+
+    <!-- Submit -->
+    <button type="submit" class="btn-retro btn-retro-primary" id="submit-btn" style="width:100%;">
+      <span id="submit-label">로그인</span>
+    </button>
+
+    <!-- Local-only fallback -->
+    <p class="auth-alt">
+      <a href="#" id="use-local">서버 없이 로컬로 사용하기</a>
+    </p>
+  </form>
+</div>
+
+<script src="shared.js"></script>
+<script>
+  let mode = 'login';   // 'login' | 'signup'
+
+  // Pre-fill the server address: a previously connected base, then a ?server= hint (wins).
+  try {
+    const savedBase = localStorage.getItem('regrip_api_base');
+    if (savedBase) document.getElementById('server-url').value = savedBase;
+    const hint = new URLSearchParams(location.search).get('server');
+    if (hint) document.getElementById('server-url').value = hint;
+  } catch {}
+
+  // Where to go after a successful auth (defaults to index.html).
+  function redirectTarget() {
+    try {
+      const p = new URLSearchParams(location.search).get('redirect');
+      // Only allow same-app relative page names (no external/absolute redirects).
+      if (p && /^[a-zA-Z0-9._-]+\.html$/.test(p)) return p;
+    } catch {}
+    return 'index.html';
+  }
+
+  function setMode(next) {
+    mode = next;
+    const isSignup = next === 'signup';
+    document.getElementById('signup-fields').style.display = isSignup ? 'flex' : 'none';
+    document.getElementById('tab-login').classList.toggle('active', !isSignup);
+    document.getElementById('tab-signup').classList.toggle('active', isSignup);
+    document.getElementById('tab-login').setAttribute('aria-selected', String(!isSignup));
+    document.getElementById('tab-signup').setAttribute('aria-selected', String(isSignup));
+    document.getElementById('submit-label').textContent = isSignup ? '회원가입' : '로그인';
+    document.getElementById('auth-subtitle').textContent = isSignup ? '새 계정을 만드세요' : '계정에 로그인하세요';
+    document.getElementById('password').setAttribute('autocomplete', isSignup ? 'new-password' : 'current-password');
+    hideError();
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('auth-error');
+    el.textContent = msg;
+    el.classList.add('show');
+  }
+  function hideError() {
+    document.getElementById('auth-error').classList.remove('show');
+  }
+
+  function normalizeBase(raw) {
+    let b = String(raw || '').trim().replace(/\/+$/, '');
+    if (b && !/^https?:\/\//i.test(b)) b = 'http://' + b;
+    return b;
+  }
+
+  document.getElementById('use-local').addEventListener('click', (e) => {
+    e.preventDefault();
+    DataService.disconnectServer();
+    location.href = 'index.html';
+  });
+
+  document.getElementById('auth-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    hideError();
+
+    const base = normalizeBase(document.getElementById('server-url').value);
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+
+    if (!base)  return showError('백엔드 서버 주소를 입력해 주세요.');
+    if (!email) return showError('이메일을 입력해 주세요.');
+    if (!password) return showError('비밀번호를 입력해 주세요.');
+
+    // Point the auth request at the entered backend (mode is switched to REST only on success).
+    DataService._baseUrl = base;
+
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true;
+
+    try {
+      let result;
+      if (mode === 'signup') {
+        const name = document.getElementById('name').value.trim();
+        const birthDate = document.getElementById('birth-date').value || undefined;
+        const sensitive = document.getElementById('consent-sensitive').checked;
+        const terms = document.getElementById('consent-terms').checked;
+        if (!name) { btn.disabled = false; return showError('이름을 입력해 주세요.'); }
+        if (password.length < 8) { btn.disabled = false; return showError('비밀번호는 8자 이상이어야 합니다.'); }
+        if (!sensitive || !terms) { btn.disabled = false; return showError('필수 동의 항목(건강정보 수집·이용, 이용약관)에 모두 체크해 주세요.'); }
+        result = await AuthService.signup({ email, password, name, birthDate });
+      } else {
+        result = await AuthService.login(email, password);
+      }
+
+      if (result && result.ok) {
+        DataService.connectServer(base);            // persist + enter REST mode
+        location.href = redirectTarget();
+        return;
+      }
+      // Server message is shown verbatim (account-enumeration-safe messages come from the server).
+      showError((result && result.message) || '요청을 처리하지 못했습니다.');
+    } catch (err) {
+      showError('서버에 연결할 수 없습니다. 주소와 백엔드 실행 상태를 확인해 주세요.');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>

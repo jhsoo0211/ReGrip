@@ -29,7 +29,8 @@ function injectNav(activeKey) {
 
   const profile = DataService.getProfileSync();
   const userName   = profile.name || 'ReGrip 사용자';
-  const avatarSrc  = profile.avatarBase64 || DEFAULT_AVATAR;
+  // Server profiles carry a relative avatarUrl — resolve it against the API origin.
+  const avatarSrc  = profile.avatarBase64 || DataService.assetUrl(profile.avatarUrl) || DEFAULT_AVATAR;
 
   const linksHtml = NAV_ITEMS.map(item => {
     const active = item.key === activeKey ? 'active' : '';
@@ -123,6 +124,109 @@ function injectFeedbackModal() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// AUTH SERVICE — JWT access token (localStorage) + httpOnly refresh cookie
+//
+// Backend contract (docs/backend/02-api-spec §2, all camelCase, base = {apiBase}/api/v1):
+//   POST /auth/signup  {email, password, profile:{name, birthDate?}, consents:{...true}}
+//   POST /auth/login   {email, password}
+//   POST /auth/refresh (no body — uses httpOnly cookie; requires credentials:'include')
+//   POST /auth/logout
+//   → {accessToken, expiresIn, user:{id,email,role}} + Set-Cookie: refresh_token (SameSite=Strict)
+//
+// The refresh token lives ONLY in an httpOnly cookie — JS never sees it. Because the
+// cookie is SameSite=Strict, the frontend origin and the API origin must share a hostname
+// (both `localhost` OR both `127.0.0.1`) for refresh to work. Ports may differ (same-site).
+// localStorage keys: regrip_access_token, regrip_user.
+// ═══════════════════════════════════════════════════════════════════════════════
+const AuthService = {
+  async signup({ email, password, name, birthDate } = {}) {
+    const body = {
+      email,
+      password,
+      profile: { name, ...(birthDate ? { birthDate } : {}) },
+      // Both consents are required by the backend and fixed true here (login UI collects them).
+      consents: { sensitiveData: true, sensitiveDataAt: new Date().toISOString(), termsOfService: true },
+    };
+    return this._authPost('/auth/signup', body);
+  },
+
+  async login(email, password) {
+    return this._authPost('/auth/login', { email, password });
+  },
+
+  // Silent token renewal. Returns true on success (new accessToken stored), false otherwise.
+  async refresh() {
+    try {
+      const res = await fetch(DataService._apiUrl('/auth/refresh'), {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) return false;
+      const data = await res.json();
+      if (!data || !data.accessToken) return false;
+      this._store(data);
+      return true;
+    } catch (e) {
+      console.warn('[AuthService] refresh 실패:', e && e.message);
+      return false;
+    }
+  },
+
+  async logout() {
+    try {
+      await fetch(DataService._apiUrl('/auth/logout'), { method: 'POST', credentials: 'include' });
+    } catch (e) {
+      console.warn('[AuthService] logout 요청 실패(로컬 토큰은 삭제합니다):', e && e.message);
+    }
+    this._clearTokens();
+  },
+
+  getUser() {
+    try { return JSON.parse(localStorage.getItem('regrip_user')); } catch { return null; }
+  },
+  isAuthenticated() { return !!this.getAccessToken(); },
+  getAccessToken() {
+    try { return localStorage.getItem('regrip_access_token') || null; } catch { return null; }
+  },
+
+  // ── internals ──
+  // Returns { ok, data, message }. On success stores token + user; never throws.
+  async _authPost(path, body) {
+    try {
+      const res = await fetch(DataService._apiUrl(path), {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      let data = null;
+      try { data = await res.json(); } catch {}
+      if (!res.ok) {
+        const message = (data && data.error && data.error.message) || `요청 실패 (HTTP ${res.status})`;
+        return { ok: false, data, message };
+      }
+      if (data && data.accessToken) this._store(data);
+      return { ok: true, data, message: '' };
+    } catch (e) {
+      return { ok: false, data: null, message: '서버에 연결할 수 없습니다. 주소를 확인해 주세요.' };
+    }
+  },
+  _store(data) {
+    try {
+      if (data.accessToken) localStorage.setItem('regrip_access_token', data.accessToken);
+      if (data.user) localStorage.setItem('regrip_user', JSON.stringify(data.user));
+    } catch (e) { console.warn('[AuthService] 토큰 저장 실패:', e && e.message); }
+  },
+  _clearTokens() {
+    try {
+      localStorage.removeItem('regrip_access_token');
+      localStorage.removeItem('regrip_user');
+    } catch {}
+  },
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // DATA SERVICE — localStorage now, REST API later
 //
 // localStorage mirror keys:
@@ -142,11 +246,52 @@ const DataService = {
   _backend: 'local',   // 'local' | 'rest'
   _baseUrl: '',
   _headers: {},
+  _authLostHandled: false,
 
   setBackend(type, baseUrl = '', headers = {}) {
     this._backend = type;
-    this._baseUrl = baseUrl;
+    this._baseUrl = String(baseUrl || '').replace(/\/+$/, '');   // strip trailing slash
     this._headers = { ...this._headers, ...headers };
+  },
+
+  isRest() { return this._backend === 'rest'; },
+
+  // Build a full API URL: {baseUrl}/api/v1{path}. `path` is like '/users/me/sessions'.
+  _apiUrl(path) {
+    const base = (this._baseUrl || '').replace(/\/+$/, '');
+    return base + '/api/v1' + path;
+  },
+
+  // Resolve a server-relative asset path (e.g. avatarUrl '/static/avatars/x.png') against the
+  // API origin. The frontend is served from a different origin, so relative paths would 404.
+  assetUrl(url) {
+    if (!url) return url;
+    if (/^(https?:|data:)/.test(url)) return url;
+    const base = (this._baseUrl || '').replace(/\/+$/, '');
+    return base + (url.startsWith('/') ? url : '/' + url);
+  },
+
+  // Point the app at a backend and persist it, so a reload restores REST mode (see bootstrap).
+  connectServer(baseUrl) {
+    const base = String(baseUrl || '').replace(/\/+$/, '');
+    try { localStorage.setItem('regrip_api_base', base); } catch {}
+    this.setBackend('rest', base);
+  },
+
+  // Return to local-only mode. Does not touch auth tokens (use AuthService.logout for that).
+  disconnectServer() {
+    try { localStorage.removeItem('regrip_api_base'); } catch {}
+    this.setBackend('local', '');
+  },
+
+  // Called when a request is 401 and refresh could not recover the session.
+  _onAuthLost() {
+    if (this._authLostHandled) return;
+    if (typeof location === 'undefined') return;
+    const file = (location.pathname.split('/').pop() || 'index.html');
+    if (file === 'login.html') return;
+    this._authLostHandled = true;
+    location.href = 'login.html?redirect=' + encodeURIComponent(file);
   },
 
   // ── localStorage helpers ──
@@ -163,18 +308,38 @@ const DataService = {
   },
 
   // ── REST helper ──
-  // Returns parsed JSON on success ({} when body is empty), or null on any failure.
-  async _fetch(path, opts = {}) {
+  // GET/PUT/POST against {apiBase}/api/v1{path}. Injects Bearer token + credentials.
+  // On 401: tries AuthService.refresh() once, retries the request, else clears tokens
+  // and routes to login (via _onAuthLost). Returns parsed JSON ({} for empty body) on
+  // success, or null on any failure (callers fall back to their localStorage mirror).
+  async _fetch(path, opts = {}, _retry = true) {
     try {
       const headers = { ...this._headers, ...(opts.headers || {}) };
+      if (!headers['Authorization']) {
+        const tok = AuthService.getAccessToken();
+        if (tok) headers['Authorization'] = 'Bearer ' + tok;
+      }
       let body = opts.body;
       if (body !== undefined && typeof body !== 'string') {
         if (!headers['Content-Type']) headers['Content-Type'] = 'application/json';
         body = JSON.stringify(body);
       }
-      const res = await fetch(this._baseUrl + path, { ...opts, headers, body });
+      const res = await fetch(this._apiUrl(path), { ...opts, headers, body, credentials: 'include' });
+
+      if (res.status === 401 && _retry) {
+        const recovered = await AuthService.refresh();
+        if (recovered) return this._fetch(path, opts, false);   // retry once with fresh token
+        AuthService._clearTokens();
+        this._onAuthLost();
+        return null;
+      }
+
       if (!res.ok) {
-        console.warn(`[DataService] ${opts.method || 'GET'} ${path} → HTTP ${res.status}`);
+        if (!(opts.silent404 && res.status === 404)) {   // 404 can be a normal state (e.g. no calibration yet)
+          let msg = '';
+          try { const j = await res.json(); msg = j && j.error && j.error.message; } catch {}
+          console.warn(`[DataService] ${opts.method || 'GET'} ${path} → HTTP ${res.status}${msg ? ' — ' + msg : ''}`);
+        }
         return null;
       }
       const text = await res.text();
@@ -193,8 +358,8 @@ const DataService = {
 
   async getProfile() {
     if (this._backend === 'rest') {
-      const data = await this._fetch('/api/profile');
-      if (data) { this._writeLocal('regrip_profile', data); return data; }  // refresh cache mirror
+      const data = await this._fetch('/users/me/profile');
+      if (data) { this._writeLocal('regrip_profile', data); return data; }  // refresh cache mirror (incl. avatarUrl)
       return this.getProfileSync();                                         // fallback to mirror
     }
     return this.getProfileSync();
@@ -202,38 +367,130 @@ const DataService = {
 
   async saveProfile(data) {
     if (this._backend === 'rest') {
-      const res = await this._fetch('/api/profile', { method: 'PUT', body: data });
-      if (res === null) console.warn('[DataService] saveProfile REST 실패 — 로컬에 저장합니다.');
-      this._writeLocal('regrip_profile', data);   // keep mirror in sync (and offline fallback)
-    } else {
-      this._writeLocal('regrip_profile', data);
+      // Server accepts birthDate (not age) + partial updates. Strip age, cast goal fields,
+      // drop empty strings, and forward avatarBase64 only when it is a real data URL.
+      const payload = {};
+      const copyIf = (k, v) => { if (v !== undefined && v !== null && v !== '') payload[k] = v; };
+      copyIf('name', data.name);
+      copyIf('birthDate', data.birthDate);
+      copyIf('gender', data.gender);
+      copyIf('phone', data.phone);
+      copyIf('hand', data.hand);
+      copyIf('injuryType', data.injuryType);
+      copyIf('treatmentStart', data.treatmentStart);
+      copyIf('doctorName', data.doctorName);
+      if (data.goalForce !== undefined && data.goalForce !== null && data.goalForce !== '') payload.goalForce = Number(data.goalForce);
+      if (data.goalDays !== undefined && data.goalDays !== null && data.goalDays !== '') payload.goalDays = Number(data.goalDays);
+      if (typeof data.avatarBase64 === 'string' && data.avatarBase64.startsWith('data:')) payload.avatarBase64 = data.avatarBase64;
+
+      const res = await this._fetch('/users/me/profile', { method: 'PUT', body: payload });
+      if (res) {
+        this._writeLocal('regrip_profile', res);   // mirror the authoritative response (avatarUrl now resolved)
+        return res;
+      }
+      console.warn('[DataService] saveProfile REST 실패 — 로컬 미러에 저장합니다.');
+      this._writeLocal('regrip_profile', { ...this.getProfileSync(), ...data });
+      return null;
     }
+    this._writeLocal('regrip_profile', data);
+  },
+
+  // Map a server SessionSummary → the frontend v2 session shape used across pages.
+  _sessionFromServer(s) {
+    const et = s.exerciseType || '';
+    return {
+      id: s.id,
+      clientSessionId: s.clientSessionId,
+      date: s.date,
+      gameId: et.startsWith('game_') ? et.slice(5) : null,
+      label: s.label,
+      durationMin: s.durationMin,
+      sets: s.sets,
+      avgForce: s.avgForce,
+      maxForce: s.maxForce,
+      stars: s.stars,
+      schema: 2,
+      fromServer: true,
+    };
   },
 
   // ── Sessions ──
   async getSessions() {
     if (this._backend === 'rest') {
-      const data = await this._fetch('/api/sessions');
-      if (Array.isArray(data)) { this._writeLocal('regrip_sessions', data); return data; }
+      const res = await this._fetch('/users/me/sessions?limit=100');
+      if (res && Array.isArray(res.data)) {
+        const mapped = res.data.map(s => this._sessionFromServer(s));
+        this._writeLocal('regrip_sessions', mapped);
+        return mapped;
+      }
       return this._readLocal('regrip_sessions', []);   // fallback to mirror
     }
     return this._readLocal('regrip_sessions', []);
   },
 
+  // Prepend a session object to the local mirror (newest first).
+  _mirrorSession(session) {
+    const sessions = this._readLocal('regrip_sessions', []);
+    sessions.unshift(session);
+    this._writeLocal('regrip_sessions', sessions);
+  },
+
+  // Convert a frontend v2 session → the backend POST payload.
+  _sessionToPayload(data, clientSessionId, exerciseType) {
+    const seen = new Set();
+    const sets = (data.setDetails || []).reduce((acc, d) => {
+      if (seen.has(d.setNum)) return acc;   // defend against duplicate setIndex (server rejects it)
+      seen.add(d.setNum);
+      acc.push({
+        setIndex: d.setNum,
+        reps: d.reps != null ? d.reps : null,
+        avgForce: d.force,
+        peakForce: d.force,
+        holdSec: Math.round(d.holdSecs || 0),   // server requires integer holdSec
+      });
+      return acc;
+    }, []);
+    return {
+      clientSessionId,
+      exerciseType,
+      startedAt: data.date,
+      durationSec: data.durationSec != null ? data.durationSec : (data.durationMin || 1) * 60,
+      score: data.sets,
+      avgForce: data.avgForce,
+      maxForce: data.maxForce,
+      attempts: data.attempts != null ? data.attempts : data.sets,
+      ...(data.difficulty ? { difficulty: data.difficulty } : {}),
+      ...(data.handUsed ? { handUsed: data.handUsed } : {}),
+      ...(sets.length ? { sets } : {}),
+    };
+  },
+
   async saveSession(data) {
     if (this._backend === 'rest') {
-      const res = await this._fetch('/api/sessions', { method: 'POST', body: data });
-      if (res === null) {
-        console.warn('[DataService] saveSession REST 실패 — 로컬에 저장합니다.');
-        const sessions = this._readLocal('regrip_sessions', []);
-        sessions.unshift({ ...data, id: data.id || Date.now() });
-        this._writeLocal('regrip_sessions', sessions);
+      // Idempotency: reuse/generate a clientSessionId and mirror the session locally FIRST so a
+      // retry (offline queue) re-sends the SAME key and the server dedupes it.
+      const clientSessionId = data.clientSessionId || _uuid();
+      data.clientSessionId = clientSessionId;
+      this._mirrorSession({ ...data, id: data.id || clientSessionId, clientSessionId });
+
+      const gid = gameIdOf(data);
+      if (!gid) {
+        // Legacy demo-labelled session with no resolvable gameId → not in the server enum.
+        console.warn('[DataService] saveSession: exerciseType 를 유도할 수 없어 서버 전송을 생략합니다(로컬 저장만).', data.label);
+        return undefined;
       }
-    } else {
-      const sessions = this._readLocal('regrip_sessions', []);
-      sessions.unshift({ ...data, id: Date.now() });   // local mode id = Date.now()
-      this._writeLocal('regrip_sessions', sessions);
+      const payload = this._sessionToPayload(data, clientSessionId, 'game_' + gid);
+      const res = await this._fetch('/users/me/sessions', { method: 'POST', body: payload });
+      if (res === null) {
+        console.warn('[DataService] saveSession REST 실패 — 로컬 미러에 저장되어 있습니다(오프라인 내성).');
+        return undefined;
+      }
+      return res;   // {session, xpAwarded, totalXp, level, levelUp, unlockedAchievements}
     }
+    const sessions = this._readLocal('regrip_sessions', []);
+    sessions.unshift({ ...data, id: Date.now() });   // local mode id = Date.now()
+    this._writeLocal('regrip_sessions', sessions);
+    return undefined;
   },
 
   // ── Settings ──
@@ -242,29 +499,47 @@ const DataService = {
   },
 
   async getSettings() {
+    const local = this.getSettingsSync();
     if (this._backend === 'rest') {
-      const data = await this._fetch('/api/settings');
-      if (data) { this._writeLocal('regrip_settings', data); return data; }
-      return this.getSettingsSync();
+      const data = await this._fetch('/users/me/settings');
+      if (data) {
+        // Server fields override shared keys; local-only fields (reducedMotion, sensorName)
+        // are always kept from localStorage (the server has no reducedMotion).
+        const merged = { ...local, ...data, reducedMotion: local.reducedMotion };
+        this._writeLocal('regrip_settings', merged);
+        return merged;
+      }
+      return local;
     }
-    return this.getSettingsSync();
+    return local;
   },
 
   async saveSettings(data) {
+    // Local-only fields (reducedMotion, sensorName, …) always persist to the mirror.
+    this._writeLocal('regrip_settings', data);
     if (this._backend === 'rest') {
-      const res = await this._fetch('/api/settings', { method: 'PUT', body: data });
-      if (res === null) console.warn('[DataService] saveSettings REST 실패 — 로컬에 저장합니다.');
-      this._writeLocal('regrip_settings', data);
-    } else {
-      this._writeLocal('regrip_settings', data);
+      const payload = {};
+      const keep = ['hand', 'difficulty', 'restSeconds', 'reminderEnabled', 'reminderTime', 'sessionSummaryEnabled', 'timezone'];
+      keep.forEach(k => { if (data[k] !== undefined) payload[k] = data[k]; });
+      if (!payload.timezone) {
+        try { payload.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch {}
+      }
+      const res = await this._fetch('/users/me/settings', { method: 'PUT', body: payload });
+      if (res === null) console.warn('[DataService] saveSettings REST 실패 — 로컬 미러에 저장했습니다.');
     }
   },
 
   // ── Calibration ──
   async getCalibration() {
     if (this._backend === 'rest') {
-      const data = await this._fetch('/api/calibration');
-      if (data) { this._writeLocal('regrip_calibration', data); return data; }
+      const data = await this._fetch('/users/me/calibrations/latest', { silent404: true });
+      if (data && data.baselineRaw0 != null) {
+        const cal = { baseline0: data.baselineRaw0, baseline100: data.baselineRaw100, date: data.calibratedAt };
+        this._writeLocal('regrip_calibration', cal);
+        return cal;
+      }
+      // No calibration yet is a normal state: the server answers 204 (empty body → {}), and an
+      // older server may answer 404 (silenced above). Either way we fall back to the local mirror.
       return this._readLocal('regrip_calibration', null);
     }
     return this._readLocal('regrip_calibration', null);
@@ -272,14 +547,37 @@ const DataService = {
 
   async saveCalibration(data) {
     if (this._backend === 'rest') {
-      const res = await this._fetch('/api/calibration', { method: 'PUT', body: data });
+      const payload = { baselineRaw0: data.baseline0, baselineRaw100: data.baseline100 };
+      const res = await this._fetch('/users/me/calibrations', { method: 'POST', body: payload });
       if (res === null) console.warn('[DataService] saveCalibration REST 실패 — 로컬에 저장합니다.');
-      this._writeLocal('regrip_calibration', data);
+      this._writeLocal('regrip_calibration', { baseline0: data.baseline0, baseline100: data.baseline100, date: data.date });
     } else {
       this._writeLocal('regrip_calibration', data);
     }
   },
 };
+
+// UUID v4 for clientSessionId (idempotency key). Uses crypto.randomUUID when available
+// (secure contexts incl. localhost); falls back to a Math.random-based v4 otherwise.
+function _uuid() {
+  try {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  } catch {}
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = (Math.random() * 16) | 0;
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
+// ── Bootstrap: restore REST mode across reloads ──
+// If a backend was previously connected, re-enter REST mode. The access token is injected
+// per-request in _fetch (read fresh from localStorage), so refresh rotation keeps working.
+(function bootstrapDataService() {
+  try {
+    const base = localStorage.getItem('regrip_api_base');
+    if (base) DataService.setBackend('rest', base);
+  } catch {}
+})();
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SENSOR SERVICE — simulation now, WebSocket / Serial later
@@ -464,6 +762,23 @@ function mulberry32(seed) {
   };
 }
 
+// Derive a 32-bit unsigned seed from a session id.
+//   - Numeric id (local mode, Date.now()): `id >>> 0` — identical to mulberry32's own
+//     truncation, so local behavior is byte-for-byte unchanged.
+//   - String id (REST mode, UUID): FNV-1a 32-bit hash, so distinct UUIDs seed distinct
+//     PRNG streams (fixes the `'…' >>> 0 === 0` collapse where every session looked alike).
+// Deterministic: the same id always yields the same seed.
+function _seedFrom(id) {
+  if (typeof id === 'number' && Number.isFinite(id)) return id >>> 0;
+  const s = String(id == null ? '' : id);
+  let h = 0x811c9dc5;                    // FNV offset basis
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);        // FNV prime
+  }
+  return h >>> 0;
+}
+
 // Per-set detail rows. Uses session.setDetails when present; otherwise derives
 // deterministic rows from mulberry32(session.id). Value ranges mirror the original
 // history.html generateSetData(): force = clamp(round(avgForce ± 10), 10, 100),
@@ -472,7 +787,7 @@ function deriveSetDetails(session) {
   if (session && Array.isArray(session.setDetails) && session.setDetails.length) {
     return session.setDetails;
   }
-  const rand = mulberry32((session && session.id) || 1);
+  const rand = mulberry32(_seedFrom((session && session.id) || 1));
   const n = (session && session.sets) || 0;
   const avg = (session && session.avgForce) || 50;
   const out = [];
@@ -758,7 +1073,145 @@ const GamificationEngine = {
   },
 
   async getStats() {
+    if (DataService.isRest()) return this._statsFromServer();
     return this.computeStats(await DataService.getSessions(), DataService.getProfileSync());
+  },
+
+  // REST mode: the server is the source of truth for XP / level / streak / achievements.
+  // Returns the SAME shape (keys) as computeStats so all six pages render unchanged.
+  // If any server fetch fails, falls back to local computation (warns once).
+  _serverFallbackWarned: false,
+  async _statsFromServer() {
+    const profile = DataService.getProfileSync();
+    const [statsRes, achRes, xpRes, sessions] = await Promise.all([
+      DataService._fetch('/users/me/stats'),
+      DataService._fetch('/users/me/achievements'),
+      DataService._fetch('/users/me/xp-events?limit=100'),
+      DataService.getSessions(),
+    ]);
+
+    if (!statsRes || !achRes || !Array.isArray(achRes.data) || !xpRes || !Array.isArray(xpRes.data)) {
+      if (!this._serverFallbackWarned) {
+        console.warn('[GamificationEngine] 서버 통계 조회 실패 — 로컬 계산으로 폴백합니다.');
+        this._serverFallbackWarned = true;
+      }
+      return this.computeStats(Array.isArray(sessions) ? sessions : [], profile);
+    }
+
+    const sess = Array.isArray(sessions) ? sessions : [];
+
+    // ── Server-authoritative scalars ──
+    const totalXp = Number(statsRes.totalXp) || 0;
+    const level = Number(statsRes.level) || 1;
+    const streak = Number(statsRes.currentStreak) || 0;
+    const totalSessions = Number(statsRes.totalSessions) || 0;
+    const maxForce = statsRes.bestMaxForce != null ? statsRes.bestMaxForce : 0;
+
+    // Level progress + tier are DERIVED from XP/level (same formula as server → consistent);
+    // deriving the tier from the level is more robust than mapping the server's slug.
+    const lvl = this.levelFromXp(totalXp);
+    const { tier, tierIndex } = this.tierForLevel(level);
+
+    // ── Achievements: server progress/unlock + local icon/condition lookup (server has no icon) ──
+    const localById = {};
+    this.ACHIEVEMENTS.forEach(d => { localById[d.id] = d; });
+    const achievements = achRes.data.map(a => {
+      const def = localById[a.id] || {};
+      const target = a.target || 0;
+      const progress = a.progress || 0;
+      return {
+        id: a.id,
+        title: a.title,
+        desc: a.description,
+        condition: def.condition || '',
+        category: a.category,
+        rarity: a.rarity,
+        xp: a.rewardXp,
+        goal: target,
+        target,
+        icon: def.icon || 'workspace_premium',
+        earned: !!a.unlockedAt,
+        earnedDateRaw: a.unlockedAt || null,
+        earnedDate: a.unlockedAt ? formatKoreanDate(a.unlockedAt) : null,
+        progressPct: target > 0 ? Math.min(100, (progress / target) * 100) : 0,
+        progressLabel: a.progressLabel != null ? a.progressLabel : `${Math.min(progress, target)} / ${target}`,
+      };
+    });
+    const earnedCount = achievements.filter(a => a.earned).length;
+    const totalAchievements = achievements.length;
+    const achievementXp = achievements.filter(a => a.earned).reduce((sum, a) => sum + (a.xp || 0), 0);
+
+    const achById = {};
+    achievements.forEach(a => { achById[a.id] = a; });
+
+    // ── XP events → frontend feed shape (newest first) ──
+    const xpEvents = xpRes.data.map(e => {
+      let label = '훈련 완료', icon = 'sports_esports', color = '#994626';
+      if (e.reason === 'achievement') {
+        const a = achById[e.refId];
+        label = a ? a.title : '업적 달성';
+        icon = a ? a.icon : 'workspace_premium';
+        color = (a && RARITY_STYLE[a.rarity] ? RARITY_STYLE[a.rarity].color : null) || '#994626';
+      } else if (e.reason === 'streak_bonus') {
+        label = '7일 연속 훈련'; icon = 'local_fire_department'; color = '#DC2626';
+      } else if (e.reason === 'goal_bonus') {
+        label = '목표 달성 보너스'; icon = 'flag'; color = '#CA8A04';
+      }
+      return { date: e.createdAt, label, xp: e.amount, icon, color };
+    }).sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    // ── Windowed XP sums over the feed (same rule as computeStats) ──
+    const todayN = dayNum(new Date());
+    const weeklyXp = xpEvents.filter(e => { const n = dayNum(e.date); return n >= todayN - 6 && n <= todayN; })
+      .reduce((sum, e) => sum + e.xp, 0);
+    const todayXp = xpEvents.filter(e => dayNum(e.date) === todayN)
+      .reduce((sum, e) => sum + e.xp, 0);
+
+    // ── Session-derived aggregates (identical rules to computeStats) ──
+    const avgSets = sess.length
+      ? Math.round((sess.reduce((a, s) => a + (s.sets || 0), 0) / sess.length) * 10) / 10
+      : 0;
+
+    const inThisWeek = (s) => { const n = dayNum(s.date); return n >= todayN - 6 && n <= todayN; };
+    const inPrevWeek = (s) => { const n = dayNum(s.date); return n >= todayN - 13 && n <= todayN - 7; };
+    const thisWeek = sess.filter(inThisWeek);
+    const prevWeek = sess.filter(inPrevWeek);
+    const weeklyDoneDays = new Set(thisWeek.map(s => dayNum(s.date))).size;
+    const weeklyGoalDays = Number(profile.goalDays) || 5;
+    const meanForce = (arr) => arr.length ? arr.reduce((a, s) => a + (s.avgForce || 0), 0) / arr.length : null;
+    const twForce = meanForce(thisWeek);
+    const pwForce = meanForce(prevWeek);
+    const weeklyForceDeltaPct = (twForce != null && pwForce != null && pwForce !== 0)
+      ? ((twForce - pwForce) / pwForce) * 100
+      : null;
+
+    const recent = [...sess].sort((a, b) => new Date(b.date) - new Date(a.date));
+    const recentSessions = recent.slice(0, 10).map(s => ({ ...s, gameId: gameIdOf(s), icon: iconForSession(s) }));
+
+    return {
+      totalXp,
+      level,
+      tier,
+      tierIndex,
+      xpIntoLevel: lvl.xpIntoLevel,
+      xpForNext: lvl.xpForNext,
+      progressPct: lvl.progressPct,
+      streak,
+      totalSessions,
+      maxForce,
+      avgSets,
+      weeklyDoneDays,
+      weeklyGoalDays,
+      weeklyForceDeltaPct,
+      weeklyXp,
+      todayXp,
+      achievementXp,
+      achievements,
+      earnedCount,
+      totalAchievements,
+      xpEvents,
+      recentSessions,
+    };
   },
 };
 
@@ -894,7 +1347,7 @@ function seedDemoData() {
   if (existing.length > 0) return false;
 
   const now = Date.now();
-  const rand = mulberry32(20260709);
+  const rand = mulberry32(_seedFrom(20260709));
   const sessions = [];
   for (let i = 0; i < 14; i++) {
     const gameId = i % 2 === 0 ? 'balloon' : 'crane';
@@ -942,6 +1395,16 @@ function seedDemoData() {
 // PAGE INIT
 // ═══════════════════════════════════════════════════════════════════════════════
 function initPage(activeKey) {
+  // Auth guard: in REST mode an unauthenticated visit is bounced to the login screen.
+  // (Game/calibration pages don't call initPage; they are covered by _fetch's _onAuthLost.)
+  if (DataService.isRest() && !AuthService.isAuthenticated()) {
+    const file = (typeof location !== 'undefined' && (location.pathname.split('/').pop() || 'index.html'));
+    if (file && file !== 'login.html') {
+      location.href = 'login.html?redirect=' + encodeURIComponent(file);
+      return;
+    }
+  }
+
   injectNav(activeKey);
   injectFeedbackModal();
 
@@ -973,9 +1436,9 @@ function initPage(activeKey) {
 // ── Node interop (unit testing only; harmless in the browser) ──
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
-    DataService, SensorService, GamificationEngine,
+    AuthService, DataService, SensorService, GamificationEngine,
     GAME_DEFS, LEGACY_EXERCISE_ICONS, RARITY_STYLE, SENSOR_STATUS_META,
-    gameIdOf, starsForScore, iconForSession, mulberry32, deriveSetDetails,
+    gameIdOf, starsForScore, iconForSession, mulberry32, _seedFrom, deriveSetDetails,
     maxConsecutiveDays, dayNum, formatKoreanDate,
   };
 }

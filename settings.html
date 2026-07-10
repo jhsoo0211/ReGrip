@@ -79,6 +79,44 @@
         <p class="text-on-surface-variant text-lg">앱 및 훈련 설정을 관리하세요.</p>
       </section>
 
+      <!-- 0. 서버 연결 -->
+      <div class="settings-card">
+        <div class="settings-card-header">
+          <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1">dns</span>
+          서버 연결
+        </div>
+        <!-- Current mode -->
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-label">현재 모드</div>
+            <div class="settings-row-sub" id="server-mode-sub">로컬 저장 (이 브라우저에만 보관)</div>
+          </div>
+          <span class="server-status local" id="server-status"><span class="dot"></span><span id="server-status-text">로컬 저장</span></span>
+        </div>
+        <!-- Backend URL -->
+        <div class="settings-row flex-col items-start gap-3">
+          <div class="settings-row-label">백엔드 URL</div>
+          <input type="url" id="server-url" value="http://localhost:8000" placeholder="http://localhost:8000"
+                 class="w-full border-2 border-ink-black rounded-lg px-4 py-2 font-display font-bold text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-surface-container"/>
+          <div class="settings-row-sub">프론트와 백엔드는 같은 호스트명(둘 다 localhost 또는 둘 다 127.0.0.1)이어야 로그인이 유지됩니다. 포트는 달라도 됩니다.</div>
+        </div>
+        <!-- Actions -->
+        <div class="settings-row flex-wrap gap-3">
+          <button onclick="goConnect()" class="retro-border retro-shadow rounded-lg px-4 py-2 font-display font-bold text-sm uppercase tracking-wider bg-primary text-white hover:opacity-90 transition-opacity flex items-center gap-2">
+            <span class="material-symbols-outlined text-base">login</span>
+            <span id="connect-btn-label">연결 / 로그인</span>
+          </button>
+          <button onclick="doLogout()" id="logout-btn" class="retro-border retro-shadow rounded-lg px-4 py-2 font-display font-bold text-sm uppercase tracking-wider bg-white hover:bg-surface-container transition-colors items-center gap-2" style="display:none;">
+            <span class="material-symbols-outlined text-base">logout</span>
+            로그아웃
+          </button>
+          <button onclick="doDisconnect()" id="disconnect-btn" class="retro-border rounded-lg px-4 py-2 font-display font-bold text-sm uppercase tracking-wider hover:bg-red-50 transition-colors text-red-600 border-red-300 items-center gap-2" style="display:none;">
+            <span class="material-symbols-outlined text-base">link_off</span>
+            연결 해제
+          </button>
+        </div>
+      </div>
+
       <!-- 1. 기기 연결 -->
       <div class="settings-card">
         <div class="settings-card-header">
@@ -196,9 +234,16 @@
             <div class="settings-row-sub">훈련 후 결과 요약 알림을 받습니다</div>
           </div>
           <label class="toggle-switch">
-            <input type="checkbox" id="summary-toggle" checked/>
+            <input type="checkbox" id="session-summary-toggle" checked/>
             <span class="toggle-track"></span>
           </label>
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-label">시간대</div>
+            <div class="settings-row-sub">알림·통계 계산에 사용됩니다 (자동 감지)</div>
+          </div>
+          <span id="tz-caption" class="font-display text-sm font-bold text-on-surface-variant">—</span>
         </div>
       </div>
 
@@ -217,7 +262,7 @@
             <div class="settings-row-label">데모 데이터 채우기</div>
             <div class="settings-row-sub">체험용 훈련 기록을 생성합니다</div>
           </div>
-          <button onclick="fillDemoData()" class="retro-border retro-shadow rounded-lg px-4 py-2 font-display font-bold text-sm uppercase tracking-wider bg-white hover:bg-surface-container transition-colors flex items-center gap-2">
+          <button onclick="fillDemoData()" id="demo-btn" class="retro-border retro-shadow rounded-lg px-4 py-2 font-display font-bold text-sm uppercase tracking-wider bg-white hover:bg-surface-container transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
             <span class="material-symbols-outlined text-base">science</span>
             채우기
           </button>
@@ -289,6 +334,8 @@ function showToast(msg, icon = 'check_circle') {
 }
 
 function saveSettings() {
+  let timezone = DataService.getSettingsSync().timezone;
+  try { timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || timezone; } catch {}
   // Merge onto existing so unrelated keys other pages may store aren't clobbered.
   const settings = {
     ...DataService.getSettingsSync(),
@@ -297,10 +344,12 @@ function saveSettings() {
     restSeconds,
     reminderEnabled: document.getElementById('reminder-toggle').checked,
     reminderTime: document.getElementById('reminder-time').value,
-    summaryEnabled: document.getElementById('summary-toggle').checked,
+    sessionSummaryEnabled: document.getElementById('session-summary-toggle').checked,
     sensorName: document.getElementById('sensor-name').value,
     reducedMotion: document.getElementById('reduced-motion-toggle').checked,
+    timezone,
   };
+  delete settings.summaryEnabled;   // drop legacy key name
   DataService.saveSettings(settings);
   document.documentElement.toggleAttribute('data-reduced-motion', settings.reducedMotion);
   showToast('설정이 저장되었습니다');
@@ -322,11 +371,81 @@ function clearData() {
 }
 
 function fillDemoData() {
+  if (DataService.isRest()) {
+    showToast('서버 연결 모드에서는 데모 데이터를 사용할 수 없습니다', 'info');
+    return;
+  }
   if (seedDemoData()) {
     location.reload();
   } else {
     showToast('이미 훈련 데이터가 있습니다', 'info');
   }
+}
+
+// ── Server connection card ──
+function renderServerMode() {
+  const rest = DataService.isRest();
+  const statusEl   = document.getElementById('server-status');
+  const statusText = document.getElementById('server-status-text');
+  const modeSub    = document.getElementById('server-mode-sub');
+  const urlInput   = document.getElementById('server-url');
+  const connectLbl = document.getElementById('connect-btn-label');
+  const logoutBtn  = document.getElementById('logout-btn');
+  const disconnBtn = document.getElementById('disconnect-btn');
+
+  if (rest) {
+    const user = AuthService.getUser();
+    let base = '';
+    try { base = localStorage.getItem('regrip_api_base') || ''; } catch {}
+    statusEl.className = 'server-status remote';
+    statusText.textContent = '서버 연결됨';
+    modeSub.textContent = (user && user.email) ? `서버 연결됨 · ${user.email}` : '서버 연결됨';
+    if (base) urlInput.value = base;
+    connectLbl.textContent = '재로그인';
+    logoutBtn.style.display = 'inline-flex';
+    disconnBtn.style.display = 'inline-flex';
+  } else {
+    statusEl.className = 'server-status local';
+    statusText.textContent = '로컬 저장';
+    modeSub.textContent = '로컬 저장 (이 브라우저에만 보관)';
+    connectLbl.textContent = '연결 / 로그인';
+    logoutBtn.style.display = 'none';
+    disconnBtn.style.display = 'none';
+  }
+}
+
+function goConnect() {
+  const base = document.getElementById('server-url').value.trim();
+  const q = base ? '&server=' + encodeURIComponent(base) : '';
+  location.href = 'login.html?redirect=settings.html' + q;
+}
+
+function doLogout() {
+  openConfirmModal({
+    title: '로그아웃',
+    body: '로그아웃합니다. 서버 데이터에 다시 접근하려면 재로그인이 필요합니다.',
+    confirmLabel: '로그아웃',
+    cancelLabel: '취소',
+    onConfirm: async () => {
+      await AuthService.logout();
+      location.href = 'login.html?redirect=settings.html';
+    },
+  });
+}
+
+function doDisconnect() {
+  openConfirmModal({
+    title: '서버 연결 해제',
+    body: '로컬 저장 모드로 돌아갑니다. 로그인 상태와 서버 주소 설정이 해제됩니다.',
+    confirmLabel: '연결 해제',
+    cancelLabel: '취소',
+    danger: true,
+    onConfirm: async () => {
+      try { await AuthService.logout(); } catch {}
+      DataService.disconnectServer();
+      location.reload();
+    },
+  });
 }
 
 // Whole-row click toggles the switch (keyboard handled natively by the checkbox).
@@ -364,10 +483,32 @@ if (typeof saved.reminderEnabled === 'boolean') {
   toggleReminder(t);
 }
 if (saved.reminderTime) document.getElementById('reminder-time').value = saved.reminderTime;
-if (typeof saved.summaryEnabled === 'boolean') document.getElementById('summary-toggle').checked = saved.summaryEnabled;
+// sessionSummaryEnabled — prefer the new key, fall back to legacy `summaryEnabled`.
+const summaryVal = (typeof saved.sessionSummaryEnabled === 'boolean') ? saved.sessionSummaryEnabled
+                 : (typeof saved.summaryEnabled === 'boolean') ? saved.summaryEnabled : null;
+if (summaryVal !== null) document.getElementById('session-summary-toggle').checked = summaryVal;
+// One-time migration of the legacy key (local mode only — server already uses the new name).
+if (!DataService.isRest() && typeof saved.summaryEnabled === 'boolean' && typeof saved.sessionSummaryEnabled !== 'boolean') {
+  const migrated = { ...saved, sessionSummaryEnabled: saved.summaryEnabled };
+  delete migrated.summaryEnabled;
+  DataService.saveSettings(migrated);
+}
 if (saved.sensorName) document.getElementById('sensor-name').value = saved.sensorName;
 // initPage already set data-reduced-motion from saved.reducedMotion; mirror the toggle state.
 if (typeof saved.reducedMotion === 'boolean') document.getElementById('reduced-motion-toggle').checked = saved.reducedMotion;
+
+// Timezone caption (auto-detected).
+try {
+  const tz = saved.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  if (tz) document.getElementById('tz-caption').textContent = tz;
+} catch {}
+
+// Server connection card state + demo-button gating.
+renderServerMode();
+if (DataService.isRest()) {
+  const demoBtn = document.getElementById('demo-btn');
+  if (demoBtn) { demoBtn.disabled = true; demoBtn.title = '서버 연결 모드에서는 사용할 수 없습니다'; }
+}
 </script>
 </body>
 </html>

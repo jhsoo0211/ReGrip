@@ -547,3 +547,157 @@ textarea:focus-visible,
   transition-duration: 0.01ms !important;
   scroll-behavior: auto !important;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ADDITIONS — auth / login screen + server-connection card
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Login screen shell ── */
+.auth-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--bg-app);
+}
+.auth-card {
+  width: 100%;
+  max-width: 440px;
+  background: var(--surface);
+  border: 3px solid var(--ink);
+  box-shadow: 6px 6px 0px 0px var(--ink);
+  border-radius: 16px;
+  padding: 32px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.auth-logo {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 34px;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: -0.03em;
+  text-align: center;
+}
+.auth-sub {
+  text-align: center;
+  color: var(--ink-secondary);
+  font-size: 14px;
+  margin-top: -10px;
+}
+
+/* ── Tabs (login / signup) ── */
+.auth-tabs { display: flex; gap: 0; }
+.auth-tab {
+  flex: 1;
+  min-height: 48px;
+  padding: 12px;
+  border: 2px solid var(--ink);
+  background: #fff;
+  color: var(--ink-secondary);
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.auth-tab:first-child { border-radius: 8px 0 0 8px; }
+.auth-tab:last-child  { border-radius: 0 8px 8px 0; margin-left: -2px; }
+.auth-tab.active { background: var(--primary); color: #fff; }
+
+/* ── Fields ── */
+.auth-field { display: flex; flex-direction: column; }
+.auth-label {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-secondary);
+  margin-bottom: 6px;
+}
+.auth-input {
+  width: 100%;
+  min-height: 48px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  background: var(--surface);
+  color: var(--ink);
+  outline: none;
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+.auth-input:focus { box-shadow: 3px 3px 0px var(--primary); border-color: var(--primary); }
+
+/* ── Consent rows ── */
+.auth-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-secondary);
+  cursor: pointer;
+}
+.auth-consent input[type="checkbox"] {
+  width: 22px; height: 22px;
+  min-width: 22px;
+  margin-top: 1px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+/* ── Notice / error ── */
+.auth-note {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  background: var(--surface-warm);
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-secondary);
+}
+.auth-note .material-symbols-outlined { font-size: 18px; color: var(--primary); flex-shrink: 0; }
+.auth-error {
+  display: none;
+  background: #FEE2E2;
+  border: 2px solid var(--error);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #991B1B;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.auth-error.show { display: block; }
+.auth-alt {
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-secondary);
+}
+.auth-alt a { color: var(--primary); font-weight: 700; text-decoration: underline; }
+
+/* ── Server-connection card status pill (settings) ── */
+.server-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 2px solid var(--ink);
+  border-radius: 9999px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+.server-status.local  { background: #F1F5F9; color: var(--ink-secondary); }
+.server-status.remote { background: #DCFCE7; color: var(--success-text); }
+.server-status .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
