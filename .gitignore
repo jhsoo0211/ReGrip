@@ -1,3 +1,12 @@
 node_modules/
 output/
 .playwright-cli/
+
+# ── backend ──
+backend/venv/
+backend/storage/
+backend/.env
+*.db
+__pycache__/
+*.pyc
+.pytest_cache/
