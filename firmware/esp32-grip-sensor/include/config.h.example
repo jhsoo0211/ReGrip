@@ -1,0 +1,32 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// ReGrip ESP32 Grip Sensor — 로컬 설정 템플릿
+//
+// 사용법: 이 파일을 같은 폴더에 config.h 로 복사한 뒤 값을 채우세요.
+//   PlatformIO:   cp include/config.h.example include/config.h
+//   Arduino IDE:  config.h.example 을 config.h 로 복사해 .ino 스케치 폴더에 둠
+//
+// config.h 는 .gitignore 에 등록되어 있어 커밋되지 않습니다(WiFi 비밀번호 보호).
+// ─────────────────────────────────────────────────────────────────────────────
+#ifndef CONFIG_H
+#define CONFIG_H
+
+// ── WiFi (STA 모드) 자격증명 ──
+// 공유기가 없거나 접속 실패 시 자동으로 SoftAP 폴백('ReGrip-Sensor')으로 전환됩니다.
+#define WIFI_SSID   "YOUR_WIFI_SSID"
+#define WIFI_PASS   "YOUR_WIFI_PASSWORD"
+
+// ── WebSocket 서버 포트 ──
+// 브라우저는 ws://<esp32-ip>:8080 으로 접속합니다.
+#define WS_PORT     8080
+
+// ── 브로드캐스트 샘플링 레이트(Hz) ──
+#define SAMPLE_HZ   20
+
+// ── FSR 아날로그 입력 핀 ──
+// GPIO34 는 ADC1 채널이며 입력 전용(내부 풀업/풀다운 없음) — 외부 분압 저항 필요.
+#define FSR_PIN     34
+
+// ── 시리얼 force 디버그 출력 (1 = 1초마다 출력, 0 = 끔) ──
+#define DEBUG_FORCE 1
+
+#endif // CONFIG_H

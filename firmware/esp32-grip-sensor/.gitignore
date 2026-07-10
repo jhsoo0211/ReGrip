@@ -1,0 +1,10 @@
+# 로컬 WiFi 자격증명 — 절대 커밋하지 않음
+include/config.h
+
+# PlatformIO 빌드 산출물
+.pio/
+
+# Arduino IDE 빌드 산출물
+build/
+*.bin
+*.elf
