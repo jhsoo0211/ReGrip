@@ -7,9 +7,11 @@ from tests.conftest import register_and_auth
 def test_calibration_post_then_latest(client):
     _, headers = register_and_auth(client)
 
-    # latest 없음 → 404
+    # latest 없음 → 204 No Content (오류가 아닌 정상 초기 상태. 프론트가 매 로드마다 호출하므로
+    # 404 로 두면 브라우저 콘솔에 매번 네트워크 오류가 남는다.)
     r = client.get("/api/v1/users/me/calibrations/latest", headers=headers)
-    assert r.status_code == 404
+    assert r.status_code == 204
+    assert r.content == b""
 
     # 첫 캘리브레이션
     r = client.post(

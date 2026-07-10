@@ -303,7 +303,9 @@ Refresh 토큰은 응답 본문이 아니라 `Set-Cookie`로 내려간다.
 ```json
 { "deviceId": "d-uuid", "baselineRaw0": 512.0, "baselineRaw100": 890.0 }
 ```
-- **GET /api/v1/users/me/calibrations/latest** → 최신 1건.
+- **GET /api/v1/users/me/calibrations/latest** → 최신 1건. 이력이 없으면 **204 No Content**(빈 본문).
+  프론트가 페이지 로드마다 호출하므로 "아직 없음"은 오류(404)가 아니라 정상 초기 상태로 다룬다.
+  클라이언트는 204를 `null` 로 해석한다.
 
 ### 5.5 GET /api/v1/leaderboard?scope=weekly (Stage 1)
 
