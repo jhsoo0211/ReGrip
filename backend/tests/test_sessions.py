@@ -23,7 +23,7 @@ def _balloon_payload(client_session_id, score=10, avg=60.0, mx=85.0):
         "avgForce": avg,
         "maxForce": mx,
         "attempts": 3,
-        "difficulty": "normal",
+        "difficulty": "medium",
         "handUsed": "right",
     }
 

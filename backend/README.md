@@ -40,15 +40,16 @@ curl http://127.0.0.1:8000/health          # {"status":"ok"}
 start http://127.0.0.1:8000/docs
 ```
 
-앱 startup 시 SQLite 테이블 자동 생성 + 업적 6종 자동 upsert 된다. 수동 시딩이 필요하면:
+앱 startup 시 SQLite 테이블 자동 생성 + 업적 8종 자동 upsert 된다. 수동 시딩이 필요하면:
 
 ```powershell
 python -m scripts.seed_achievements
 ```
 
 > ⚠️ **모델을 바꾼 뒤 500이 난다면 개발 DB 스키마 드리프트다.**
-> startup 의 `create_all` 은 **없는 테이블만 만들고, 기존 테이블에 컬럼을 추가하지 않는다.**
-> 컬럼을 추가·변경했다면 개발 DB 파일을 지우고 다시 띄운다(개발 데이터는 버려도 되는 값이다).
+> startup 의 `create_all` 은 **없는 테이블만 만들고, 기존 테이블의 컬럼·CHECK 제약을 바꾸지 않는다.**
+> 컬럼/제약을 추가·변경했다면(예: 002 의 exercise_type·difficulty CHECK 확장) 개발 DB 파일을
+> 지우고 다시 띄운다(개발 데이터는 버려도 되는 값이다).
 >
 > ```powershell
 > Remove-Item .\regrip_dev.db -ErrorAction SilentlyContinue
@@ -125,9 +126,10 @@ src/
 - **totalXp = Σ xp_events** (원장 불변식). `level = 100+(L-1)*25` 누적, 티어 6종.
 - **멱등성**: `UNIQUE(user_id, client_session_id)`. 중복 제출은 **200 + 최초 결과**(`sessions.result_snapshot`), XP 재적립 없음.
 
-### 업적 6종 (프론트 GamificationEngine 과 동일 id/타이틀/XP)
+### 업적 8종 (프론트 GamificationEngine 과 동일 id/타이틀/XP)
 `first_pop`(100) · `first_capsule`(100) · `three_star`(150) · `strong_grip`(200, 최대악력 80↑ 5회) ·
-`consistency_king`(300, 7일 연속) · `halfway_goal`(500, 크레인 누적 세트 500).
+`consistency_king`(300, 7일 연속) · `halfway_goal`(500, 크레인 누적 세트 500) ·
+`first_rhythm`(100, 리듬 펌프 첫 세션) · `first_glide`(100, 잠수함 첫 항해).
 
 ---
 

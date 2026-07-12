@@ -104,6 +104,6 @@ class UserSettings(Base, TimestampMixin):
 
     __table_args__ = (
         CheckConstraint("hand IN ('left','right','both')", name="ck_settings_hand"),
-        CheckConstraint("difficulty IN ('easy','normal','hard')", name="ck_settings_difficulty"),
+        CheckConstraint("difficulty IN ('easy','medium','hard')", name="ck_settings_difficulty"),
         CheckConstraint("rest_seconds BETWEEN 10 AND 120", name="ck_settings_rest"),
     )

@@ -43,10 +43,18 @@ def test_compute_stars():
     assert compute_stars("game_balloon", 3) == 1
     assert compute_stars("game_balloon", 5) == 2
     assert compute_stars("game_balloon", 10) == 3
-    # crane [4,8]
-    assert compute_stars("game_crane", 3) == 1
-    assert compute_stars("game_crane", 4) == 2
-    assert compute_stars("game_crane", 8) == 3
+    # crane [3,5]
+    assert compute_stars("game_crane", 2) == 1
+    assert compute_stars("game_crane", 3) == 2
+    assert compute_stars("game_crane", 5) == 3
+    # rhythm [14,20]
+    assert compute_stars("game_rhythm", 13) == 1
+    assert compute_stars("game_rhythm", 14) == 2
+    assert compute_stars("game_rhythm", 20) == 3
+    # glide [15,24]
+    assert compute_stars("game_glide", 14) == 1
+    assert compute_stars("game_glide", 15) == 2
+    assert compute_stars("game_glide", 24) == 3
     # 비게임 → 1
     assert compute_stars("pinch_hold", 100) == 1
 

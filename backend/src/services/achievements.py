@@ -1,6 +1,6 @@
-"""업적 6종 시드 + rule_type 별 판정 evaluator (03 §5, 프론트 GamificationEngine.ACHIEVEMENTS).
+"""업적 8종 시드 + rule_type 별 판정 evaluator (03 §5, 프론트 GamificationEngine.ACHIEVEMENTS).
 
-프론트 6종과 동일 id/타이틀/XP. 판정은 하이브리드 룰: rule_type 은 코드, 임계값은 rule_params(jsonb).
+프론트 8종과 동일 id/타이틀/XP. 판정은 하이브리드 룰: rule_type 은 코드, 임계값은 rule_params(jsonb).
 01 DDL 의 rule_type enum(session_count/max_force_gte/streak_days/total_sets)만 사용하고,
 프론트의 게임 필터/별점 조건은 rule_params 확장 파라미터로 인코딩한다.
 
@@ -29,7 +29,7 @@ class AchievementContext:
     current_streak: int
 
 
-# 프론트 GamificationEngine.ACHIEVEMENTS 와 동일한 6종.
+# 프론트 GamificationEngine.ACHIEVEMENTS 와 동일한 8종.
 # category/rarity 는 enum 코드로 매핑 (게임 플레이→game_play, 악력 훈련→grip_training,
 # 지속성→persistence, 수집→collection / 일반→common, 희귀→rare, 에픽→epic, 전설→legendary).
 ACHIEVEMENT_SEEDS: list[dict] = [
@@ -99,6 +99,28 @@ ACHIEVEMENT_SEEDS: list[dict] = [
         "rule_params": {"sets": 500, "exercise_type": "game_crane"},
         "sort_order": 60,
     },
+    {
+        "id": "first_rhythm",
+        "title": "첫 박자",
+        "description": "리듬 펌프 게임에서 첫 세션을 완료했습니다.",
+        "category": "game_play",
+        "rarity": "common",
+        "reward_xp": 100,
+        "rule_type": "session_count",
+        "rule_params": {"count": 1, "exercise_type": "game_rhythm", "min_sets": 1},
+        "sort_order": 70,
+    },
+    {
+        "id": "first_glide",
+        "title": "첫 항해",
+        "description": "잠수함 게임에서 첫 항로를 완주했습니다.",
+        "category": "game_play",
+        "rarity": "common",
+        "reward_xp": 100,
+        "rule_type": "session_count",
+        "rule_params": {"count": 1, "exercise_type": "game_glide", "min_sets": 1},
+        "sort_order": 80,
+    },
 ]
 
 
@@ -144,7 +166,7 @@ def evaluate(rule_type: str, rule_params: dict, ctx: AchievementContext) -> tupl
 
 
 def seed_achievements(db) -> int:
-    """업적 정의 6종을 upsert. 앱 startup 과 seed 스크립트가 공유한다. 반환: upsert 건수."""
+    """업적 정의 8종을 upsert. 앱 startup 과 seed 스크립트가 공유한다. 반환: upsert 건수."""
     from ..models import AchievementDefinition
 
     n = 0

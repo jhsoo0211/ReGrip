@@ -8,6 +8,8 @@ from __future__ import annotations
 EXERCISE_LABELS: dict[str, str] = {
     "game_balloon": "풍선 게임",
     "game_crane": "크레인 게임",
+    "game_rhythm": "리듬 펌프 게임",
+    "game_glide": "잠수함 게임",
     "pinch_hold": "핀치 그립 훈련",
     "full_grip": "완전 그립 훈련",
     "finger_ext": "손가락 펴기",
@@ -17,7 +19,9 @@ EXERCISE_LABELS: dict[str, str] = {
 # 게임별 별점 임계값 [★2, ★3] — 프론트 GAME_DEFS.starThresholds 와 동일.
 STAR_THRESHOLDS: dict[str, tuple[int, int]] = {
     "game_balloon": (5, 10),
-    "game_crane": (4, 8),
+    "game_crane": (3, 5),
+    "game_rhythm": (14, 20),
+    "game_glide": (15, 24),
 }
 
 

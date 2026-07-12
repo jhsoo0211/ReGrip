@@ -93,15 +93,20 @@ cumulativeXp(L) = Σ_{k=1}^{L-1} xpToNext(k)
 | 게임(exercise_type) | ★3 | ★2 | ★1 |
 |---------------------|-----|-----|-----|
 | 풍선 (`game_balloon`) | `score >= 10` | `score >= 5` | 그 외 |
-| 크레인 (`game_crane`) | `score >= 8` | `score >= 4` | 그 외 |
+| 크레인 (`game_crane`) | `score >= 5` | `score >= 3` | 그 외 |
+| 리듬 펌프 (`game_rhythm`) | `score >= 20` | `score >= 14` | 그 외 |
+| 잠수함 (`game_glide`) | `score >= 24` | `score >= 15` | 그 외 |
+
+임계값은 `services/labels.py` 의 `STAR_THRESHOLDS` 와 프론트 `GAME_DEFS.starThresholds` 에서 단일 진실로 관리한다(양쪽 값이 동일해야 별점이 일치).
 
 ```
 stars(exerciseType, score):
-  if exerciseType == 'game_balloon':
-    return 3 if score>=10 else 2 if score>=5 else 1
-  if exerciseType == 'game_crane':
-    return 3 if score>=8 else 2 if score>=4 else 1
-  # 비게임 운동(pinch_hold 등)은 별도 기준. MVP는 1로 처리하거나 미부여.
+  th = STAR_THRESHOLDS[exerciseType]   # (t2, t3)
+  if th is None: return 1              # 비게임(pinch_hold 등)은 1로 처리
+  t2, t3 = th
+  return 3 if score>=t3 else 2 if score>=t2 else 1
+
+# balloon (5,10) · crane (3,5) · rhythm (14,20) · glide (15,24)
 ```
 
 > **결정(Decision)**: 별점은 서버가 `exercise_type` + `score`로 재계산해 `sessions.stars`에 저장한다. 클라가 보낸 stars는 무시.
@@ -132,6 +137,21 @@ stars(exerciseType, score):
 ```
 
 각 rule_type은 `progress`/`target`을 산출해 `user_achievements`에 반영하고, `progress >= target`이고 아직 `unlocked_at IS NULL`이면 **이번에 달성**으로 처리(→ `unlocked_at` 세팅 + 업적 XP 이벤트 적립).
+
+### 5.1 정의된 업적 8종
+
+`services/achievements.py` 의 `ACHIEVEMENT_SEEDS` 와 프론트 `GamificationEngine.ACHIEVEMENTS` 는 **동일한 id/타이틀/XP** 8종이다(4게임 체제 반영). `rule_params` 의 `exercise_type`/`min_sets`/`min_stars` 는 01 DDL 의 rule_type enum 을 확장하는 파라미터다.
+
+| id | 타이틀 | 카테고리 | 희귀도 | XP | rule_type | rule_params |
+|----|--------|----------|--------|----|-----------|-------------|
+| `first_pop` | 첫 풍선 | game_play | common | 100 | session_count | `{count:1, exercise_type:game_balloon, min_sets:1}` |
+| `first_capsule` | 첫 번째 캡슐 | game_play | common | 100 | session_count | `{count:1, exercise_type:game_crane, min_sets:1}` |
+| `three_star` | 퍼펙트 훈련 | game_play | common | 150 | session_count | `{count:1, min_stars:3}` |
+| `strong_grip` | 강철 악력 | grip_training | rare | 200 | max_force_gte | `{threshold:80, count:5}` |
+| `consistency_king` | 꾸준함의 왕 | persistence | epic | 300 | streak_days | `{days:7}` |
+| `halfway_goal` | 캡슐 수집가 | collection | legendary | 500 | total_sets | `{sets:500, exercise_type:game_crane}` |
+| `first_rhythm` | 첫 박자 | game_play | common | 100 | session_count | `{count:1, exercise_type:game_rhythm, min_sets:1}` |
+| `first_glide` | 첫 항해 | game_play | common | 100 | session_count | `{count:1, exercise_type:game_glide, min_sets:1}` |
 
 ---
 

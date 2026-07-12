@@ -63,8 +63,8 @@ class Session(Base, TimestampMixin):
     __table_args__ = (
         UniqueConstraint("user_id", "client_session_id", name="uq_sessions_idem"),
         CheckConstraint(
-            "exercise_type IN ('game_crane','game_balloon','pinch_hold',"
-            "'full_grip','finger_ext','lateral_grip')",
+            "exercise_type IN ('game_crane','game_balloon','game_rhythm','game_glide',"
+            "'pinch_hold','full_grip','finger_ext','lateral_grip')",
             name="ck_sessions_exercise_type",
         ),
         CheckConstraint("duration_sec > 0", name="ck_sessions_duration"),
