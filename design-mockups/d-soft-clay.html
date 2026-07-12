@@ -1,0 +1,824 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ReGrip 시안 D — 소프트 클레이</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200">
+<style>
+:root {
+  --blue-50:#F7FBFC; --blue-100:#D6E6F2; --blue-200:#B9D7EA; --blue-500:#769FCD;
+  --blue-300:#9FC3E0; --blue-400:#8BB1D7; --blue-600:#5E86B8; --blue-700:#2A4A6F;
+  --navy-800:#1B314B; --navy-900:#112032; --navy-950:#091320;
+  --ink:#12263A; --ink-secondary:#3F5A75; --ink-muted:#587693;
+  --ink-inverse:#EAF3FA; --ink-inverse-muted:#8FB0CC;
+  --success:#16A34A; --success-text:#15803D; --warning:#CA8A04; --error:#DC2626;
+  --glass-bg:rgba(255,255,255,0.55); --glass-border:rgba(255,255,255,0.65);
+  --glass-dark-bg:rgba(17,32,50,0.55); --glass-blur:20px;
+  --dur-fast:150ms; --dur-base:220ms; --dur-slow:400ms;
+  --ease-out:cubic-bezier(0.22,1,0.36,1);
+}
+
+/* ---------- Reset ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: 'Pretendard Variable', 'Noto Sans KR', sans-serif;
+  background: var(--blue-100);
+  color: var(--ink);
+  min-width: 360px;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+button, input { font-family: inherit; }
+ul { list-style: none; margin: 0; padding: 0; }
+h1, h2, h3, p { margin: 0; }
+a { color: inherit; text-decoration: none; }
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+  display: inline-block;
+  line-height: 1;
+}
+
+/* ---------- Clay tokens (derived) ---------- */
+.clay-raised {
+  background: var(--blue-50);
+  border: 1px solid rgba(255,255,255,0.6);
+  box-shadow: 8px 8px 24px rgba(118,159,205,0.35), -8px -8px 24px rgba(255,255,255,0.95);
+}
+.clay-inset {
+  background: var(--blue-100);
+  box-shadow: inset 4px 4px 10px rgba(118,159,205,0.25), inset -4px -4px 10px rgba(255,255,255,0.9);
+  border: 1px solid rgba(255,255,255,0.5);
+}
+
+/* ---------- App shell ---------- */
+.app {
+  min-height: 100vh;
+  display: none;
+}
+.app.is-active { display: block; }
+
+/* ================= LOGIN VIEW ================= */
+#login.is-active {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px;
+  position: relative;
+}
+#login::before,
+#login::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  z-index: 0;
+}
+#login::before {
+  width: 280px; height: 280px;
+  background: var(--blue-200);
+  top: -80px; left: -80px;
+  opacity: 0.6;
+  filter: blur(2px);
+}
+#login::after {
+  width: 220px; height: 220px;
+  background: var(--blue-300);
+  bottom: -60px; right: -60px;
+  opacity: 0.5;
+  filter: blur(2px);
+}
+
+.login-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 400px;
+  border-radius: 32px;
+  padding: 44px 36px 36px;
+}
+
+.login-wordmark-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+.login-badge {
+  width: 76px; height: 76px;
+  border-radius: 50%;
+  background: var(--blue-500);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: inset 0 3px 6px rgba(255,255,255,0.45), 6px 6px 16px rgba(118,159,205,0.4);
+}
+.login-badge .material-symbols-outlined {
+  font-size: 38px;
+  color: var(--ink);
+  font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 40;
+}
+.login-wordmark {
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--blue-700);
+  letter-spacing: -0.02em;
+}
+.login-sub {
+  font-size: 14.5px;
+  color: var(--ink-secondary);
+  font-weight: 500;
+  text-align: center;
+}
+
+.login-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 20px;
+  margin-bottom: 26px;
+}
+.login-tab {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 12px 0;
+  border-radius: 14px;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--ink-secondary);
+  cursor: pointer;
+  transition: all var(--dur-base) var(--ease-out);
+}
+.login-tab.active {
+  background: var(--blue-50);
+  color: var(--blue-700);
+  box-shadow: 4px 4px 12px rgba(118,159,205,0.3), -4px -4px 12px rgba(255,255,255,0.9);
+}
+.login-tab:focus-visible {
+  outline: 2px solid var(--blue-700);
+  outline-offset: 2px;
+}
+.login-tab:hover:not(.active) { color: var(--blue-700); }
+
+.field-group {
+  margin-bottom: 18px;
+}
+.field-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-secondary);
+  margin-bottom: 8px;
+  padding-left: 4px;
+}
+.field-input {
+  width: 100%;
+  border: none;
+  border-radius: 18px;
+  padding: 15px 18px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink);
+  outline: none;
+  transition: box-shadow var(--dur-base) var(--ease-out);
+}
+.field-input::placeholder { color: var(--ink-secondary); opacity: 1; }
+.field-input:focus-visible,
+.field-input:focus {
+  box-shadow: inset 4px 4px 10px rgba(118,159,205,0.32), inset -4px -4px 10px rgba(255,255,255,0.95), 0 0 0 3px rgba(118,159,205,0.35);
+}
+
+.btn-primary {
+  width: 100%;
+  border: none;
+  border-radius: 20px;
+  min-height: 54px;
+  background: var(--blue-500);
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: inset 0 2px 4px rgba(255,255,255,0.4), 0 8px 18px rgba(118,159,205,0.5);
+  transition: transform var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out), background var(--dur-base) var(--ease-out);
+  margin-top: 6px;
+}
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: inset 0 2px 4px rgba(255,255,255,0.4), 0 12px 22px rgba(118,159,205,0.55);
+}
+.btn-primary:active {
+  transform: translateY(0) scale(0.97);
+  box-shadow: inset 3px 3px 8px rgba(42,74,111,0.35), inset -2px -2px 6px rgba(255,255,255,0.25);
+}
+.btn-primary:focus-visible {
+  outline: 2px solid var(--navy-800);
+  outline-offset: 3px;
+}
+
+.login-footer-link {
+  display: block;
+  text-align: center;
+  margin-top: 22px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-secondary);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-out);
+  padding: 6px;
+  border-radius: 10px;
+}
+.login-footer-link:hover { color: var(--blue-700); text-decoration: underline; }
+.login-footer-link:focus-visible { outline: 2px solid var(--blue-600); outline-offset: 2px; }
+
+/* ================= HOME / APP SHELL ================= */
+#home.is-active {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  display: none;
+  flex-direction: column;
+  padding: 28px 18px;
+  gap: 6px;
+}
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px 26px;
+}
+.sidebar-brand .login-badge { width: 44px; height: 44px; }
+.sidebar-brand .login-badge .material-symbols-outlined { font-size: 22px; }
+.sidebar-brand-text { font-size: 19px; font-weight: 800; color: var(--blue-700); }
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  color: var(--ink-secondary);
+  font-weight: 700;
+  font-size: 14.5px;
+  cursor: pointer;
+  transition: all var(--dur-base) var(--ease-out);
+  border: 1px solid transparent;
+}
+.nav-item .material-symbols-outlined { font-size: 24px; }
+.nav-item:hover {
+  transform: translateY(-1px);
+  background: rgba(255,255,255,0.5);
+}
+.nav-item:focus-visible {
+  outline: 2px solid var(--blue-600);
+  outline-offset: 2px;
+}
+.nav-item.active {
+  color: var(--blue-700);
+  background: var(--blue-100);
+  box-shadow: inset 3px 3px 8px rgba(118,159,205,0.3), inset -3px -3px 8px rgba(255,255,255,0.85);
+  border-color: rgba(255,255,255,0.5);
+}
+
+.main-col {
+  flex: 1;
+  min-width: 0;
+  padding: 28px 20px 100px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 22px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.greeting-title {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+.greeting-sub {
+  font-size: 14px;
+  color: var(--ink-secondary);
+  font-weight: 500;
+  margin-top: 4px;
+}
+.level-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px 10px 12px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.level-chip-icon {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: var(--blue-500);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: inset 0 2px 3px rgba(255,255,255,0.4);
+}
+.level-chip-icon .material-symbols-outlined {
+  font-size: 18px;
+  color: var(--ink);
+  font-variation-settings: 'FILL' 1, 'wght' 600, 'GRAD' 0, 'opsz' 20;
+}
+.level-chip-text { display: flex; flex-direction: column; line-height: 1.25; }
+.level-chip-label { font-size: 11px; color: var(--ink-secondary); font-weight: 600; }
+.level-chip-value { font-size: 14px; color: var(--blue-700); font-weight: 800; }
+
+.content-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+}
+
+@media (min-width: 900px) {
+  .content-grid { grid-template-columns: 1.4fr 1fr; align-items: start; }
+  .span-full { grid-column: 1 / -1; }
+}
+
+/* Hero */
+.hero-card {
+  border-radius: 30px;
+  padding: 30px;
+  position: relative;
+  overflow: hidden;
+  animation: heroFloat 6s ease-in-out infinite;
+}
+@keyframes heroFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+.hero-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--blue-700);
+  background: var(--blue-200);
+  padding: 6px 14px;
+  border-radius: 999px;
+  margin-bottom: 16px;
+}
+.hero-body {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  flex-wrap: wrap;
+}
+.hero-icon-badge {
+  width: 84px; height: 84px;
+  flex-shrink: 0;
+  border-radius: 28px;
+  background: var(--blue-500);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: inset 0 3px 6px rgba(255,255,255,0.4), 6px 6px 16px rgba(118,159,205,0.45);
+}
+.hero-icon-badge .material-symbols-outlined {
+  font-size: 44px;
+  color: var(--ink);
+  font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 48;
+}
+.hero-text { flex: 1; min-width: 180px; }
+.hero-title { font-size: 25px; font-weight: 800; color: var(--ink); margin-bottom: 6px; letter-spacing: -0.01em; }
+.hero-meta { font-size: 14px; color: var(--ink-secondary); font-weight: 600; }
+
+.hero-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 26px;
+  flex-wrap: wrap;
+}
+.btn-hero-primary {
+  flex: 1;
+  min-width: 180px;
+  border: none;
+  border-radius: 18px;
+  min-height: 54px;
+  background: var(--blue-500);
+  color: var(--ink);
+  font-size: 15.5px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  box-shadow: inset 0 2px 4px rgba(255,255,255,0.4), 0 8px 18px rgba(118,159,205,0.5);
+  transition: transform var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out), background var(--dur-base) var(--ease-out);
+}
+.btn-hero-primary:hover { transform: translateY(-2px); box-shadow: inset 0 2px 4px rgba(255,255,255,0.4), 0 12px 22px rgba(118,159,205,0.55); }
+.btn-hero-primary:active { transform: translateY(0) scale(0.97); box-shadow: inset 3px 3px 8px rgba(42,74,111,0.35); }
+.btn-hero-primary:focus-visible { outline: 2px solid var(--navy-800); outline-offset: 3px; }
+
+.btn-hero-secondary {
+  border: none;
+  border-radius: 18px;
+  min-height: 54px;
+  padding: 0 22px;
+  background: var(--blue-100);
+  color: var(--blue-700);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  box-shadow: inset 3px 3px 8px rgba(118,159,205,0.28), inset -3px -3px 8px rgba(255,255,255,0.85);
+  transition: transform var(--dur-base) var(--ease-out), color var(--dur-base) var(--ease-out);
+}
+.btn-hero-secondary:hover { transform: translateY(-2px); }
+.btn-hero-secondary:active { transform: translateY(0) scale(0.97); }
+.btn-hero-secondary:focus-visible { outline: 2px solid var(--blue-600); outline-offset: 3px; }
+
+/* Stats */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+.stat-card {
+  border-radius: 24px;
+  padding: 20px 16px;
+  text-align: center;
+  transition: transform var(--dur-base) var(--ease-out);
+}
+.stat-card:hover { transform: translateY(-3px); }
+.stat-icon-badge {
+  width: 44px; height: 44px;
+  margin: 0 auto 10px;
+  border-radius: 50%;
+  background: var(--blue-100);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: inset 2px 2px 6px rgba(118,159,205,0.28), inset -2px -2px 6px rgba(255,255,255,0.85);
+}
+.stat-icon-badge .material-symbols-outlined { font-size: 22px; color: var(--blue-700); }
+.stat-value { font-size: 20px; font-weight: 800; color: var(--ink); letter-spacing: -0.01em; }
+.stat-value .stat-delta { font-size: 12px; font-weight: 700; color: var(--success-text); margin-left: 4px; }
+.stat-label { font-size: 12px; color: var(--ink-secondary); font-weight: 600; margin-top: 4px; }
+
+/* Card generic */
+.panel-card {
+  border-radius: 26px;
+  padding: 24px;
+}
+.panel-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Weekly goal */
+.goal-value-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.goal-fraction { font-size: 22px; font-weight: 800; color: var(--blue-700); }
+.goal-percent { font-size: 13px; font-weight: 700; color: var(--ink-secondary); }
+.progress-track {
+  height: 18px;
+  border-radius: 999px;
+  background: var(--blue-100);
+  box-shadow: inset 3px 3px 7px rgba(118,159,205,0.3), inset -3px -3px 7px rgba(255,255,255,0.85);
+  overflow: hidden;
+  padding: 3px;
+}
+.progress-fill {
+  height: 100%;
+  width: 80%;
+  border-radius: 999px;
+  background: var(--blue-500);
+  box-shadow: inset 0 2px 3px rgba(255,255,255,0.45), 2px 2px 6px rgba(118,159,205,0.4);
+  transition: width var(--dur-slow) var(--ease-out);
+}
+
+/* Recent sessions */
+.session-list { display: flex; flex-direction: column; gap: 12px; }
+.session-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border-radius: 20px;
+  background: var(--blue-100);
+  box-shadow: inset 2px 2px 6px rgba(118,159,205,0.22), inset -2px -2px 6px rgba(255,255,255,0.8);
+  transition: transform var(--dur-base) var(--ease-out);
+}
+.session-item:hover { transform: translateY(-2px); }
+.session-icon {
+  width: 42px; height: 42px;
+  flex-shrink: 0;
+  border-radius: 16px;
+  background: var(--blue-50);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 3px 3px 8px rgba(118,159,205,0.3), -3px -3px 8px rgba(255,255,255,0.9);
+}
+.session-icon .material-symbols-outlined { font-size: 22px; color: var(--blue-600); }
+.session-info { flex: 1; min-width: 0; }
+.session-name { font-size: 14px; font-weight: 700; color: var(--ink); }
+.session-date { font-size: 12px; color: var(--ink-secondary); font-weight: 500; margin-top: 2px; }
+.session-stars { font-size: 16px; font-weight: 700; color: var(--warning); letter-spacing: 1px; flex-shrink: 0; }
+
+/* ---------- Bottom tab bar (mobile) ---------- */
+.tabbar {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: 10px 8px calc(10px + env(safe-area-inset-bottom, 0px));
+  background: var(--blue-50);
+  border-radius: 26px 26px 0 0;
+  box-shadow: 0 -8px 24px rgba(118,159,205,0.35), inset 0 1px 0 rgba(255,255,255,0.8);
+  z-index: 50;
+}
+.tab-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 56px;
+  min-height: 48px;
+  justify-content: center;
+  border-radius: 16px;
+  color: var(--ink-secondary);
+  font-size: 10.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--dur-base) var(--ease-out);
+  flex: 1;
+}
+.tab-item .material-symbols-outlined { font-size: 24px; }
+.tab-item:hover { color: var(--blue-700); }
+.tab-item:focus-visible { outline: 2px solid var(--blue-600); outline-offset: 2px; }
+.tab-item.active {
+  color: var(--blue-700);
+  background: var(--blue-100);
+  box-shadow: inset 2px 2px 6px rgba(118,159,205,0.3), inset -2px -2px 6px rgba(255,255,255,0.85);
+}
+
+@media (min-width: 768px) {
+  .sidebar { display: flex; }
+  .tabbar { display: none; }
+  .main-col { padding: 32px 36px 40px; }
+}
+
+/* ---------- View toggle (fixed corner) ---------- */
+.view-toggle {
+  position: fixed;
+  bottom: 88px;
+  right: 16px;
+  z-index: 999;
+  display: flex;
+  gap: 4px;
+  padding: 5px;
+  border-radius: 999px;
+  background: var(--blue-50);
+  box-shadow: 6px 6px 16px rgba(118,159,205,0.4), -6px -6px 16px rgba(255,255,255,0.95);
+}
+@media (min-width: 768px) {
+  .view-toggle { bottom: 20px; }
+}
+.view-toggle button {
+  border: none;
+  background: transparent;
+  color: var(--ink-secondary);
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 9px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: all var(--dur-base) var(--ease-out);
+}
+.view-toggle button .material-symbols-outlined { font-size: 16px; }
+.view-toggle button:hover { color: var(--blue-700); }
+.view-toggle button:focus-visible { outline: 2px solid var(--blue-600); outline-offset: 2px; }
+.view-toggle button.active {
+  color: var(--blue-700);
+  background: var(--blue-100);
+  box-shadow: inset 2px 2px 5px rgba(118,159,205,0.32), inset -2px -2px 5px rgba(255,255,255,0.85);
+}
+
+/* ---------- Reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  .hero-card { animation: none; }
+  .btn-primary:hover, .btn-hero-primary:hover, .btn-hero-secondary:hover,
+  .nav-item:hover, .stat-card:hover, .session-item:hover { transform: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- ================= LOGIN VIEW ================= -->
+<section id="login" class="app">
+  <div class="login-card clay-raised">
+    <div class="login-wordmark-wrap">
+      <div class="login-badge">
+        <span class="material-symbols-outlined">fitness_center</span>
+      </div>
+      <div class="login-wordmark">ReGrip</div>
+      <p class="login-sub">계정에 로그인하세요</p>
+    </div>
+
+    <div class="login-tabs clay-inset">
+      <button type="button" class="login-tab active">로그인</button>
+      <button type="button" class="login-tab">회원가입</button>
+    </div>
+
+    <form onsubmit="return false;">
+      <div class="field-group">
+        <label class="field-label" for="login-email">이메일</label>
+        <input class="field-input clay-inset" type="email" id="login-email" placeholder="you@example.com">
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="login-password">비밀번호</label>
+        <input class="field-input clay-inset" type="password" id="login-password" placeholder="••••••••">
+      </div>
+      <button type="submit" class="btn-primary">로그인</button>
+    </form>
+
+    <a class="login-footer-link" href="#home" tabindex="0">서버 없이 로컬로 시작하기</a>
+  </div>
+</section>
+
+<!-- ================= HOME VIEW ================= -->
+<section id="home" class="app">
+  <aside class="sidebar clay-raised">
+    <div class="sidebar-brand">
+      <div class="login-badge">
+        <span class="material-symbols-outlined">fitness_center</span>
+      </div>
+      <span class="sidebar-brand-text">ReGrip</span>
+    </div>
+    <nav>
+      <div class="nav-item active"><span class="material-symbols-outlined">home</span>홈</div>
+      <div class="nav-item"><span class="material-symbols-outlined">fitness_center</span>훈련</div>
+      <div class="nav-item"><span class="material-symbols-outlined">history</span>기록</div>
+      <div class="nav-item"><span class="material-symbols-outlined">workspace_premium</span>업적</div>
+      <div class="nav-item"><span class="material-symbols-outlined">settings</span>설정</div>
+    </nav>
+  </aside>
+
+  <div class="main-col">
+    <div class="topbar">
+      <div>
+        <h1 class="greeting-title">안녕하세요, 지혜님! 👋</h1>
+        <p class="greeting-sub">오늘도 목표를 향해 나아갈 준비가 되셨나요?</p>
+      </div>
+      <div class="level-chip clay-inset">
+        <div class="level-chip-icon"><span class="material-symbols-outlined">military_tech</span></div>
+        <div class="level-chip-text">
+          <span class="level-chip-label">현재 레벨</span>
+          <span class="level-chip-value">Lv.7 · 중급</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="content-grid">
+      <!-- Left / main column -->
+      <div style="display:flex; flex-direction:column; gap:20px;">
+        <div class="hero-card clay-raised">
+          <span class="hero-label">오늘의 훈련</span>
+          <div class="hero-body">
+            <div class="hero-icon-badge"><span class="material-symbols-outlined">graphic_eq</span></div>
+            <div class="hero-text">
+              <h2 class="hero-title">리듬 스퀴즈</h2>
+              <p class="hero-meta">3세트 · 약 8분</p>
+            </div>
+          </div>
+          <div class="hero-actions">
+            <button type="button" class="btn-hero-primary"><span class="material-symbols-outlined">play_arrow</span>훈련 시작하기</button>
+            <button type="button" class="btn-hero-secondary"><span class="material-symbols-outlined">tune</span>캘리브레이션</button>
+          </div>
+        </div>
+
+        <div class="stats-row">
+          <div class="stat-card clay-raised">
+            <div class="stat-icon-badge"><span class="material-symbols-outlined">local_fire_department</span></div>
+            <div class="stat-value">12일</div>
+            <div class="stat-label">연속 출석</div>
+          </div>
+          <div class="stat-card clay-raised">
+            <div class="stat-icon-badge"><span class="material-symbols-outlined">monitor_weight</span></div>
+            <div class="stat-value">24.5 kg<span class="stat-delta">+1.2</span></div>
+            <div class="stat-label">이번 주 악력</div>
+          </div>
+          <div class="stat-card clay-raised">
+            <div class="stat-icon-badge"><span class="material-symbols-outlined">workspace_premium</span></div>
+            <div class="stat-value">8개</div>
+            <div class="stat-label">획득 배지</div>
+          </div>
+        </div>
+
+        <div class="panel-card clay-raised span-full">
+          <div class="panel-title">최근 세션</div>
+          <div class="session-list">
+            <div class="session-item">
+              <div class="session-icon"><span class="material-symbols-outlined">graphic_eq</span></div>
+              <div class="session-info">
+                <div class="session-name">리듬 스퀴즈</div>
+                <div class="session-date">7월 12일</div>
+              </div>
+              <div class="session-stars">★★★</div>
+            </div>
+            <div class="session-item">
+              <div class="session-icon"><span class="material-symbols-outlined">bubble_chart</span></div>
+              <div class="session-info">
+                <div class="session-name">풍선 올리기</div>
+                <div class="session-date">7월 11일</div>
+              </div>
+              <div class="session-stars">★★</div>
+            </div>
+            <div class="session-item">
+              <div class="session-icon"><span class="material-symbols-outlined">precision_manufacturing</span></div>
+              <div class="session-info">
+                <div class="session-name">크레인 뽑기</div>
+                <div class="session-date">7월 9일</div>
+              </div>
+              <div class="session-stars">★★★</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right column -->
+      <div style="display:flex; flex-direction:column; gap:20px;">
+        <div class="panel-card clay-raised">
+          <div class="panel-title">이번 주 목표 달성률</div>
+          <div class="goal-value-row">
+            <span class="goal-fraction">4/5 세션</span>
+            <span class="goal-percent">80%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <nav class="tabbar">
+    <div class="tab-item active"><span class="material-symbols-outlined">home</span>홈</div>
+    <div class="tab-item"><span class="material-symbols-outlined">fitness_center</span>훈련</div>
+    <div class="tab-item"><span class="material-symbols-outlined">history</span>기록</div>
+    <div class="tab-item"><span class="material-symbols-outlined">workspace_premium</span>업적</div>
+    <div class="tab-item"><span class="material-symbols-outlined">settings</span>설정</div>
+  </nav>
+</section>
+
+<!-- ================= VIEW TOGGLE ================= -->
+<div class="view-toggle" role="group" aria-label="화면 전환">
+  <button type="button" id="toggle-login" onclick="location.hash = '#login';">
+    <span class="material-symbols-outlined">login</span>로그인
+  </button>
+  <button type="button" id="toggle-home" onclick="location.hash = '#home';">
+    <span class="material-symbols-outlined">home</span>홈
+  </button>
+</div>
+
+<script>
+(function () {
+  var views = {
+    login: document.getElementById('login'),
+    home: document.getElementById('home')
+  };
+  var toggles = {
+    login: document.getElementById('toggle-login'),
+    home: document.getElementById('toggle-home')
+  };
+
+  function applyView() {
+    var hash = (location.hash || '').replace('#', '');
+    if (hash !== 'login' && hash !== 'home') {
+      hash = 'home';
+    }
+    Object.keys(views).forEach(function (key) {
+      var isActive = key === hash;
+      views[key].classList.toggle('is-active', isActive);
+      toggles[key].classList.toggle('active', isActive);
+    });
+  }
+
+  window.addEventListener('hashchange', applyView);
+  applyView();
+})();
+</script>
+
+</body>
+</html>

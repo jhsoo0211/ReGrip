@@ -1,0 +1,759 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ReGrip 디자인 시안 갤러리</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+  :root{
+    --bg:#F7FBFC;
+    --surface:#FFFFFF;
+    --text:#12263A;
+    --text-muted:#4E6478;
+    --line:#D6E6F2;
+    --chip:#B9D7EA;
+    --accent:#5E86B8;
+    --accent-strong:#769FCD;
+    --header-h:60px;
+  }
+
+  *, *::before, *::after{ box-sizing:border-box; }
+
+  html{ -webkit-text-size-adjust:100%; }
+  html, body{
+    margin:0; padding:0;
+    background:var(--bg);
+    color:var(--text);
+    overflow-x:hidden;
+    max-width:100%;
+  }
+  body{
+    font-family:'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Malgun Gothic', sans-serif;
+    line-height:1.55;
+  }
+
+  a{ color:inherit; }
+
+  .wrap{
+    max-width:1180px;
+    margin:0 auto;
+    padding:0 clamp(16px, 4vw, 32px);
+  }
+
+  /* ---------- Header ---------- */
+  header.page-header{
+    padding:40px 0 28px;
+    border-bottom:1px solid var(--line);
+  }
+  .page-header h1{
+    margin:0 0 10px;
+    font-size:clamp(24px, 3.4vw, 34px);
+    font-weight:700;
+    letter-spacing:-0.02em;
+  }
+  .page-header p.lead{
+    margin:0 0 22px;
+    max-width:64ch;
+    color:var(--text-muted);
+    font-size:15px;
+  }
+
+  .palette{
+    display:flex;
+    flex-wrap:wrap;
+    gap:14px;
+  }
+  .swatch{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:8px 12px 8px 8px;
+  }
+  .swatch .chip{
+    width:28px; height:28px;
+    border-radius:8px;
+    border:1px solid rgba(18,38,58,0.08);
+    flex:0 0 auto;
+  }
+  .swatch .hex{
+    font-family:'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size:12.5px;
+    color:var(--text-muted);
+    letter-spacing:0.02em;
+  }
+
+  /* ---------- Quick nav ---------- */
+  .quicknav{
+    position:sticky;
+    top:0;
+    z-index:60;
+    background:rgba(247,251,252,0.92);
+    backdrop-filter:blur(8px);
+    -webkit-backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line);
+  }
+  .quicknav-inner{
+    max-width:1180px;
+    margin:0 auto;
+    display:flex;
+    gap:8px;
+    padding:10px clamp(16px, 4vw, 32px);
+    overflow-x:auto;
+    scrollbar-width:thin;
+  }
+  .quicknav-inner::-webkit-scrollbar{ height:6px; }
+  .quicknav-inner::-webkit-scrollbar-thumb{ background:var(--chip); border-radius:3px; }
+
+  .qn-pill{
+    flex:0 0 auto;
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:7px 14px;
+    border-radius:999px;
+    border:1px solid var(--line);
+    background:var(--surface);
+    color:var(--text);
+    text-decoration:none;
+    font-size:13px;
+    font-weight:600;
+    white-space:nowrap;
+    transition:border-color .15s ease, color .15s ease, background .15s ease;
+  }
+  .qn-pill:hover{
+    border-color:var(--accent-strong);
+    color:var(--accent);
+    background:#EEF5FA;
+  }
+  .qn-pill b{ font-weight:800; }
+
+  /* ---------- Design sections ---------- */
+  main{ padding:36px 0 80px; }
+
+  .design-section{
+    scroll-margin-top:calc(var(--header-h) + 16px);
+    margin-bottom:40px;
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:20px;
+    padding:clamp(18px, 3vw, 32px);
+  }
+  .design-section:last-child{ margin-bottom:0; }
+
+  .ds-head{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:16px;
+    margin-bottom:18px;
+  }
+  .ds-title-row{
+    display:flex;
+    align-items:center;
+    gap:12px;
+  }
+  .ds-badge{
+    flex:0 0 auto;
+    width:36px; height:36px;
+    border-radius:10px;
+    background:var(--accent);
+    color:#fff;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-weight:800;
+    font-size:16px;
+  }
+  .ds-title{
+    margin:0 0 4px;
+    font-size:19px;
+    font-weight:700;
+    letter-spacing:-0.01em;
+  }
+  .ds-desc{
+    margin:0;
+    color:var(--text-muted);
+    font-size:13.5px;
+    max-width:60ch;
+  }
+  .ds-openlink{
+    flex:0 0 auto;
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:8px 14px;
+    border-radius:10px;
+    border:1px solid var(--line);
+    text-decoration:none;
+    font-size:13px;
+    font-weight:600;
+    color:var(--accent);
+    white-space:nowrap;
+    transition:background .15s ease, border-color .15s ease;
+  }
+  .ds-openlink:hover{
+    background:#EEF5FA;
+    border-color:var(--accent-strong);
+  }
+
+  .view-toggle{
+    display:inline-flex;
+    background:#EEF3F7;
+    border:1px solid var(--line);
+    border-radius:999px;
+    padding:3px;
+    gap:2px;
+    margin-bottom:20px;
+  }
+  .view-toggle button{
+    appearance:none;
+    border:0;
+    background:transparent;
+    color:var(--text-muted);
+    font-family:inherit;
+    font-size:13px;
+    font-weight:600;
+    padding:7px 18px;
+    border-radius:999px;
+    cursor:pointer;
+    transition:background .15s ease, color .15s ease, box-shadow .15s ease;
+  }
+  .view-toggle button.active{
+    background:var(--surface);
+    color:var(--accent);
+    box-shadow:0 1px 3px rgba(18,38,58,0.12);
+  }
+  .view-toggle button:hover:not(.active){ color:var(--text); }
+
+  /* ---------- Frames layout ---------- */
+  .frames-row{
+    display:flex;
+    flex-direction:column;
+    gap:28px;
+  }
+  @media (min-width:1100px){
+    .frames-row{
+      flex-direction:row;
+      align-items:flex-start;
+    }
+  }
+
+  .frame-col{
+    display:flex;
+    flex-direction:column;
+    align-items:flex-start;
+    gap:10px;
+    min-width:0;
+    max-width:100%;
+  }
+  .frame-label{
+    font-size:12px;
+    font-weight:700;
+    color:var(--text-muted);
+    letter-spacing:0.01em;
+  }
+
+  /* generic device scaling box */
+  .device{
+    position:relative;
+    width:100%;
+    overflow:hidden;
+  }
+  .device-mobile{ max-width:414px; aspect-ratio:414/784; }
+  .device-desktop{ max-width:576px; aspect-ratio:576/388; }
+
+  .device-inner{
+    transform-origin:top left;
+    position:absolute;
+    top:0; left:0;
+  }
+
+  /* phone chrome */
+  .phone-shell{
+    width:414px; height:784px;
+    padding:12px;
+    background:#12263A;
+    border-radius:36px;
+  }
+  .phone-shell .iframe-wrap{
+    width:390px; height:760px;
+    border-radius:22px;
+    overflow:hidden;
+    background:#fff;
+  }
+  .phone-shell iframe{
+    width:390px; height:760px;
+    border:0;
+    display:block;
+  }
+
+  /* desktop chrome */
+  .desktop-shell{
+    width:576px; height:388px;
+    border:1px solid var(--line);
+    border-radius:12px;
+    overflow:hidden;
+    background:#fff;
+  }
+  .desktop-shell .topbar{
+    height:28px;
+    background:#EDF3F8;
+    border-bottom:1px solid var(--line);
+    display:flex;
+    align-items:center;
+    gap:6px;
+    padding:0 10px;
+  }
+  .desktop-shell .topbar span{
+    width:8px; height:8px;
+    border-radius:50%;
+    background:var(--chip);
+    display:inline-block;
+  }
+  .desktop-shell .iframe-wrap{
+    width:576px; height:360px;
+    overflow:hidden;
+  }
+  .desktop-shell iframe{
+    width:1280px; height:800px;
+    border:0;
+    display:block;
+    transform:scale(0.45);
+    transform-origin:top left;
+  }
+
+  footer.page-footer{
+    padding:28px clamp(16px,4vw,32px) 60px;
+    text-align:center;
+    color:var(--text-muted);
+    font-size:12.5px;
+  }
+</style>
+</head>
+<body>
+
+<header class="page-header">
+  <div class="wrap">
+    <h1>ReGrip 디자인 시안</h1>
+    <p class="lead">각 시안의 로그인/홈 화면을 모바일·데스크톱으로 비교해 보세요. 카드를 새 탭으로 열면 실제 반응형으로 확인할 수 있습니다.</p>
+    <div class="palette">
+      <div class="swatch"><span class="chip" style="background:#F7FBFC;"></span><span class="hex">#F7FBFC</span></div>
+      <div class="swatch"><span class="chip" style="background:#D6E6F2;"></span><span class="hex">#D6E6F2</span></div>
+      <div class="swatch"><span class="chip" style="background:#B9D7EA;"></span><span class="hex">#B9D7EA</span></div>
+      <div class="swatch"><span class="chip" style="background:#769FCD;"></span><span class="hex">#769FCD</span></div>
+    </div>
+  </div>
+</header>
+
+<nav class="quicknav" aria-label="시안 바로가기">
+  <div class="quicknav-inner">
+    <a class="qn-pill" href="#design-a"><b>A</b> 리퀴드 글라스</a>
+    <a class="qn-pill" href="#design-b"><b>B</b> 스위스 미니멀</a>
+    <a class="qn-pill" href="#design-c"><b>C</b> 딥 네이비 글라스</a>
+    <a class="qn-pill" href="#design-d"><b>D</b> 소프트 클레이</a>
+    <a class="qn-pill" href="#design-e"><b>E</b> 타이포 주도</a>
+    <a class="qn-pill" href="#design-f"><b>F</b> 네오브루탈 블루</a>
+    <a class="qn-pill" href="#design-g"><b>G</b> 오로라 메시</a>
+  </div>
+</nav>
+
+<main class="wrap">
+
+  <!-- A -->
+  <section class="design-section" id="design-a" data-file="a-liquid-glass.html">
+    <div class="ds-head">
+      <div>
+        <div class="ds-title-row">
+          <span class="ds-badge">A</span>
+          <h2 class="ds-title">A. 리퀴드 글라스</h2>
+        </div>
+        <p class="ds-desc">애플식 프로스티드 글라스 카드, 소프트 블루 그라디언트 배경, 필 컨트롤</p>
+      </div>
+      <a class="ds-openlink" href="a-liquid-glass.html" target="_blank" rel="noopener">새 탭에서 열기 ↗</a>
+    </div>
+
+    <div class="view-toggle" role="tablist">
+      <button type="button" class="active" data-view="home" aria-pressed="true">홈</button>
+      <button type="button" data-view="login" aria-pressed="false">로그인</button>
+    </div>
+
+    <div class="frames-row">
+      <div class="frame-col">
+        <span class="frame-label">모바일 390px</span>
+        <div class="device device-mobile">
+          <div class="device-inner">
+            <div class="phone-shell">
+              <div class="iframe-wrap">
+                <iframe class="mockup-frame" src="a-liquid-glass.html#home" loading="lazy" title="A. 리퀴드 글라스 - 모바일"></iframe>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="frame-col">
+        <span class="frame-label">데스크톱 1280px (45% 축소)</span>
+        <div class="device device-desktop">
+          <div class="device-inner">
+            <div class="desktop-shell">
+              <div class="topbar"><span></span><span></span><span></span></div>
+              <div class="iframe-wrap">
+                <iframe class="mockup-frame" src="a-liquid-glass.html#home" loading="lazy" title="A. 리퀴드 글라스 - 데스크톱"></iframe>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- B -->
+  <section class="design-section" id="design-b" data-file="b-swiss-minimal.html">
+    <div class="ds-head">
+      <div>
+        <div class="ds-title-row">
+          <span class="ds-badge">B</span>
+          <h2 class="ds-title">B. 스위스 미니멀</h2>
+        </div>
+        <p class="ds-desc">플랫 배경, 헤어라인 구획, 그림자 0, 초대형 숫자 타이포, 블루 단일 액센트</p>
+      </div>
+      <a class="ds-openlink" href="b-swiss-minimal.html" target="_blank" rel="noopener">새 탭에서 열기 ↗</a>
+    </div>
+
+    <div class="view-toggle" role="tablist">
+      <button type="button" class="active" data-view="home" aria-pressed="true">홈</button>
+      <button type="button" data-view="login" aria-pressed="false">로그인</button>
+    </div>
+
+    <div class="frames-row">
+      <div class="frame-col">
+        <span class="frame-label">모바일 390px</span>
+        <div class="device device-mobile">
+          <div class="device-inner">
+            <div class="phone-shell">
+              <div class="iframe-wrap">
+                <iframe class="mockup-frame" src="b-swiss-minimal.html#home" loading="lazy" title="B. 스위스 미니멀 - 모바일"></iframe>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="frame-col">
+        <span class="frame-label">데스크톱 1280px (45% 축소)</span>
+        <div class="device device-desktop">
+          <div class="device-inner">
+            <div class="desktop-shell">
+              <div class="topbar"><span></span><span></span><span></span></div>
+              <div class="iframe-wrap">
+                <iframe class="mockup-frame" src="b-swiss-minimal.html#home" loading="lazy" title="B. 스위스 미니멀 - 데스크톱"></iframe>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- C -->
+  <section class="design-section" id="design-c" data-file="c-navy-dotshader.html">
+    <div class="ds-head">
+      <div>
+        <div class="ds-title-row">
+          <span class="ds-badge">C</span>
+          <h2 class="ds-title">C. 딥 네이비 글라스</h2>
+        </div>
+        <p class="ds-desc">다크 네이비 + WebGL 도트 리빌 셰이더, 글라스 필 네비바, 이메일→코드→성공 로그인 플로우</p>
+      </div>
+      <a class="ds-openlink" href="c-navy-dotshader.html" target="_blank" rel="noopener">새 탭에서 열기 ↗</a>
+    </div>
+
+    <div class="view-toggle" role="tablist">
+      <button type="button" class="active" data-view="home" aria-pressed="true">홈</button>
+      <button type="button" data-view="login" aria-pressed="false">로그인</button>
+    </div>
+
+    <div class="frames-row">
+      <div class="frame-col">
+        <span class="frame-label">모바일 390px</span>
+        <div class="device device-mobile">
+          <div class="device-inner">
+            <div class="phone-shell">
+              <div class="iframe-wrap">
+                <iframe class="mockup-frame" src="c-navy-dotshader.html#home" loading="lazy" title="C. 딥 네이비 글라스 - 모바일"></iframe>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="frame-col">
+        <span class="frame-label">데스크톱 1280px (45% 축소)</span>
+        <div class="device device-desktop">
+          <div class="device-inner">
+            <div class="desktop-shell">
+              <div class="topbar"><span></span><span></span><span></span></div>
+              <div class="iframe-wrap">
+                <iframe class="mockup-frame" src="c-navy-dotshader.html#home" loading="lazy" title="C. 딥 네이비 글라스 - 데스크톱"></iframe>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- D -->
+  <section class="design-section" id="design-d" data-file="d-soft-clay.html">
+    <div class="ds-head">
+      <div>
+        <div class="ds-title-row">
+          <span class="ds-badge">D</span>
+          <h2 class="ds-title">D. 소프트 클레이</h2>
+        </div>
+        <p class="ds-desc">클레이모피즘, 이중 소프트 섀도우, 말랑하고 친근한 촉감</p>
+      </div>
+      <a class="ds-openlink" href="d-soft-clay.html" target="_blank" rel="noopener">새 탭에서 열기 ↗</a>
+    </div>
+
+    <div class="view-toggle" role="tablist">
+      <button type="button" class="active" data-view="home" aria-pressed="true">홈</button>
+      <button type="button" data-view="login" aria-pressed="false">로그인</button>
+    </div>
+
+    <div class="frames-row">
+      <div class="frame-col">
+        <span class="frame-label">모바일 390px</span>
+        <div class="device device-mobile">
+          <div class="device-inner">
+            <div class="phone-shell">
+              <div class="iframe-wrap">
+                <iframe class="mockup-frame" src="d-soft-clay.html#home" loading="lazy" title="D. 소프트 클레이 - 모바일"></iframe>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="frame-col">
+        <span class="frame-label">데스크톱 1280px (45% 축소)</span>
+        <div class="device device-desktop">
+          <div class="device-inner">
+            <div class="desktop-shell">
+              <div class="topbar"><span></span><span></span><span></span></div>
+              <div class="iframe-wrap">
+                <iframe class="mockup-frame" src="d-soft-clay.html#home" loading="lazy" title="D. 소프트 클레이 - 데스크톱"></iframe>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- E -->
+  <section class="design-section" id="design-e" data-file="e-typography-led.html">
+    <div class="ds-head">
+      <div>
+        <div class="ds-title-row">
+          <span class="ds-badge">E</span>
+          <h2 class="ds-title">E. 타이포 주도</h2>
+        </div>
+        <p class="ds-desc">Linear/Vercel풍 정밀 SaaS, 진한 블루 + 테라코타 포인트 소량 유지</p>
+      </div>
+      <a class="ds-openlink" href="e-typography-led.html" target="_blank" rel="noopener">새 탭에서 열기 ↗</a>
+    </div>
+
+    <div class="view-toggle" role="tablist">
+      <button type="button" class="active" data-view="home" aria-pressed="true">홈</button>
+      <button type="button" data-view="login" aria-pressed="false">로그인</button>
+    </div>
+
+    <div class="frames-row">
+      <div class="frame-col">
+        <span class="frame-label">모바일 390px</span>
+        <div class="device device-mobile">
+          <div class="device-inner">
+            <div class="phone-shell">
+              <div class="iframe-wrap">
+                <iframe class="mockup-frame" src="e-typography-led.html#home" loading="lazy" title="E. 타이포 주도 - 모바일"></iframe>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="frame-col">
+        <span class="frame-label">데스크톱 1280px (45% 축소)</span>
+        <div class="device device-desktop">
+          <div class="device-inner">
+            <div class="desktop-shell">
+              <div class="topbar"><span></span><span></span><span></span></div>
+              <div class="iframe-wrap">
+                <iframe class="mockup-frame" src="e-typography-led.html#home" loading="lazy" title="E. 타이포 주도 - 데스크톱"></iframe>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- F -->
+  <section class="design-section" id="design-f" data-file="f-brutalist-blue.html">
+    <div class="ds-head">
+      <div>
+        <div class="ds-title-row">
+          <span class="ds-badge">F</span>
+          <h2 class="ds-title">F. 네오브루탈 블루</h2>
+        </div>
+        <p class="ds-desc">현행 레트로 언어(잉크 보더+하드 섀도우) 유지, 색만 블루로 리컬러</p>
+      </div>
+      <a class="ds-openlink" href="f-brutalist-blue.html" target="_blank" rel="noopener">새 탭에서 열기 ↗</a>
+    </div>
+
+    <div class="view-toggle" role="tablist">
+      <button type="button" class="active" data-view="home" aria-pressed="true">홈</button>
+      <button type="button" data-view="login" aria-pressed="false">로그인</button>
+    </div>
+
+    <div class="frames-row">
+      <div class="frame-col">
+        <span class="frame-label">모바일 390px</span>
+        <div class="device device-mobile">
+          <div class="device-inner">
+            <div class="phone-shell">
+              <div class="iframe-wrap">
+                <iframe class="mockup-frame" src="f-brutalist-blue.html#home" loading="lazy" title="F. 네오브루탈 블루 - 모바일"></iframe>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="frame-col">
+        <span class="frame-label">데스크톱 1280px (45% 축소)</span>
+        <div class="device device-desktop">
+          <div class="device-inner">
+            <div class="desktop-shell">
+              <div class="topbar"><span></span><span></span><span></span></div>
+              <div class="iframe-wrap">
+                <iframe class="mockup-frame" src="f-brutalist-blue.html#home" loading="lazy" title="F. 네오브루탈 블루 - 데스크톱"></iframe>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- G -->
+  <section class="design-section" id="design-g" data-file="g-aurora-mesh.html">
+    <div class="ds-head">
+      <div>
+        <div class="ds-title-row">
+          <span class="ds-badge">G</span>
+          <h2 class="ds-title">G. 오로라 메시</h2>
+        </div>
+        <p class="ds-desc">드리프트하는 그라디언트 블롭 배경 + 글라스 카드, 표현적</p>
+      </div>
+      <a class="ds-openlink" href="g-aurora-mesh.html" target="_blank" rel="noopener">새 탭에서 열기 ↗</a>
+    </div>
+
+    <div class="view-toggle" role="tablist">
+      <button type="button" class="active" data-view="home" aria-pressed="true">홈</button>
+      <button type="button" data-view="login" aria-pressed="false">로그인</button>
+    </div>
+
+    <div class="frames-row">
+      <div class="frame-col">
+        <span class="frame-label">모바일 390px</span>
+        <div class="device device-mobile">
+          <div class="device-inner">
+            <div class="phone-shell">
+              <div class="iframe-wrap">
+                <iframe class="mockup-frame" src="g-aurora-mesh.html#home" loading="lazy" title="G. 오로라 메시 - 모바일"></iframe>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="frame-col">
+        <span class="frame-label">데스크톱 1280px (45% 축소)</span>
+        <div class="device device-desktop">
+          <div class="device-inner">
+            <div class="desktop-shell">
+              <div class="topbar"><span></span><span></span><span></span></div>
+              <div class="iframe-wrap">
+                <iframe class="mockup-frame" src="g-aurora-mesh.html#home" loading="lazy" title="G. 오로라 메시 - 데스크톱"></iframe>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="page-footer">ReGrip 리뉴얼 시안 비교 갤러리 — 내부 검토용</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---------- 1) Responsive device-frame scaling ----------
+  function applyScale(device) {
+    var inner = device.querySelector('.device-inner');
+    if (!inner) return;
+    var naturalW = device.classList.contains('device-mobile') ? 414 : 576;
+    var availW = device.clientWidth;
+    var scale = Math.min(1, availW / naturalW);
+    inner.style.transform = 'scale(' + scale + ')';
+  }
+
+  var devices = Array.prototype.slice.call(document.querySelectorAll('.device'));
+
+  if (typeof ResizeObserver !== 'undefined') {
+    var ro = new ResizeObserver(function (entries) {
+      entries.forEach(function (entry) { applyScale(entry.target); });
+    });
+    devices.forEach(function (d) { ro.observe(d); });
+  } else {
+    devices.forEach(applyScale);
+    window.addEventListener('resize', function () {
+      devices.forEach(applyScale);
+    });
+  }
+
+  window.addEventListener('load', function () {
+    devices.forEach(applyScale);
+  });
+
+  // ---------- 2) View toggle (홈 / 로그인) ----------
+  var sections = document.querySelectorAll('.design-section');
+  sections.forEach(function (section) {
+    var file = section.getAttribute('data-file');
+    var frames = section.querySelectorAll('iframe.mockup-frame');
+    var buttons = section.querySelectorAll('.view-toggle button');
+
+    buttons.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var view = btn.getAttribute('data-view');
+
+        buttons.forEach(function (b) {
+          var isActive = b === btn;
+          b.classList.toggle('active', isActive);
+          b.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+        });
+
+        frames.forEach(function (f) {
+          f.src = file + '#' + view;
+        });
+      });
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

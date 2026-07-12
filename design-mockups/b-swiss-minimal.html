@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ReGrip 시안 B — 스위스 미니멀</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+<style>
+:root {
+  --blue-50:#F7FBFC; --blue-100:#D6E6F2; --blue-200:#B9D7EA; --blue-500:#769FCD;
+  --blue-300:#9FC3E0; --blue-400:#8BB1D7; --blue-600:#5E86B8; --blue-700:#2A4A6F;
+  --navy-800:#1B314B; --navy-900:#112032; --navy-950:#091320;
+  --ink:#12263A; --ink-secondary:#3F5A75; --ink-muted:#587693;
+  --ink-inverse:#EAF3FA; --ink-inverse-muted:#8FB0CC;
+  --success:#16A34A; --success-text:#15803D; --warning:#CA8A04; --error:#DC2626;
+  --glass-bg:rgba(255,255,255,0.55); --glass-border:rgba(255,255,255,0.65);
+  --glass-dark-bg:rgba(17,32,50,0.55); --glass-blur:20px;
+  --dur-fast:150ms; --dur-base:220ms; --dur-slow:400ms;
+  --ease-out:cubic-bezier(0.22,1,0.36,1);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  background: var(--blue-50);
+  color: var(--ink);
+  font-family: 'Pretendard Variable', 'Noto Sans KR', sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.num {
+  font-family: 'Inter', 'Pretendard Variable', 'Noto Sans KR', sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+a { color: inherit; text-decoration: none; }
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 20;
+  font-size: 20px;
+  line-height: 1;
+  display: inline-block;
+}
+
+/* ---------- layout shells ---------- */
+
+.view { display: none; }
+.view.is-active { display: block; }
+
+.view-home.is-active { display: flex; min-height: 100vh; }
+
+/* ---------- desktop rail nav ---------- */
+
+.rail {
+  width: 232px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--blue-200);
+  padding: 40px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 56px;
+}
+
+.rail-word {
+  font-family: 'Inter', 'Pretendard Variable', 'Noto Sans KR', sans-serif;
+  font-weight: 600;
+  font-size: 20px;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.rail-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0 10px 16px;
+  border-left: 2px solid transparent;
+  color: var(--ink-muted);
+  font-size: 14px;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+
+.nav-item:hover { background: rgba(214, 230, 242, 0.4); }
+.nav-item:active { background: rgba(185, 215, 234, 0.55); }
+.nav-item:focus-visible { outline: 2px solid var(--blue-500); outline-offset: -2px; }
+
+.nav-item.active {
+  border-left-color: var(--blue-500);
+  color: var(--ink);
+}
+
+.nav-item .material-symbols-outlined { font-size: 20px; }
+
+/* ---------- content ---------- */
+
+.content {
+  flex: 1;
+  min-width: 0;
+}
+
+.content-inner {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 56px 32px 140px;
+}
+
+.section {
+  padding: 32px 0;
+  border-bottom: 1px solid var(--blue-200);
+}
+
+.section:first-child { padding-top: 0; }
+.section:last-child { border-bottom: none; }
+
+.eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+/* topbar / greeting */
+
+.topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.greeting-title {
+  font-size: clamp(22px, 4vw, 28px);
+  font-weight: 500;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+
+.greeting-sub {
+  font-size: 14px;
+  color: var(--ink-secondary);
+}
+
+.level-chip {
+  border: 1px solid var(--blue-200);
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 148px;
+}
+
+.level-chip .eyebrow { margin-bottom: 2px; }
+
+.level-chip-value {
+  font-size: 15px;
+  color: var(--ink);
+  font-weight: 500;
+}
+
+/* hero */
+
+.hero-title {
+  font-size: clamp(30px, 6vw, 40px);
+  font-weight: 400;
+  color: var(--ink);
+  margin: 4px 0 8px;
+  letter-spacing: -0.01em;
+}
+
+.hero-meta {
+  font-size: 14px;
+  color: var(--ink-secondary);
+  margin-bottom: 24px;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  font-family: 'Pretendard Variable', 'Noto Sans KR', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 14px 24px;
+  border: 1px solid transparent;
+  border-radius: 0;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+
+.btn-primary {
+  background: var(--blue-500);
+  color: var(--ink-inverse);
+}
+.btn-primary:hover { background: var(--blue-600); }
+.btn-primary:active { background: var(--blue-700); }
+.btn-primary:focus-visible { outline: 2px solid var(--blue-700); outline-offset: 2px; }
+
+.btn-secondary {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--blue-200);
+}
+.btn-secondary:hover { background: rgba(214, 230, 242, 0.4); }
+.btn-secondary:active { background: rgba(185, 215, 234, 0.55); }
+.btn-secondary:focus-visible { outline: 2px solid var(--blue-500); outline-offset: 2px; }
+
+/* stats */
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.stat {
+  padding: 4px 24px;
+}
+.stat:first-child { padding-left: 0; }
+.stat:last-child { padding-right: 0; }
+.stat + .stat { border-left: 1px solid var(--blue-200); }
+
+.stat-value {
+  font-size: clamp(34px, 6vw, 56px);
+  font-weight: 300;
+  color: var(--ink);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.stat-unit {
+  font-size: 0.36em;
+  font-weight: 400;
+  color: var(--ink-secondary);
+  margin-left: 4px;
+  letter-spacing: 0;
+}
+
+.stat-delta {
+  font-family: 'Inter', 'Pretendard Variable', 'Noto Sans KR', sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--success-text);
+  margin-top: 8px;
+}
+
+.stat-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  margin-top: 12px;
+}
+
+/* weekly goal */
+
+.goal-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.goal-title {
+  font-size: 15px;
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.goal-value {
+  font-family: 'Inter', 'Pretendard Variable', 'Noto Sans KR', sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+  color: var(--ink-secondary);
+}
+
+.progress-track {
+  height: 3px;
+  background: var(--blue-200);
+  width: 100%;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--blue-500);
+  width: 80%;
+}
+
+.goal-percent {
+  margin-top: 10px;
+  font-family: 'Inter', 'Pretendard Variable', 'Noto Sans KR', sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+/* sessions */
+
+.session-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 0;
+  border-top: 1px solid var(--blue-200);
+}
+
+.session-row:first-of-type { border-top: none; padding-top: 12px; }
+
+.session-main { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; min-width: 0; }
+
+.session-name {
+  font-size: 14px;
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.session-date {
+  font-size: 13px;
+  color: var(--ink-muted);
+  font-family: 'Inter', 'Pretendard Variable', 'Noto Sans KR', sans-serif;
+}
+
+.session-stars {
+  color: var(--ink);
+  font-size: 14px;
+  letter-spacing: 2px;
+  flex-shrink: 0;
+}
+
+/* ---------- mobile tab bar ---------- */
+
+.tabbar {
+  display: none;
+}
+
+/* ---------- view toggle ---------- */
+
+.view-toggle {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 9999;
+  background: var(--blue-50);
+  color: var(--ink);
+  border: 1px solid var(--blue-200);
+  font-family: 'Pretendard Variable', 'Noto Sans KR', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  min-height: 40px;
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.view-toggle:hover { background: rgba(214, 230, 242, 0.4); }
+.view-toggle:active { background: rgba(185, 215, 234, 0.55); }
+.view-toggle:focus-visible { outline: 2px solid var(--blue-500); outline-offset: 2px; }
+.view-toggle .material-symbols-outlined { font-size: 16px; }
+
+/* ---------- login view ---------- */
+
+.view-login.is-active {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 380px;
+}
+
+.login-word {
+  font-family: 'Inter', 'Pretendard Variable', 'Noto Sans KR', sans-serif;
+  font-weight: 600;
+  font-size: 34px;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  text-align: center;
+}
+
+.login-sub {
+  text-align: center;
+  font-size: 14px;
+  color: var(--ink-secondary);
+  margin-top: 10px;
+}
+
+.login-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--blue-200);
+  margin-top: 40px;
+}
+
+.login-tab {
+  flex: 1;
+  text-align: center;
+  padding: 14px 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink-muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+.login-tab:hover { background: rgba(214, 230, 242, 0.4); }
+.login-tab:focus-visible { outline: 2px solid var(--blue-500); outline-offset: -2px; }
+.login-tab.active { color: var(--ink); border-bottom-color: var(--blue-500); }
+
+.login-form {
+  margin-top: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.field input {
+  font-family: 'Pretendard Variable', 'Noto Sans KR', sans-serif;
+  font-size: 15px;
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--blue-200);
+  border-radius: 0;
+  padding: 8px 0;
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+
+.field input::placeholder { color: var(--ink-muted); opacity: 0.75; }
+
+.field input:hover { border-bottom-color: var(--blue-300); }
+.field input:focus {
+  outline: none;
+  border-bottom: 1px solid var(--blue-500);
+}
+.field input:focus-visible {
+  outline: 2px solid var(--blue-500);
+  outline-offset: 2px;
+}
+
+.login-submit {
+  margin-top: 8px;
+  width: 100%;
+}
+
+.login-footer {
+  margin-top: 28px;
+  text-align: center;
+}
+
+.login-link {
+  font-size: 13px;
+  color: var(--blue-600);
+  border-bottom: 1px solid transparent;
+  padding-bottom: 1px;
+  transition: color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.login-link:hover { color: var(--blue-700); border-bottom-color: var(--blue-500); }
+.login-link:focus-visible { outline: 2px solid var(--blue-500); outline-offset: 2px; }
+
+/* ---------- responsive: mobile ---------- */
+
+@media (max-width: 767px) {
+  .rail { display: none; }
+
+  .view-home.is-active { display: block; }
+
+  .content-inner {
+    padding: 32px 20px 96px;
+  }
+
+  .tabbar {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 100;
+    background: var(--blue-50);
+    border-top: 1px solid var(--blue-200);
+    justify-content: space-around;
+  }
+
+  .tab-item {
+    flex: 1;
+    max-width: 96px;
+    min-height: 56px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    color: var(--ink-muted);
+    font-size: 10px;
+    letter-spacing: 0.02em;
+    transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+  }
+  .tab-item:hover { background: rgba(214, 230, 242, 0.4); }
+  .tab-item:active { background: rgba(185, 215, 234, 0.55); }
+  .tab-item:focus-visible { outline: 2px solid var(--blue-500); outline-offset: -2px; }
+  .tab-item.active { color: var(--ink); }
+
+  .stats-grid { grid-template-columns: repeat(3, 1fr); }
+  .stat { padding: 4px 12px; }
+
+  .view-toggle { bottom: 72px; }
+}
+
+@media (min-width: 768px) {
+  .view-toggle .toggle-label-mobile { display: none; }
+}
+
+@media (max-width: 767px) {
+  .view-toggle .toggle-label-desktop { display: none; }
+}
+
+/* ---------- reduced motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style>
+</head>
+<body>
+
+<div id="home" class="view view-home">
+  <nav class="rail" aria-label="주 메뉴">
+    <div class="rail-word">ReGrip</div>
+    <div class="rail-nav">
+      <a href="#home" class="nav-item active" aria-current="page">
+        <span class="material-symbols-outlined">home</span>
+        <span>홈</span>
+      </a>
+      <a href="#home" class="nav-item">
+        <span class="material-symbols-outlined">fitness_center</span>
+        <span>훈련</span>
+      </a>
+      <a href="#home" class="nav-item">
+        <span class="material-symbols-outlined">history</span>
+        <span>기록</span>
+      </a>
+      <a href="#home" class="nav-item">
+        <span class="material-symbols-outlined">workspace_premium</span>
+        <span>업적</span>
+      </a>
+      <a href="#home" class="nav-item">
+        <span class="material-symbols-outlined">settings</span>
+        <span>설정</span>
+      </a>
+    </div>
+  </nav>
+
+  <main class="content">
+    <div class="content-inner">
+
+      <section class="section">
+        <div class="topbar">
+          <div>
+            <div class="greeting-title">안녕하세요, 지혜님! 👋</div>
+            <div class="greeting-sub">오늘도 목표를 향해 나아갈 준비가 되셨나요?</div>
+          </div>
+          <div class="level-chip">
+            <div class="eyebrow">현재 레벨</div>
+            <div class="level-chip-value num">Lv.7 · 중급</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="eyebrow">오늘의 훈련</div>
+        <h1 class="hero-title">리듬 스퀴즈</h1>
+        <p class="hero-meta"><span class="num">3</span>세트 · 약 <span class="num">8</span>분</p>
+        <div class="hero-actions">
+          <button type="button" class="btn btn-primary">훈련 시작하기</button>
+          <button type="button" class="btn btn-secondary">캘리브레이션</button>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="stats-grid">
+          <div class="stat">
+            <div class="stat-value num">12<span class="stat-unit">일</span></div>
+            <div class="stat-label">연속 출석</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value num">24.5<span class="stat-unit">kg</span></div>
+            <div class="stat-delta num">+1.2</div>
+            <div class="stat-label">이번 주 악력</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value num">8<span class="stat-unit">개</span></div>
+            <div class="stat-label">획득 배지</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="goal-head">
+          <div class="goal-title">이번 주 목표 달성률</div>
+          <div class="goal-value num">4/5 세션</div>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill"></div>
+        </div>
+        <div class="goal-percent num">80%</div>
+      </section>
+
+      <section class="section">
+        <div class="eyebrow">최근 세션</div>
+        <div class="session-row">
+          <div class="session-main">
+            <span class="session-name">리듬 스퀴즈</span>
+            <span class="session-date num">7월 12일</span>
+          </div>
+          <span class="session-stars">★★★</span>
+        </div>
+        <div class="session-row">
+          <div class="session-main">
+            <span class="session-name">풍선 올리기</span>
+            <span class="session-date num">7월 11일</span>
+          </div>
+          <span class="session-stars">★★</span>
+        </div>
+        <div class="session-row">
+          <div class="session-main">
+            <span class="session-name">크레인 뽑기</span>
+            <span class="session-date num">7월 9일</span>
+          </div>
+          <span class="session-stars">★★★</span>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <nav class="tabbar" aria-label="주 메뉴 (모바일)">
+    <a href="#home" class="tab-item active" aria-current="page">
+      <span class="material-symbols-outlined">home</span>
+      <span>홈</span>
+    </a>
+    <a href="#home" class="tab-item">
+      <span class="material-symbols-outlined">fitness_center</span>
+      <span>훈련</span>
+    </a>
+    <a href="#home" class="tab-item">
+      <span class="material-symbols-outlined">history</span>
+      <span>기록</span>
+    </a>
+    <a href="#home" class="tab-item">
+      <span class="material-symbols-outlined">workspace_premium</span>
+      <span>업적</span>
+    </a>
+    <a href="#home" class="tab-item">
+      <span class="material-symbols-outlined">settings</span>
+      <span>설정</span>
+    </a>
+  </nav>
+</div>
+
+<div id="login" class="view view-login">
+  <div class="login-card">
+    <div class="login-word">ReGrip</div>
+    <div class="login-sub">계정에 로그인하세요</div>
+
+    <div class="login-tabs">
+      <div class="login-tab active" tabindex="0" role="tab" aria-selected="true">로그인</div>
+      <div class="login-tab" tabindex="0" role="tab" aria-selected="false">회원가입</div>
+    </div>
+
+    <form class="login-form" onsubmit="return false;">
+      <div class="field">
+        <label for="email">이메일</label>
+        <input id="email" type="email" placeholder="you@example.com" autocomplete="email">
+      </div>
+      <div class="field">
+        <label for="password">비밀번호</label>
+        <input id="password" type="password" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn btn-primary login-submit">로그인</button>
+    </form>
+
+    <div class="login-footer">
+      <a href="#home" class="login-link">서버 없이 로컬로 시작하기</a>
+    </div>
+  </div>
+</div>
+
+<button type="button" id="viewToggle" class="view-toggle">
+  <span class="material-symbols-outlined" id="viewToggleIcon">login</span>
+  <span class="toggle-label-desktop" id="viewToggleLabel">로그인 화면</span>
+  <span class="toggle-label-mobile" id="viewToggleLabelMobile">로그인</span>
+</button>
+
+<script>
+(function () {
+  var homeView = document.getElementById('home');
+  var loginView = document.getElementById('login');
+  var toggleBtn = document.getElementById('viewToggle');
+  var toggleIcon = document.getElementById('viewToggleIcon');
+  var toggleLabel = document.getElementById('viewToggleLabel');
+  var toggleLabelMobile = document.getElementById('viewToggleLabelMobile');
+
+  function render() {
+    var hash = window.location.hash || '#home';
+    var isLogin = hash === '#login';
+
+    homeView.classList.toggle('is-active', !isLogin);
+    loginView.classList.toggle('is-active', isLogin);
+
+    if (isLogin) {
+      toggleIcon.textContent = 'home';
+      toggleLabel.textContent = '홈 화면';
+      toggleLabelMobile.textContent = '홈';
+    } else {
+      toggleIcon.textContent = 'login';
+      toggleLabel.textContent = '로그인 화면';
+      toggleLabelMobile.textContent = '로그인';
+    }
+  }
+
+  toggleBtn.addEventListener('click', function () {
+    window.location.hash = (window.location.hash === '#login') ? '#home' : '#login';
+  });
+
+  window.addEventListener('hashchange', render);
+  render();
+})();
+</script>
+
+</body>
+</html>
