@@ -10,3 +10,6 @@ backend/.env
 __pycache__/
 *.pyc
 .pytest_cache/
+scripts/.dev-pids
+scripts/.dev-pids.json
+scripts/*.log
