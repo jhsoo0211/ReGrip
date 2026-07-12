@@ -20,7 +20,15 @@
   --dur-base: 220ms;
   --dur-slow: 400ms;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Accessibility — root font scale (settings.fontSize → html[data-font-size]) */
+  --font-scale: 1;
 }
+
+/* Larger-text mode scales the root font-size; rem/em-based sizing follows. */
+html[data-font-size="large"]  { --font-scale: 1.15; }
+html[data-font-size="xlarge"] { --font-scale: 1.3; }
+html { font-size: calc(100% * var(--font-scale)); }
 
 *, *::before, *::after { box-sizing: border-box; }
 
@@ -701,3 +709,159 @@ textarea:focus-visible,
 .server-status.local  { background: #F1F5F9; color: var(--ink-secondary); }
 .server-status.remote { background: #DCFCE7; color: var(--success-text); }
 .server-status .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GAME SHELL — ready / countdown / pause overlays (retro neo-vernacular)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Shared overlay scaffold (ready + pause). Sits below the confirm modal (z 250). */
+.game-ready-overlay,
+.game-pause-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 240;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.55);
+}
+.game-pause-overlay { z-index: 245; }
+
+.game-ready-card,
+.game-pause-card {
+  width: 100%;
+  max-width: 460px;
+  background: var(--surface);
+  border: 3px solid var(--ink);
+  box-shadow: 6px 6px 0px 0px var(--ink);
+  border-radius: 16px;
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  animation: gameOverlayIn var(--dur-base) var(--ease-out);
+}
+
+@keyframes gameOverlayIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.game-ready-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.game-ready-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* Difficulty chip — retro pill in the brand color. */
+.game-difficulty-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 14px;
+  background: var(--primary);
+  color: #fff;
+  border: 2px solid var(--ink);
+  border-radius: 9999px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.game-ready-status {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  background: var(--surface-warm);
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+}
+.game-ready-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--ink-secondary);
+  line-height: 1.5;
+}
+.game-ready-line .material-symbols-outlined { font-size: 20px; color: var(--primary); flex-shrink: 0; }
+.game-ready-line a { color: var(--primary); font-weight: 700; text-decoration: underline; }
+
+.game-ready-howto {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.game-ready-howto li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  color: var(--ink);
+  line-height: 1.5;
+}
+.game-ready-howto li .material-symbols-outlined {
+  font-size: 22px;
+  color: var(--primary);
+  flex-shrink: 0;
+  padding: 6px;
+  background: var(--surface-warm);
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+}
+
+.game-ready-actions,
+.game-pause-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.game-ready-actions .btn-retro,
+.game-ready-actions .btn-retro-primary,
+.game-pause-actions .btn-retro,
+.game-pause-actions .btn-retro-primary { flex: 1 1 auto; }
+
+.game-pause-card { max-width: 380px; text-align: center; }
+.game-pause-card h2 { font-size: 22px; font-weight: 700; color: var(--ink); }
+
+/* Countdown 3-2-1 — large numeral, brand color, hard-edged pop. */
+.game-countdown-num {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: clamp(96px, 22vw, 180px);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--primary);
+  text-align: center;
+  -webkit-text-stroke: 3px var(--ink);
+  text-shadow: 6px 6px 0 var(--ink);
+}
+.game-countdown-num.countdown-pop { animation: countdownPop 0.6s var(--ease-out); }
+@keyframes countdownPop {
+  0%   { transform: scale(0.4); opacity: 0; }
+  40%  { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Reduced motion — neutralize overlay entrance + countdown pop (mirrors the shared block:
+   media query AND [data-reduced-motion] root attribute). */
+@media (prefers-reduced-motion: reduce) {
+  .game-ready-card,
+  .game-pause-card,
+  .game-countdown-num.countdown-pop { animation: none !important; }
+}
+[data-reduced-motion] .game-ready-card,
+[data-reduced-motion] .game-pause-card,
+[data-reduced-motion] .game-countdown-num.countdown-pop { animation: none !important; }
