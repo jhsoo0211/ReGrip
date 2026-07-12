@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>ReGrip — 설정</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=DM+Sans:wght@400;500;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet"/>
 <link rel="stylesheet" href="shared.css"/>
 <script src="tailwind-config.js"></script>
 <style>
@@ -14,52 +15,54 @@
   .toggle-switch input { position:absolute; inset:0; opacity:0; width:100%; height:100%; margin:0; cursor:pointer; }
   .toggle-track {
     position:absolute; inset:0; cursor:pointer; pointer-events:none;
-    background:#f5ded7; border:2px solid #0F172A; border-radius:9999px;
+    background:rgba(255,255,255,0.5); border:1px solid var(--glass-border); border-radius:9999px;
     transition:background 0.2s;
   }
   .toggle-track::after {
     content:''; position:absolute; height:24px; width:24px; left:3px; top:3px;
-    background:#fff; border-radius:50%; border:2px solid #0F172A;
+    background:#fff; border-radius:50%; border:1px solid var(--glass-border);
+    box-shadow:0 2px 6px rgba(42,74,111,0.18);
     transition:transform 0.2s;
   }
-  .toggle-switch input:checked + .toggle-track { background:#994626; }
+  .toggle-switch input:checked + .toggle-track { background:var(--primary); }
   .toggle-switch input:checked + .toggle-track::after { transform:translateX(24px); }
   .toggle-switch input:focus-visible + .toggle-track { outline:3px solid var(--primary); outline-offset:2px; }
 
   /* Radio pill */
-  .radio-pill { display:flex; gap:0; }
+  .radio-pill { display:flex; gap:0; flex-wrap:wrap; }
   .radio-pill input[type=radio] { display:none; }
   .radio-pill label {
     display:inline-flex; align-items:center; justify-content:center;
     min-height:44px;
     padding:8px 18px;
-    font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:13px;
-    text-transform:uppercase; letter-spacing:0.08em;
-    border:2px solid #0F172A; cursor:pointer;
-    background:#fff; color:#58423a;
+    font-weight:700; font-size:13px;
+    letter-spacing:-0.01em;
+    border:1px solid var(--glass-border); cursor:pointer;
+    background:rgba(255,255,255,0.5); color:var(--ink-secondary);
     transition:background 0.15s, color 0.15s;
   }
   .radio-pill label:first-of-type { border-radius:8px 0 0 8px; }
-  .radio-pill label:last-of-type  { border-radius:0 8px 8px 0; margin-left:-2px; }
-  .radio-pill label:not(:first-of-type):not(:last-of-type) { margin-left:-2px; }
-  .radio-pill input[type=radio]:checked + label { background:#994626; color:#fff; }
+  .radio-pill label:last-of-type  { border-radius:0 8px 8px 0; margin-left:-1px; }
+  .radio-pill label:not(:first-of-type):not(:last-of-type) { margin-left:-1px; }
+  .radio-pill input[type=radio]:checked + label { background:var(--primary); color:#fff; }
 
   /* Settings section card */
-  .settings-card { background:#fff; border:2px solid #0F172A; box-shadow:4px 4px 0 #0F172A; border-radius:12px; overflow:hidden; }
+  .settings-card { background:var(--glass-bg); backdrop-filter:blur(var(--glass-blur)) saturate(1.5); -webkit-backdrop-filter:blur(var(--glass-blur)) saturate(1.5); border:1px solid var(--glass-border); box-shadow:var(--glass-shadow); border-radius:20px; overflow:hidden; }
   .settings-card-header {
-    background:#FFE9E3; border-bottom:2px solid #0F172A; padding:14px 20px;
-    font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:13px;
-    letter-spacing:0.1em; text-transform:uppercase;
+    background:rgba(255,255,255,0.35); border-bottom:1px solid var(--glass-border); padding:14px 20px;
+    font-weight:700; font-size:13px;
+    letter-spacing:-0.01em;
     display:flex; align-items:center; gap:10px;
   }
   .settings-row {
     padding:16px 20px;
     display:flex; align-items:center; justify-content:space-between; gap:12px;
-    border-bottom:1px solid #f5ded7;
+    flex-wrap:wrap;
+    border-bottom:1px solid var(--glass-border);
   }
   .settings-row:last-child { border-bottom:none; }
-  .settings-row-label { font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:14px; }
-  .settings-row-sub   { font-size:13px; color:#58423a; margin-top:2px; }
+  .settings-row-label { font-weight:700; font-size:14px; }
+  .settings-row-sub   { font-size:13px; color:var(--ink-secondary); margin-top:2px; }
 </style>
 </head>
 <body class="bg-background-sky text-on-surface">
@@ -71,8 +74,8 @@
     <div class="max-w-[800px] mx-auto px-8 py-8 flex flex-col gap-6">
 
       <!-- Header -->
-      <section class="border-b-4 border-ink-black pb-6">
-        <h1 class="font-display text-4xl md:text-5xl font-bold uppercase tracking-tight mb-2 flex items-center gap-3">
+      <section class="pb-6">
+        <h1 class="font-display text-4xl md:text-5xl font-bold tracking-tight mb-2 flex items-center gap-3">
           <span class="material-symbols-outlined text-4xl text-primary" style="font-variation-settings:'FILL' 1">settings</span>
           설정
         </h1>
@@ -97,20 +100,20 @@
         <div class="settings-row flex-col items-start gap-3">
           <div class="settings-row-label">백엔드 URL</div>
           <input type="url" id="server-url" value="http://localhost:8000" placeholder="http://localhost:8000"
-                 class="w-full border-2 border-ink-black rounded-lg px-4 py-2 font-display font-bold text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-surface-container"/>
+                 class="w-full border border-outline-variant rounded-lg px-4 py-2 font-display font-bold text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-surface-container"/>
           <div class="settings-row-sub">프론트와 백엔드는 같은 호스트명(둘 다 localhost 또는 둘 다 127.0.0.1)이어야 로그인이 유지됩니다. 포트는 달라도 됩니다.</div>
         </div>
         <!-- Actions -->
         <div class="settings-row flex-wrap gap-3">
-          <button onclick="goConnect()" class="retro-border retro-shadow rounded-lg px-4 py-2 font-display font-bold text-sm uppercase tracking-wider bg-primary text-white hover:opacity-90 transition-opacity flex items-center gap-2">
+          <button onclick="goConnect()" class="retro-border retro-shadow rounded-lg px-4 py-2 font-display font-bold text-sm bg-primary text-white hover:opacity-90 transition-opacity flex items-center gap-2">
             <span class="material-symbols-outlined text-base">login</span>
             <span id="connect-btn-label">연결 / 로그인</span>
           </button>
-          <button onclick="doLogout()" id="logout-btn" class="retro-border retro-shadow rounded-lg px-4 py-2 font-display font-bold text-sm uppercase tracking-wider bg-white hover:bg-surface-container transition-colors items-center gap-2" style="display:none;">
+          <button onclick="doLogout()" id="logout-btn" class="retro-border retro-shadow rounded-lg px-4 py-2 font-display font-bold text-sm bg-white hover:bg-surface-container transition-colors items-center gap-2" style="display:none;">
             <span class="material-symbols-outlined text-base">logout</span>
             로그아웃
           </button>
-          <button onclick="doDisconnect()" id="disconnect-btn" class="retro-border rounded-lg px-4 py-2 font-display font-bold text-sm uppercase tracking-wider hover:bg-red-50 transition-colors text-red-600 border-red-300 items-center gap-2" style="display:none;">
+          <button onclick="doDisconnect()" id="disconnect-btn" class="retro-border rounded-lg px-4 py-2 font-display font-bold text-sm hover:bg-red-50 transition-colors text-red-600 border-red-300 items-center gap-2" style="display:none;">
             <span class="material-symbols-outlined text-base">link_off</span>
             연결 해제
           </button>
@@ -128,11 +131,11 @@
           <div>
             <div class="settings-row-label">ReGrip Sensor v2</div>
             <div class="settings-row-sub">배터리 87% · 신호 강도 우수</div>
-            <div class="settings-row-sub" style="color:var(--ink-muted);font-size:11px;letter-spacing:0.08em;text-transform:uppercase;margin-top:2px;">시뮬레이션 값</div>
+            <div class="settings-row-sub" style="color:var(--ink-muted);font-size:11px;margin-top:2px;">시뮬레이션 값</div>
           </div>
           <div class="flex items-center gap-3">
-            <span id="sensor-badge" class="flex items-center gap-2 font-display text-xs font-bold tracking-wider uppercase px-3 py-1 rounded-full retro-border bg-white" style="min-height:28px;"></span>
-            <button onclick="openFeedbackModal()" class="retro-border retro-shadow rounded-lg px-4 py-2 font-display font-bold text-sm uppercase tracking-wider bg-white hover:bg-surface-container transition-colors">
+            <span id="sensor-badge" class="flex items-center gap-2 font-display text-xs font-bold px-3 py-1 rounded-full retro-border bg-white" style="min-height:28px;"></span>
+            <button onclick="openFeedbackModal()" class="retro-border retro-shadow rounded-lg px-4 py-2 font-display font-bold text-sm bg-white hover:bg-surface-container transition-colors">
               해제
             </button>
           </div>
@@ -141,7 +144,7 @@
         <div class="settings-row flex-col items-start gap-3">
           <div class="settings-row-label">센서 이름</div>
           <input type="text" id="sensor-name" value="ReGrip Sensor"
-                 class="w-full border-2 border-ink-black rounded-lg px-4 py-2 font-display font-bold text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-surface-container"
+                 class="w-full border border-outline-variant rounded-lg px-4 py-2 font-display font-bold text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-surface-container"
                  placeholder="센서 이름 입력"/>
         </div>
       </div>
@@ -248,7 +251,7 @@
         <div class="settings-row" id="reminder-time-row">
           <div class="settings-row-label">알림 시간</div>
           <input type="time" id="reminder-time" value="09:00"
-                 class="border-2 border-ink-black rounded-lg px-3 py-2 font-display font-bold text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-surface-container"/>
+                 class="border border-outline-variant rounded-lg px-3 py-2 font-display font-bold text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-surface-container"/>
         </div>
         <div class="settings-row" data-toggle-row>
           <div>
@@ -284,7 +287,7 @@
             <div class="settings-row-label">데모 데이터 채우기</div>
             <div class="settings-row-sub">체험용 훈련 기록을 생성합니다</div>
           </div>
-          <button onclick="fillDemoData()" id="demo-btn" class="retro-border retro-shadow rounded-lg px-4 py-2 font-display font-bold text-sm uppercase tracking-wider bg-white hover:bg-surface-container transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+          <button onclick="fillDemoData()" id="demo-btn" class="retro-border retro-shadow rounded-lg px-4 py-2 font-display font-bold text-sm bg-white hover:bg-surface-container transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
             <span class="material-symbols-outlined text-base">science</span>
             채우기
           </button>
@@ -294,7 +297,7 @@
             <div class="settings-row-label">피드백 및 오류 신고</div>
             <div class="settings-row-sub">문제가 있으신가요? 알려주세요.</div>
           </div>
-          <button onclick="openFeedbackModal()" class="retro-border retro-shadow rounded-lg px-4 py-2 font-display font-bold text-sm uppercase tracking-wider bg-white hover:bg-surface-container transition-colors flex items-center gap-2">
+          <button onclick="openFeedbackModal()" class="retro-border retro-shadow rounded-lg px-4 py-2 font-display font-bold text-sm bg-white hover:bg-surface-container transition-colors flex items-center gap-2">
             <span class="material-symbols-outlined text-base">bug_report</span>
             신고
           </button>
@@ -304,7 +307,7 @@
             <div class="settings-row-label">데이터 초기화</div>
             <div class="settings-row-sub">모든 훈련 기록을 삭제합니다</div>
           </div>
-          <button onclick="clearData()" class="retro-border rounded-lg px-4 py-2 font-display font-bold text-sm uppercase tracking-wider hover:bg-red-50 transition-colors text-red-600 border-red-300 flex items-center gap-2">
+          <button onclick="clearData()" class="retro-border rounded-lg px-4 py-2 font-display font-bold text-sm hover:bg-red-50 transition-colors text-red-600 border-red-300 flex items-center gap-2">
             <span class="material-symbols-outlined text-base">delete_forever</span>
             초기화
           </button>
@@ -312,7 +315,7 @@
       </div>
 
       <!-- Save Button -->
-      <button onclick="saveSettings()" class="w-full bg-primary text-white font-display font-bold text-lg uppercase tracking-wider py-4 rounded-xl retro-border retro-shadow hover:opacity-90 transition-opacity">
+      <button onclick="saveSettings()" class="w-full bg-primary text-white font-display font-bold text-lg py-4 rounded-xl retro-border retro-shadow hover:opacity-90 transition-opacity">
         설정 저장
       </button>
 

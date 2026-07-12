@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>ReGrip — 크레인 게임</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=DM+Sans:wght@400;500;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet"/>
 <link rel="stylesheet" href="shared.css"/>
 <script src="tailwind-config.js"></script>
 <style>
@@ -81,8 +82,9 @@
   #phase-chip {
     position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
     z-index: 15; padding: 8px 18px; border-radius: 999px;
-    background: #FFF8F6; border: 3px solid #0F172A; box-shadow: 4px 4px 0 #0F172A;
-    font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 14px; color: #0F172A;
+    background: rgba(255,255,255,0.65); backdrop-filter: blur(16px) saturate(1.5); -webkit-backdrop-filter: blur(16px) saturate(1.5);
+    border: 1px solid rgba(255,255,255,0.7); box-shadow: 0 8px 24px rgba(42,74,111,0.18);
+    font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 14px; color: #12263A;
     white-space: nowrap; max-width: 92%; text-align: center; overflow: hidden; text-overflow: ellipsis;
   }
   #phase-chip.chip-fail { background: #FEE2E2; border-color: var(--error); color: var(--error); }
@@ -169,26 +171,26 @@
   #gauge-track { transition: border-color 0.18s ease; }
   #gauge-track.gauge-hot { border-color: #16A34A; }
   #gauge-fill { transition: height 0.08s linear, background 0.18s ease; }
-  .gauge-tick { position:absolute; left:2px; right:2px; height:2px; background:rgba(15,23,42,0.22); z-index:2; pointer-events:none; }
-  #target-line { position:absolute; left:0; right:0; background:#994626; height:3px; z-index:3; transition: background 0.18s ease, bottom 0.25s ease; }
+  .gauge-tick { position:absolute; left:2px; right:2px; height:2px; background:rgba(18,38,58,0.22); z-index:2; pointer-events:none; }
+  #target-line { position:absolute; left:0; right:0; background:var(--primary); height:3px; z-index:3; transition: background 0.18s ease, bottom 0.25s ease; }
   #target-line-label { transition: color 0.18s ease, bottom 0.25s ease; }
 </style>
 </head>
-<body style="background:#1a0a05;">
+<body style="background:#12263A;">
 
 <!-- ══ GAME ══════════════════════════════════════════════════════════════ -->
 <div id="game-screen" class="min-h-screen flex flex-col">
 
   <!-- Header -->
-  <header class="flex items-center justify-between px-6 py-3" style="background:#FFF8F6;border-bottom:4px solid #0F172A;">
+  <header class="flex items-center justify-between px-6 py-3" style="background:rgba(255,255,255,0.55);backdrop-filter:blur(20px) saturate(1.5);-webkit-backdrop-filter:blur(20px) saturate(1.5);border-bottom:1px solid rgba(255,255,255,0.65);">
     <div class="font-display text-xl font-bold text-primary italic">ReGrip</div>
     <div class="flex items-center gap-4">
-      <div class="game-hud-hint font-display text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full text-on-surface-variant animate-pulse" style="background:#FFE9E3;border:2px solid #dfc0b6;">
+      <div class="game-hud-hint font-display text-xs font-bold px-3 py-1 rounded-full text-on-surface-variant animate-pulse" style="background:rgba(255,255,255,0.5);backdrop-filter:blur(20px) saturate(1.5);-webkit-backdrop-filter:blur(20px) saturate(1.5);border:1px solid rgba(255,255,255,0.65);">
         SPACE / 클릭 홀드
       </div>
       <!-- Sensor status (filled by shell bindSensorBadge) -->
-      <div id="sensor-badge" class="font-display text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full flex items-center gap-2" style="background:#FFF8F6;border:2px solid #0F172A;"></div>
-      <button id="exit-btn" class="font-display font-bold text-sm uppercase tracking-wider px-4 py-2 rounded" style="background:#FFF8F6;border:2px solid #0F172A;box-shadow:2px 2px 0 #0F172A;">
+      <div id="sensor-badge" class="font-display text-xs font-bold px-3 py-1 rounded-full flex items-center gap-2" style="background:rgba(255,255,255,0.5);backdrop-filter:blur(20px) saturate(1.5);-webkit-backdrop-filter:blur(20px) saturate(1.5);border:1px solid rgba(255,255,255,0.65);"></div>
+      <button id="exit-btn" class="font-display font-bold text-sm px-4 py-2 rounded-full" style="background:rgba(255,255,255,0.5);backdrop-filter:blur(20px) saturate(1.5);-webkit-backdrop-filter:blur(20px) saturate(1.5);border:1px solid rgba(255,255,255,0.65);box-shadow:0 4px 16px rgba(42,74,111,0.08);">
         종료
       </button>
     </div>
@@ -197,25 +199,25 @@
   <div class="flex-1 flex gap-0">
 
     <!-- Left HUD -->
-    <aside class="w-56 p-5 flex flex-col gap-4 flex-shrink-0" style="background:#FFF8F6;border-right:4px solid #0F172A;">
+    <aside class="w-56 p-5 flex flex-col gap-4 flex-shrink-0" style="background:rgba(255,255,255,0.4);backdrop-filter:blur(20px) saturate(1.5);-webkit-backdrop-filter:blur(20px) saturate(1.5);border-right:1px solid rgba(255,255,255,0.65);">
       <!-- Timer -->
-      <div class="rounded-xl p-4" style="background:#fff;border:4px solid #0F172A;box-shadow:4px 4px 0 #0F172A;border-top:6px solid #994626;">
-        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">남은 시간</div>
+      <div class="rounded-xl p-4" style="background:rgba(255,255,255,0.55);backdrop-filter:blur(20px) saturate(1.5);-webkit-backdrop-filter:blur(20px) saturate(1.5);border:1px solid rgba(255,255,255,0.65);box-shadow:0 8px 32px rgba(42,74,111,0.2);border-top:4px solid var(--primary);">
+        <div class="font-display text-xs font-bold text-on-surface-variant mb-1">남은 시간</div>
         <div id="timer-display" class="font-display text-5xl font-bold text-primary tabular">1:00</div>
       </div>
       <!-- Score -->
-      <div class="rounded-xl p-4" style="background:#fff;border:4px solid #0F172A;box-shadow:4px 4px 0 #0F172A;border-top:6px solid #10B981;">
-        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">수집한 캡슐</div>
+      <div class="rounded-xl p-4" style="background:rgba(255,255,255,0.55);backdrop-filter:blur(20px) saturate(1.5);-webkit-backdrop-filter:blur(20px) saturate(1.5);border:1px solid rgba(255,255,255,0.65);box-shadow:0 8px 32px rgba(42,74,111,0.2);border-top:4px solid #10B981;">
+        <div class="font-display text-xs font-bold text-on-surface-variant mb-1">수집한 캡슐</div>
         <div id="score-display" class="font-display text-5xl font-bold tabular" style="color:#10B981;" aria-live="polite">0</div>
       </div>
       <!-- Hold gauge display -->
-      <div class="rounded-xl p-4" style="background:#fff;border:2px solid #0F172A;">
-        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-2">집게 유지</div>
+      <div class="rounded-xl p-4" style="background:rgba(255,255,255,0.55);backdrop-filter:blur(20px) saturate(1.5);-webkit-backdrop-filter:blur(20px) saturate(1.5);border:1px solid rgba(255,255,255,0.65);box-shadow:0 4px 16px rgba(42,74,111,0.08);">
+        <div class="font-display text-xs font-bold text-on-surface-variant mb-2">집게 유지</div>
         <div class="flex items-center gap-2">
           <!-- Donut SVG -->
           <svg width="44" height="44" viewBox="0 0 36 36">
-            <circle cx="18" cy="18" r="15.9" stroke="#FFE9E3" stroke-width="5" fill="none"/>
-            <circle id="donut-arc" cx="18" cy="18" r="15.9" stroke="#994626" stroke-width="5" fill="none"
+            <circle cx="18" cy="18" r="15.9" stroke="#D6E6F2" stroke-width="5" fill="none"/>
+            <circle id="donut-arc" cx="18" cy="18" r="15.9" stroke="#5E86B8" stroke-width="5" fill="none"
                     transform="rotate(-90 18 18)"/>
           </svg>
           <div>
@@ -223,16 +225,16 @@
             <div class="font-display text-xs text-on-surface-variant">/ 3.0s</div>
           </div>
         </div>
-        <div id="grip-status" class="font-display text-xs font-bold uppercase tracking-wider mt-2 text-on-surface-variant">집게 열림</div>
+        <div id="grip-status" class="font-display text-xs font-bold mt-2 text-on-surface-variant">집게 열림</div>
       </div>
       <!-- Chute pickups -->
-      <div class="flex-1 rounded-xl overflow-hidden" style="background:#f0f0f0;border:2px solid #0F172A;min-height:80px;">
-        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase p-2 pb-0">획득함</div>
+      <div class="flex-1 rounded-xl overflow-hidden" style="background:rgba(255,255,255,0.4);backdrop-filter:blur(20px) saturate(1.5);-webkit-backdrop-filter:blur(20px) saturate(1.5);border:1px solid rgba(255,255,255,0.65);min-height:80px;">
+        <div class="font-display text-xs font-bold text-on-surface-variant p-2 pb-0">획득함</div>
         <div id="chute-items" class="p-2 flex flex-wrap gap-1"></div>
       </div>
       <!-- Instructions -->
-      <div class="rounded-lg p-4 text-sm" style="background:#EFF6FF;border:2px dashed #0F172A;">
-        <strong class="text-primary block mb-1 font-display text-xs uppercase tracking-wider">훈련 방법</strong>
+      <div class="rounded-lg p-4 text-sm" style="background:rgba(255,255,255,0.4);border:1px dashed rgba(42,74,111,0.35);">
+        <strong class="text-primary block mb-1 font-display text-xs">훈련 방법</strong>
         <span id="howto-text">① 꽉 쥐어 하강 ② 3초 파지 ③ 유지하며 운반 ④ 배출구에서 천천히 놓기</span>
       </div>
     </aside>
@@ -269,10 +271,10 @@
           <div id="hold-donut-wrap" class="absolute opacity-0 transition-opacity duration-200"
                style="top:96px;left:50%;transform:translateX(-50%);">
             <div id="donut-ring" class="relative w-16 h-16 flex items-center justify-center"
-                 style="background:rgba(255,248,246,0.92);border:3px solid #0F172A;border-radius:50%;">
+                 style="background:rgba(255,255,255,0.75);backdrop-filter:blur(16px) saturate(1.5);-webkit-backdrop-filter:blur(16px) saturate(1.5);border:1px solid rgba(255,255,255,0.7);border-radius:50%;">
               <svg class="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 36 36">
-                <circle cx="18" cy="18" r="14" stroke="#FFE9E3" stroke-width="4" fill="none"/>
-                <circle id="donut-arc-claw" cx="18" cy="18" r="14" stroke="#994626" stroke-width="4" fill="none"
+                <circle cx="18" cy="18" r="14" stroke="#D6E6F2" stroke-width="4" fill="none"/>
+                <circle id="donut-arc-claw" cx="18" cy="18" r="14" stroke="#5E86B8" stroke-width="4" fill="none"
                         stroke-dasharray="88" stroke-dashoffset="88" stroke-linecap="round"
                         style="transition:stroke-dashoffset 0.1s linear;"/>
               </svg>
@@ -303,11 +305,11 @@
     </div>
 
     <!-- Right Gauge -->
-    <aside class="w-28 p-4 flex flex-col items-center flex-shrink-0" style="background:#FFF8F6;border-left:4px solid #0F172A;">
-      <div class="font-display text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-3 text-center">악력</div>
+    <aside class="w-28 p-4 flex flex-col items-center flex-shrink-0" style="background:rgba(255,255,255,0.4);backdrop-filter:blur(20px) saturate(1.5);-webkit-backdrop-filter:blur(20px) saturate(1.5);border-left:1px solid rgba(255,255,255,0.65);">
+      <div class="font-display text-xs font-bold text-on-surface-variant mb-3 text-center">악력</div>
       <div class="font-display text-sm text-on-surface-variant mb-1">100%</div>
       <div id="gauge-track" role="meter" aria-label="악력 게이지" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"
-           class="flex-1 w-10 relative rounded-full overflow-hidden" style="background:#F0F9FF;border:2px solid #0F172A;">
+           class="flex-1 w-10 relative rounded-full overflow-hidden" style="background:rgba(255,255,255,0.4);border:1px solid rgba(255,255,255,0.65);">
         <!-- Scale ticks -->
         <div class="gauge-tick" style="bottom:25%;"></div>
         <div class="gauge-tick" style="bottom:50%;"></div>
@@ -315,7 +317,7 @@
         <!-- Target line (position/label set per phase by JS) -->
         <div id="target-line" style="bottom:80%;"></div>
         <div id="target-line-label" class="absolute font-display text-xs font-bold text-primary" style="right:100%;margin-right:4px;white-space:nowrap;bottom:80%;">80%↑</div>
-        <div id="gauge-fill" class="absolute bottom-0 left-0 right-0 rounded-full" style="height:0%;background:#994626;"></div>
+        <div id="gauge-fill" class="absolute bottom-0 left-0 right-0 rounded-full" style="height:0%;background:var(--primary);"></div>
       </div>
       <div class="mt-2 mb-1 font-display text-sm text-on-surface-variant">0%</div>
       <div id="force-pct" class="font-display text-2xl font-bold text-primary mt-2 tabular">0%</div>
@@ -327,30 +329,30 @@
 
 
 <!-- ══ RESULT OVERLAY ═══════════════════════════════════════════════════ -->
-<div id="result-overlay" class="fixed inset-0 z-50 items-center justify-center p-6" style="background:rgba(15,23,42,0.75);">
-  <div class="result-card w-full max-w-md overflow-hidden" style="background:#FFF8F6;border:4px solid #0F172A;box-shadow:8px 8px 0 #0F172A;border-radius:16px;">
-    <div class="p-8 flex flex-col items-center gap-3 text-center" style="background:#FFB38E;">
-      <div class="w-16 h-16 rounded-full flex items-center justify-center" style="background:#fff;border:3px solid #0F172A;">
+<div id="result-overlay" class="fixed inset-0 z-50 items-center justify-center p-6" style="background:rgba(18,38,58,0.55);">
+  <div class="result-card w-full max-w-md overflow-hidden" style="background:rgba(255,255,255,0.55);backdrop-filter:blur(20px) saturate(1.5);-webkit-backdrop-filter:blur(20px) saturate(1.5);border:1px solid rgba(255,255,255,0.65);box-shadow:0 8px 32px rgba(42,74,111,0.2);border-radius:28px;">
+    <div class="p-8 flex flex-col items-center gap-3 text-center" style="background:#B9D7EA;">
+      <div class="w-16 h-16 rounded-full flex items-center justify-center" style="background:rgba(255,255,255,0.85);border:1px solid rgba(255,255,255,0.7);box-shadow:0 4px 16px rgba(42,74,111,0.12);">
         <span class="material-symbols-outlined text-3xl text-primary" style="font-variation-settings:'FILL' 1">emoji_events</span>
       </div>
-      <h2 class="font-display text-3xl font-bold uppercase tracking-tight text-ink-black">게임 완료</h2>
+      <h2 class="font-display text-3xl font-bold tracking-tight text-ink-black">게임 완료</h2>
       <div id="result-stars" class="flex gap-1"></div>
     </div>
     <div class="p-6 grid grid-cols-2 gap-3">
-      <div class="rounded-xl p-4 text-center" style="background:#FFE9E3;border:2px solid #0F172A;">
-        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">획득 캡슐</div>
+      <div class="rounded-xl p-4 text-center" style="background:rgba(255,255,255,0.5);border:1px solid rgba(255,255,255,0.65);">
+        <div class="font-display text-xs font-bold text-on-surface-variant mb-1">획득 캡슐</div>
         <div id="res-score" class="font-display text-3xl font-bold text-primary tabular">0</div>
       </div>
-      <div class="rounded-xl p-4 text-center" style="background:#FFE9E3;border:2px solid #0F172A;">
-        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">최대 악력</div>
+      <div class="rounded-xl p-4 text-center" style="background:rgba(255,255,255,0.5);border:1px solid rgba(255,255,255,0.65);">
+        <div class="font-display text-xs font-bold text-on-surface-variant mb-1">최대 악력</div>
         <div id="res-max" class="font-display text-3xl font-bold text-primary tabular">0%</div>
       </div>
-      <div class="rounded-xl p-4 text-center" style="background:#FFE9E3;border:2px solid #0F172A;">
-        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">평균 악력</div>
+      <div class="rounded-xl p-4 text-center" style="background:rgba(255,255,255,0.5);border:1px solid rgba(255,255,255,0.65);">
+        <div class="font-display text-xs font-bold text-on-surface-variant mb-1">평균 악력</div>
         <div id="res-avg" class="font-display text-3xl font-bold text-primary tabular">0%</div>
       </div>
-      <div class="rounded-xl p-4 text-center" style="background:#FFE9E3;border:2px solid #0F172A;">
-        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">시도 횟수</div>
+      <div class="rounded-xl p-4 text-center" style="background:rgba(255,255,255,0.5);border:1px solid rgba(255,255,255,0.65);">
+        <div class="font-display text-xs font-bold text-on-surface-variant mb-1">시도 횟수</div>
         <div id="res-attempts" class="font-display text-3xl font-bold text-primary tabular">0</div>
       </div>
     </div>
@@ -359,15 +361,15 @@
 
     <!-- Reward confirmation (shell fills xp/levelup/achievements) -->
     <div id="reward-view" class="px-6 pb-6 pt-2 flex-col items-center gap-4 text-center" style="display:none;">
-      <div class="font-display text-xs font-bold tracking-widest uppercase" style="color:var(--success-text);">서버에 저장 완료</div>
+      <div class="font-display text-xs font-bold" style="color:var(--success-text);">서버에 저장 완료</div>
       <div class="flex items-baseline justify-center gap-1">
         <span class="font-display text-4xl font-bold text-primary tabular">+</span>
         <span id="reward-xp" class="font-display text-4xl font-bold text-primary tabular">0</span>
         <span class="font-display text-xl font-bold text-primary">XP</span>
       </div>
-      <div id="reward-levelup" class="font-display text-lg font-bold px-4 py-1 rounded-full" style="display:none;background:#FEF9C3;color:#CA8A04;border:2px solid #0F172A;">Lv. — 달성!</div>
+      <div id="reward-levelup" class="font-display text-lg font-bold px-4 py-1 rounded-full" style="display:none;background:#FEF9C3;color:#CA8A04;border:1px solid rgba(255,255,255,0.65);">Lv. — 달성!</div>
       <div id="reward-achievements" class="flex flex-wrap gap-2 justify-center"></div>
-      <a href="history.html" class="w-full font-display font-bold uppercase tracking-wider py-3 rounded text-white flex items-center justify-center gap-2" style="background:#994626;border:2px solid #0F172A;box-shadow:3px 3px 0 #0F172A;">
+      <a href="history.html" class="w-full font-display font-bold py-3 rounded-full text-white flex items-center justify-center gap-2" style="background:linear-gradient(135deg, var(--blue-500), var(--blue-600));box-shadow:0 10px 26px rgba(94,134,184,0.42), inset 0 1px 0 rgba(255,255,255,0.35);">
         <span class="material-symbols-outlined text-base">timeline</span> 기록 보기
       </a>
     </div>
@@ -626,7 +628,7 @@ function setTarget(pct, mode) {
   targetLine.style.bottom = pct + '%';
   targetLineLabel.style.bottom = pct + '%';
   targetLineLabel.textContent = pct + '%' + arrow;
-  const col = mode === 'below' ? '#2563EB' : '#994626';
+  const col = mode === 'below' ? '#CA8A04' : '#5E86B8';
   targetLine.style.background = col;
   targetLineLabel.style.color = col;
 }
@@ -660,12 +662,12 @@ function updateDonut() {
   donutText.textContent = Math.max(0, Math.ceil(HOLD_NEEDED - holdTime)) + 's';
   holdSecsEl.textContent = holdTime.toFixed(1) + 's';
   gripStatusEl.textContent = '집게 닫힘 — 유지!';
-  gripStatusEl.style.color = '#994626';
+  gripStatusEl.style.color = '#2A4A6F';
 }
 function resetGripHud() {
   if (!donutBusy) holdDonutWrap.style.opacity = '0';
-  donutArcClaw.style.stroke = '#994626';
-  donutArcLeft.style.stroke = '#994626';
+  donutArcClaw.style.stroke = '#5E86B8';
+  donutArcLeft.style.stroke = '#5E86B8';
   donutArcClaw.style.strokeDashoffset = 88;
   donutArcLeft.style.strokeDashoffset = 100;
   donutText.textContent = '3s';
@@ -872,7 +874,7 @@ function gameTick() {
   // Gauge fill + meeting state
   const meeting = targetMode === 'below' ? (gripForce < targetPct) : (gripForce >= targetPct);
   gaugeFill.style.height = gripForce + '%';
-  gaugeFill.style.background = meeting ? '#16A34A' : '#994626';
+  gaugeFill.style.background = meeting ? '#16A34A' : '#5E86B8';
   gaugeTrack.classList.toggle('gauge-hot', meeting);
   forcePctEl.textContent = Math.round(gripForce) + '%';
 

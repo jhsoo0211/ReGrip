@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>ReGrip — 레벨 상세</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=DM+Sans:wght@400;500;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet"/>
 <link rel="stylesheet" href="shared.css"/>
 <script src="tailwind-config.js"></script>
 <style>
@@ -18,12 +19,12 @@
   }
   .level-circle-bg {
     fill: none;
-    stroke: #f5ded7;
+    stroke: var(--blue-100);
     stroke-width: 14;
   }
   .level-circle-fill {
     fill: none;
-    stroke: #994626;
+    stroke: var(--blue-600);
     stroke-width: 14;
     stroke-linecap: round;
     transition: stroke-dashoffset 1s var(--ease-out);
@@ -43,24 +44,24 @@
   .tier-card {
     padding: 14px 18px;
     border-radius: 12px;
-    border: 2px solid #0F172A;
+    border: 1px solid var(--glass-border);
     display: flex;
     align-items: center;
     gap: 14px;
     transition: transform 0.15s, box-shadow 0.15s;
   }
   .tier-card.active {
-    box-shadow: 4px 4px 0px #0F172A;
-    transform: translate(-2px, -2px);
+    box-shadow: 0 8px 24px rgba(42,74,111,0.18);
+    transform: translateY(-2px);
   }
   .tier-card:not(.active) {
     opacity: 0.6;
-    border-color: #dfc0b6;
+    border-color: var(--glass-border);
   }
   .tier-icon {
     width: 44px; height: 44px;
     border-radius: 50%;
-    border: 2px solid #0F172A;
+    border: 1px solid var(--glass-border);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -73,7 +74,7 @@
     align-items: center;
     gap: 14px;
     padding: 12px 0;
-    border-bottom: 1px solid #f5ded7;
+    border-bottom: 1px solid var(--glass-border);
   }
   .xp-row:last-child { border-bottom: none; }
 
@@ -81,18 +82,18 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    font-family: 'Space Grotesk', sans-serif;
+    font-family: 'Pretendard Variable', 'Noto Sans KR', sans-serif;
     font-weight: 700;
     font-size: 14px;
     padding: 4px 12px;
     border-radius: 999px;
-    border: 2px solid #0F172A;
+    border: 1px solid var(--glass-border);
   }
 
   /* Reward preview */
   .reward-card {
     background: #fff;
-    border: 2px solid #0F172A;
+    border: 1px solid var(--glass-border);
     border-radius: 12px;
     padding: 16px;
     text-align: center;
@@ -100,11 +101,11 @@
   }
   .reward-card:hover { transform: translateY(-2px); }
   .reward-card.unlocked {
-    box-shadow: 3px 3px 0px #0F172A;
+    box-shadow: 0 4px 16px rgba(42,74,111,0.10);
   }
   .reward-card.locked {
     opacity: 0.5;
-    border-color: #dfc0b6;
+    border-color: var(--glass-border);
   }
 
   @keyframes xpPulse {
@@ -125,15 +126,15 @@
     <div class="max-w-[1100px] mx-auto px-8 py-8 flex flex-col gap-6">
 
       <!-- Header -->
-      <section class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b-4 border-ink-black pb-6">
+      <section class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-[rgba(255,255,255,0.65)] pb-6">
         <div>
-          <h1 class="font-display text-4xl md:text-5xl font-bold uppercase tracking-tight mb-2 flex items-center gap-3">
+          <h1 class="font-display text-4xl md:text-5xl font-bold tracking-tight mb-2 flex items-center gap-3">
             <span class="material-symbols-outlined text-4xl text-primary" style="font-variation-settings:'FILL' 1">military_tech</span>
             레벨 상세
           </h1>
           <p class="text-on-surface-variant text-lg">훈련을 통해 경험치를 모으고 등급을 올려보세요!</p>
         </div>
-        <button type="button" onclick="goBack('achievements.html')" class="font-display font-bold text-sm uppercase tracking-wider text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 bg-transparent border-0 cursor-pointer p-0">
+        <button type="button" onclick="goBack('achievements.html')" class="font-display font-bold text-sm text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 bg-transparent border-0 cursor-pointer p-0">
           <span class="material-symbols-outlined text-base">arrow_back</span>
           업적으로
         </button>
@@ -159,18 +160,18 @@
               <div class="level-circle-text">
                 <span class="material-symbols-outlined text-4xl text-primary mb-1" style="font-variation-settings:'FILL' 1">military_tech</span>
                 <div class="font-display text-4xl font-bold text-primary" id="current-level">Lv. —</div>
-                <div class="font-display text-sm font-bold text-on-surface-variant uppercase tracking-widest" id="current-tier-name">—</div>
+                <div class="font-display text-sm font-bold text-on-surface-variant" id="current-tier-name">—</div>
               </div>
             </div>
 
             <!-- XP Info -->
             <div class="w-full grid grid-cols-2 gap-3">
               <div class="bg-surface-container retro-border rounded-xl p-4 text-center">
-                <div class="font-display text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-1">현재 레벨 XP</div>
+                <div class="font-display text-[10px] font-bold text-on-surface-variant mb-1">현재 레벨 XP</div>
                 <div class="font-display text-xl font-bold text-primary tabular" id="current-xp">—</div>
               </div>
               <div class="bg-surface-container retro-border rounded-xl p-4 text-center">
-                <div class="font-display text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-1">레벨업 필요</div>
+                <div class="font-display text-[10px] font-bold text-on-surface-variant mb-1">레벨업 필요</div>
                 <div class="font-display text-xl font-bold text-primary tabular" id="next-level-xp">—</div>
               </div>
             </div>
@@ -178,7 +179,7 @@
             <!-- XP bar -->
             <div class="w-full">
               <div class="flex justify-between items-center mb-2">
-                <span class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">진행률</span>
+                <span class="font-display text-xs font-bold text-on-surface-variant">진행률</span>
                 <span class="font-display text-sm font-bold text-primary tabular" id="xp-percent">—</span>
               </div>
               <div class="w-full h-4 bg-surface-container retro-border rounded-full overflow-hidden">
@@ -190,9 +191,9 @@
 
           <!-- Tier System Card -->
           <div class="bg-white retro-border retro-shadow rounded-xl overflow-hidden">
-            <div class="bg-surface-container border-b-2 border-ink-black px-5 py-3 flex items-center gap-2">
+            <div class="bg-surface-container border-b border-[rgba(255,255,255,0.65)] px-5 py-3 flex items-center gap-2">
               <span class="material-symbols-outlined text-primary text-base" style="font-variation-settings:'FILL' 1">trending_up</span>
-              <span class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">등급 시스템</span>
+              <span class="font-display text-xs font-bold text-on-surface-variant">등급 시스템</span>
             </div>
             <div class="p-4 flex flex-col gap-3" id="tier-list">
               <!-- Populated by JS -->
@@ -207,29 +208,29 @@
           <!-- XP Earning Summary (누적 기준 — 총 XP = xpEvents 합계 불변식) -->
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div class="bg-white retro-border retro-shadow rounded-xl p-5 text-center">
-              <div class="font-display text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-2">누적 획득 XP</div>
+              <div class="font-display text-[10px] font-bold text-on-surface-variant mb-2">누적 획득 XP</div>
               <div class="font-display text-2xl font-bold text-primary tabular" id="sum-total-xp">—</div>
             </div>
             <div class="bg-white retro-border retro-shadow rounded-xl p-5 text-center">
-              <div class="font-display text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-2">이번 주 XP</div>
+              <div class="font-display text-[10px] font-bold text-on-surface-variant mb-2">이번 주 XP</div>
               <div class="font-display text-2xl font-bold text-primary tabular" id="sum-week-xp">—</div>
             </div>
             <div class="bg-white retro-border retro-shadow rounded-xl p-5 text-center">
-              <div class="font-display text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-2">오늘 XP</div>
+              <div class="font-display text-[10px] font-bold text-on-surface-variant mb-2">오늘 XP</div>
               <div class="font-display text-2xl font-bold text-primary tabular" id="sum-today-xp">—</div>
             </div>
             <div class="bg-white retro-border retro-shadow rounded-xl p-5 text-center">
-              <div class="font-display text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-2">업적 보너스</div>
+              <div class="font-display text-[10px] font-bold text-on-surface-variant mb-2">업적 보너스</div>
               <div class="font-display text-2xl font-bold text-primary tabular" id="sum-ach-xp">—</div>
             </div>
           </div>
 
           <!-- XP History -->
           <div class="bg-white retro-border retro-shadow rounded-xl overflow-hidden">
-            <div class="bg-surface-container border-b-2 border-ink-black px-5 py-3 flex items-center justify-between">
+            <div class="bg-surface-container border-b border-[rgba(255,255,255,0.65)] px-5 py-3 flex items-center justify-between">
               <div class="flex items-center gap-2">
                 <span class="material-symbols-outlined text-primary text-base" style="font-variation-settings:'FILL' 1">history</span>
-                <span class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">최근 XP 획득 내역</span>
+                <span class="font-display text-xs font-bold text-on-surface-variant">최근 XP 획득 내역</span>
               </div>
               <span class="font-display text-xs font-bold text-on-surface-variant">최근 내역</span>
             </div>
@@ -240,9 +241,9 @@
 
           <!-- Level Rewards Preview -->
           <div class="bg-white retro-border retro-shadow rounded-xl overflow-hidden">
-            <div class="bg-surface-container border-b-2 border-ink-black px-5 py-3 flex items-center gap-2">
+            <div class="bg-surface-container border-b border-[rgba(255,255,255,0.65)] px-5 py-3 flex items-center gap-2">
               <span class="material-symbols-outlined text-primary text-base" style="font-variation-settings:'FILL' 1">card_giftcard</span>
-              <span class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">레벨 보상</span>
+              <span class="font-display text-xs font-bold text-on-surface-variant">레벨 보상</span>
             </div>
             <div class="p-4 grid grid-cols-2 sm:grid-cols-3 gap-3" id="rewards-grid">
               <!-- Populated by JS -->
@@ -251,9 +252,9 @@
 
           <!-- XP Guide -->
           <div class="bg-white retro-border retro-shadow rounded-xl overflow-hidden">
-            <div class="bg-surface-container border-b-2 border-ink-black px-5 py-3 flex items-center gap-2">
+            <div class="bg-surface-container border-b border-[rgba(255,255,255,0.65)] px-5 py-3 flex items-center gap-2">
               <span class="material-symbols-outlined text-primary text-base" style="font-variation-settings:'FILL' 1">help</span>
-              <span class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">XP 획득 방법</span>
+              <span class="font-display text-xs font-bold text-on-surface-variant">XP 획득 방법</span>
             </div>
             <div class="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div class="flex items-start gap-3">
@@ -329,11 +330,11 @@ function renderTiers(currentIndex) {
         <span class="material-symbols-outlined" style="color:${t.color};font-size:22px;font-variation-settings:'FILL' 1">${t.icon}</span>
       </div>
       <div class="flex-1">
-        <div class="font-display text-sm font-bold" style="color:${i === currentIndex ? '#251915' : '#58423a'}">${t.name}</div>
-        <div class="text-xs" style="color:#58423a">${t.range}</div>
+        <div class="font-display text-sm font-bold" style="color:${i === currentIndex ? 'var(--ink)' : 'var(--ink-secondary)'}">${t.name}</div>
+        <div class="text-xs" style="color:var(--ink-secondary)">${t.range}</div>
       </div>
       ${i === currentIndex
-        ? '<span class="font-display text-xs font-bold tracking-wider uppercase px-3 py-1 rounded-full retro-border text-white" style="background:#994626;">현재</span>'
+        ? '<span class="font-display text-xs font-bold px-3 py-1 rounded-full retro-border text-white" style="background:var(--blue-600);">현재</span>'
         : i < currentIndex
           ? '<span class="material-symbols-outlined text-lg" style="color:#16A34A;font-variation-settings:\'FILL\' 1">check_circle</span>'
           : '<span class="material-symbols-outlined text-lg text-on-surface-variant" style="font-variation-settings:\'FILL\' 1">lock</span>'
@@ -386,12 +387,12 @@ function renderRewards(currentLevel) {
     return `
     <div class="reward-card ${unlocked ? 'unlocked' : 'locked'}">
       <div class="w-12 h-12 rounded-full mx-auto mb-3 flex items-center justify-center"
-           style="background:${unlocked ? '#FFE9E3' : '#f5ded7'};border:2px solid ${unlocked ? '#0F172A' : '#dfc0b6'};">
+           style="background:${unlocked ? 'var(--blue-100)' : 'rgba(255,255,255,0.4)'};border:1px solid var(--glass-border);">
         <span class="material-symbols-outlined text-xl"
-              style="color:${unlocked ? '#994626' : 'var(--ink-muted)'};font-variation-settings:'FILL' 1">${r.icon}</span>
+              style="color:${unlocked ? 'var(--blue-600)' : 'var(--ink-muted)'};font-variation-settings:'FILL' 1">${r.icon}</span>
       </div>
-      <div class="font-display text-xs font-bold tracking-wider uppercase mb-1">${r.label}</div>
-      <div class="font-display text-[10px] font-bold tracking-widest text-on-surface-variant uppercase">
+      <div class="font-display text-xs font-bold mb-1">${r.label}</div>
+      <div class="font-display text-[10px] font-bold text-on-surface-variant">
         ${unlocked
           ? '<span style="color:#16A34A;">해제됨 ✓</span>'
           : `Lv. ${r.level} 필요`}

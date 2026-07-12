@@ -5,21 +5,22 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>ReGrip — 캘리브레이션 룸</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=DM+Sans:wght@400;500;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet"/>
 <link rel="stylesheet" href="shared.css"/>
 <script src="tailwind-config.js"></script>
 <style>
   /* ── Calibration step state machine (.step-active / .step-done / .step-locked) ── */
   .cal-step {
-    border: 2px solid var(--ink);
+    border: 1px solid var(--glass-border);
     border-radius: 0.75rem;
     padding: 1.25rem;
-    background: #fff;
+    background: rgba(255,255,255,0.5);
     transition: background-color var(--dur-base) var(--ease-out),
                 box-shadow var(--dur-base) var(--ease-out),
                 opacity var(--dur-base) var(--ease-out);
   }
-  .cal-step.step-active { background: #fff;             box-shadow: 4px 4px 0px var(--ink); }
+  .cal-step.step-active { background: rgba(255,255,255,0.65); box-shadow: var(--glass-shadow); }
   .cal-step.step-locked { background: var(--surface);   opacity: 0.5; pointer-events: none; }
   .cal-step.step-done   { background: #F0FFF8; }
 
@@ -27,10 +28,9 @@
   .cal-step-num {
     width: 2.75rem; height: 2.75rem;
     border-radius: 9999px;
-    border: 2px solid var(--ink);
+    border: 1px solid var(--glass-border);
     display: flex; align-items: center; justify-content: center;
-    font-family: 'Space Grotesk', sans-serif;
-    font-weight: 700; font-size: 0.95rem; letter-spacing: 0.05em;
+    font-weight: 700; font-size: 0.95rem; letter-spacing: 0.02em;
     background: var(--bg-app);
     flex-shrink: 0;
     transition: background-color var(--dur-base) var(--ease-out),
@@ -52,18 +52,17 @@
     display: inline-flex; align-items: center; justify-content: center; gap: 6px;
     padding: 0 1.25rem;
     background: var(--ink-muted); color: #fff;
-    font-family: 'Space Grotesk', sans-serif; font-weight: 700;
-    text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.875rem;
-    border: 2px solid var(--ink); border-radius: var(--border-radius);
-    box-shadow: 2px 2px 0px var(--ink);
+    font-weight: 700; font-size: 0.875rem;
+    border: 1px solid var(--glass-border); border-radius: var(--border-radius);
+    box-shadow: 0 4px 16px rgba(42,74,111,0.10);
     cursor: pointer;
     transition: transform var(--dur-fast) var(--ease-out),
                 box-shadow var(--dur-fast) var(--ease-out),
                 filter var(--dur-fast) var(--ease-out);
   }
-  .step-active .cal-capture-btn { background: var(--ink); }
-  .cal-capture-btn:hover:not(:disabled)  { filter: brightness(0.97); }
-  .cal-capture-btn:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: none; }
+  .step-active .cal-capture-btn { background: var(--primary); }
+  .cal-capture-btn:hover:not(:disabled)  { filter: brightness(1.04); }
+  .cal-capture-btn:active:not(:disabled) { transform: scale(0.97); box-shadow: none; }
   .cal-capture-btn:disabled { cursor: default; box-shadow: none; }
   .cal-capture-btn.captured { background: #10B981; }
 
@@ -71,16 +70,16 @@
   #btn-start {
     background: var(--surface-warm);
     color: var(--ink-muted);
-    box-shadow: 4px 4px 0px var(--ink-muted);
+    box-shadow: 0 4px 16px rgba(42,74,111,0.10);
     cursor: not-allowed;
     transition: background-color var(--dur-base) var(--ease-out),
                 color var(--dur-base) var(--ease-out),
                 box-shadow var(--dur-base) var(--ease-out);
   }
   #btn-start.unlocked {
-    background: var(--primary);
+    background: linear-gradient(135deg, var(--blue-500), var(--blue-600));
     color: #fff;
-    box-shadow: 4px 4px 0px var(--ink);
+    box-shadow: 0 10px 26px rgba(94,134,184,0.42), inset 0 1px 0 rgba(255,255,255,0.35);
     cursor: pointer;
   }
   #btn-start.unlocked.pop { animation: unlockPop 260ms var(--ease-out) 1; }
@@ -104,8 +103,7 @@
     left: calc(100% + 6px);
     top: -0.65em;
     white-space: nowrap;
-    font-family: 'Space Grotesk', sans-serif;
-    font-weight: 700; font-size: 0.65rem; letter-spacing: 0.04em;
+    font-weight: 700; font-size: 0.65rem; letter-spacing: 0.02em;
     color: var(--ink);
   }
   .meter-flash {
@@ -125,7 +123,7 @@
 
   /* ── Existing-calibration info box ── */
   .cal-info-box {
-    border: 2px solid var(--ink);
+    border: 1px solid var(--glass-border);
     background: var(--surface-warm);
     border-radius: 0.75rem;
     padding: 0.75rem 1rem;
@@ -137,7 +135,7 @@
   <!-- Header (wizard mode — no sidebar) -->
   <header class="w-full max-w-[900px] flex items-center mb-6">
     <button type="button" onclick="goBack('settings.html')"
-       class="flex items-center gap-2 text-on-surface hover:text-primary transition-colors font-display font-bold uppercase tracking-wider text-sm bg-transparent border-0 cursor-pointer p-0">
+       class="flex items-center gap-2 text-on-surface hover:text-primary transition-colors font-display font-bold text-sm bg-transparent border-0 cursor-pointer p-0">
       <span class="material-symbols-outlined">arrow_back</span>
       뒤로
     </button>
@@ -147,9 +145,9 @@
   <main class="w-full max-w-[900px] bg-white rounded-2xl retro-shadow retro-border-thick overflow-hidden flex flex-col md:flex-row">
 
     <!-- Left: Steps -->
-    <section class="flex-1 p-8 md:p-10 border-b-4 md:border-b-0 md:border-r-4 border-ink-black flex flex-col justify-between">
+    <section class="flex-1 p-8 md:p-10 border-b md:border-b-0 md:border-r border-surface-container flex flex-col justify-between">
       <div>
-        <h1 class="font-display text-4xl font-bold mb-1 uppercase tracking-tight">캘리브레이션 룸</h1>
+        <h1 class="font-display text-4xl font-bold mb-1 tracking-tight">캘리브레이션 룸</h1>
         <p class="text-cool-gray text-base mb-6">0–100% 관절 가동 범위 기준 설정</p>
 
         <!-- Existing calibration (populated on load if a record exists) -->
@@ -207,7 +205,7 @@
         <button id="btn-start"
                 disabled
                 onclick="window.location.href='training.html'"
-                class="w-full font-display font-bold text-xl uppercase tracking-wider py-4 rounded retro-border">
+                class="w-full font-display font-bold text-xl py-4 rounded retro-border">
           운동 시작
         </button>
       </div>
@@ -215,7 +213,7 @@
 
     <!-- Right: Live Meter -->
     <section id="meter-wrap" class="w-full md:w-[280px] bg-surface p-8 flex flex-col items-center justify-center select-none">
-      <h3 class="font-display text-xs font-bold uppercase tracking-widest text-cool-gray mb-6 text-center">실시간 센서<br/>데이터</h3>
+      <h3 class="font-display text-xs font-bold text-cool-gray mb-6 text-center">실시간 센서<br/>데이터</h3>
 
       <div id="tube-wrap" class="relative h-[360px] w-10 flex flex-col items-center">
         <!-- 100% label -->
@@ -226,7 +224,7 @@
         <div class="w-full h-full bg-background-sky rounded-full retro-border overflow-hidden relative shadow-inner">
           <div id="live-meter-fill"
                class="absolute bottom-0 left-0 right-0 transition-all duration-100 ease-out rounded-full"
-               style="height:0%;background:#994626;"></div>
+               style="height:0%;background:var(--primary);"></div>
           <div id="meter-flash" class="meter-flash"></div>
         </div>
 
@@ -241,12 +239,12 @@
 
       <div id="live-value" class="mt-8 font-display text-3xl font-bold text-on-surface tabular" aria-live="polite" aria-atomic="true">0%</div>
 
-      <p id="sim-hint" class="mt-2 text-[11px] font-display font-bold uppercase tracking-wider text-cool-gray text-center leading-snug">
+      <p id="sim-hint" class="mt-2 text-[11px] font-display font-bold text-cool-gray text-center leading-snug">
         SPACE 또는 미터를 홀드해<br/>쥐는 힘을 조절하세요
       </p>
 
       <!-- Baseline indicators (text mirror of tube markers) -->
-      <div id="baseline-info" class="mt-4 text-xs font-display font-bold uppercase tracking-wider text-cool-gray text-center space-y-1 hidden">
+      <div id="baseline-info" class="mt-4 text-xs font-display font-bold text-cool-gray text-center space-y-1 hidden">
         <div id="b0-info">0% 기준: —</div>
         <div id="b100-info">100% 기준: —</div>
       </div>

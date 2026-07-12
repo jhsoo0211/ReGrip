@@ -5,32 +5,33 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>ReGrip — 로그인</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=DM+Sans:wght@400;500;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet"/>
 <link rel="stylesheet" href="shared.css"/>
 <script src="tailwind-config.js"></script>
 <style>
   /* Advanced (developer) settings — collapsed by default so the primary flow is email/pw + local. */
-  .auth-advanced { border: 2px solid #0F172A; border-radius: 8px; background: #fff; }
+  .auth-advanced { border: 1px solid var(--glass-border, rgba(255,255,255,0.65)); border-radius: 16px; background: rgba(255,255,255,0.4); }
   .auth-advanced > summary {
     cursor: pointer; list-style: none;
     padding: 12px 14px;
-    font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 13px;
-    text-transform: uppercase; letter-spacing: 0.06em;
-    color: #58423a;
+    font-family: 'Pretendard Variable', 'Noto Sans KR', sans-serif; font-weight: 700; font-size: 13px;
+    letter-spacing: -0.01em;
+    color: #3F5A75;
     display: flex; align-items: center; gap: 8px;
   }
   .auth-advanced > summary::-webkit-details-marker { display: none; }
   .auth-advanced > summary::before {
     content: 'tune';
-    font-family: 'Material Symbols Outlined'; font-weight: normal; font-size: 18px; color: #994626;
+    font-family: 'Material Symbols Outlined'; font-weight: normal; font-size: 18px; color: var(--blue-600, #5E86B8);
   }
   .auth-advanced > summary::after {
     content: 'expand_more';
-    font-family: 'Material Symbols Outlined'; font-weight: normal; font-size: 20px; color: #58423a;
+    font-family: 'Material Symbols Outlined'; font-weight: normal; font-size: 20px; color: #3F5A75;
     margin-left: auto; transition: transform 0.15s;
   }
   .auth-advanced[open] > summary::after { transform: rotate(180deg); }
-  .auth-advanced[open] > summary { border-bottom: 2px solid #0F172A; }
+  .auth-advanced[open] > summary { border-bottom: 1px solid var(--glass-border, rgba(255,255,255,0.65)); }
   .auth-advanced-body { display: flex; flex-direction: column; gap: 18px; padding: 16px 14px; }
 </style>
 </head>

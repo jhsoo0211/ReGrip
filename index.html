@@ -5,15 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>ReGrip — 홈 대시보드</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=DM+Sans:wght@400;500;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet"/>
 <link rel="stylesheet" href="shared.css"/>
 <script src="tailwind-config.js"></script>
 <style>
   /* Card entrance (fade + rise 16px) — cleared on animationend so hover transforms work */
   @keyframes homeCardRise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
-  /* Unified bento hover: lift -2/-2px, hard shadow 4px→6px (blur 0) */
+  /* Unified bento hover: soft lift + diffused glass shadow */
   .bento-hover { transition: transform var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out); }
-  .bento-hover:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0px 0px var(--ink); }
+  .bento-hover:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(42,74,111,0.16); }
 </style>
 </head>
 <body class="bg-background-sky text-on-surface">
@@ -32,19 +33,19 @@
           <span class="material-symbols-outlined" style="font-size:180px">sports_esports</span>
         </div>
         <div class="relative z-10">
-          <h1 id="greeting-title" class="font-display text-4xl md:text-5xl font-bold text-ink-black mb-2 uppercase tracking-tight leading-tight">
+          <h1 id="greeting-title" class="font-display text-4xl md:text-5xl font-bold text-ink-black mb-2 tracking-tight leading-tight">
             안녕하세요,<br/>사용자님! <span class="inline-block animate-bounce origin-bottom">👋</span>
           </h1>
           <p id="greeting-sub" class="text-on-surface-variant text-lg max-w-xl">오늘도 목표를 향해 나아갈 준비가 되셨나요? 꾸준한 노력이 큰 변화를 만듭니다.</p>
         </div>
         <a href="level.html" class="no-underline bg-surface-container-highest p-5 rounded-xl retro-border retro-shadow-sm relative z-10 text-center min-w-[130px] hover:opacity-90 transition-opacity block">
-          <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-2">현재 레벨</div>
+          <div class="font-display text-xs font-bold text-on-surface-variant mb-2">현재 레벨</div>
           <div class="font-display text-xl font-bold text-primary flex items-center justify-center gap-2">
             <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1">military_tech</span>
             <span id="home-level">Lv. —</span>
           </div>
           <div class="text-sm text-on-surface-variant mt-1" id="home-tier">—</div>
-          <div class="text-xs text-primary mt-1 font-display font-bold uppercase tracking-wider">상세보기 →</div>
+          <div class="text-xs text-primary mt-1 font-display font-bold">상세보기 →</div>
         </a>
       </section>
 
@@ -53,22 +54,22 @@
 
         <!-- Main CTA -->
         <div class="md:col-span-8 bento-hover rounded-xl retro-border retro-shadow p-8 flex flex-col justify-between min-h-[280px] relative overflow-hidden group"
-             style="background-color:#FFB38E;">
-          <div class="absolute inset-0 opacity-10"
-               style="background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.3) 0,rgba(255,255,255,.3) 10px,transparent 10px,transparent 20px);background-size:28px 28px;"></div>
+             style="background:linear-gradient(135deg, rgba(214,230,242,0.85), rgba(185,215,234,0.75));">
+          <div class="absolute -right-16 -top-16 w-56 h-56 rounded-full pointer-events-none"
+               style="background:radial-gradient(circle, rgba(118,159,205,0.35), rgba(118,159,205,0) 70%); filter:blur(20px);"></div>
           <div class="relative z-10">
-            <div class="font-display text-xs font-bold tracking-widest text-ink-black uppercase opacity-60 mb-2">오늘의 훈련</div>
-            <h2 id="today-title" class="font-display text-3xl font-bold text-ink-black mb-2 uppercase leading-tight">추천 훈련을 불러오는 중…</h2>
+            <div class="font-display text-xs font-bold text-ink-black opacity-60 mb-2">오늘의 훈련</div>
+            <h2 id="today-title" class="font-display text-3xl font-bold text-ink-black mb-2 leading-tight">추천 훈련을 불러오는 중…</h2>
             <p id="today-sub" class="text-ink-black opacity-70 text-base">잠시만 기다려 주세요.</p>
           </div>
           <div class="relative z-10 flex gap-3 flex-wrap mt-6">
             <a href="calibration.html"
-               class="bg-ink-black text-white font-display font-bold text-sm uppercase tracking-wider px-6 py-3 rounded border-2 border-ink-black retro-shadow flex items-center gap-2 no-underline transition-all hover:opacity-90">
+               class="btn-retro font-display font-bold text-sm no-underline">
               <span class="material-symbols-outlined text-base">tune</span>
               캘리브레이션
             </a>
             <a id="today-start" href="training.html"
-               class="bg-primary text-white font-display font-bold text-sm uppercase tracking-wider px-6 py-3 rounded border-2 border-ink-black retro-shadow flex items-center gap-2 no-underline transition-all hover:opacity-90">
+               class="btn-retro btn-retro-primary font-display font-bold text-sm no-underline">
               <span class="material-symbols-outlined text-base">play_arrow</span>
               바로 시작
             </a>
@@ -82,7 +83,7 @@
               <span class="material-symbols-outlined text-primary" style="font-variation-settings:'FILL' 1">local_fire_department</span>
             </div>
             <div>
-              <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">연속 출석</div>
+              <div class="font-display text-xs font-bold text-on-surface-variant">연속 출석</div>
               <div class="font-display text-2xl font-bold text-primary tabular" id="home-streak">—</div>
             </div>
           </div>
@@ -91,7 +92,7 @@
               <span class="material-symbols-outlined text-primary" style="font-variation-settings:'FILL' 1">trending_up</span>
             </div>
             <div>
-              <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">이번 주 악력</div>
+              <div class="font-display text-xs font-bold text-on-surface-variant">이번 주 악력</div>
               <div class="font-display text-2xl font-bold text-primary tabular" id="home-force-delta" aria-live="polite">—</div>
               <div id="home-force-caption" class="text-[11px] text-on-surface-variant leading-tight mt-0.5" hidden>지난주 기록이 쌓이면 비교해드려요</div>
             </div>
@@ -101,7 +102,7 @@
               <span class="material-symbols-outlined text-primary" style="font-variation-settings:'FILL' 1">workspace_premium</span>
             </div>
             <div>
-              <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">획득 배지</div>
+              <div class="font-display text-xs font-bold text-on-surface-variant">획득 배지</div>
               <div class="font-display text-2xl font-bold text-primary tabular" id="home-badges" aria-live="polite">—</div>
             </div>
           </div>
@@ -110,7 +111,7 @@
         <!-- Progress Bar Card -->
         <div class="md:col-span-6 bg-surface rounded-xl retro-border retro-shadow p-6 bento-hover">
           <div class="flex items-center justify-between mb-4">
-            <h3 class="font-display text-base font-bold uppercase tracking-wide">이번 주 목표 달성률</h3>
+            <h3 class="font-display text-base font-bold">이번 주 목표 달성률</h3>
             <span class="font-display text-2xl font-bold text-primary tabular" id="home-weekly-count" aria-live="polite">—</span>
           </div>
           <div class="w-full h-5 bg-surface-container rounded-full retro-border overflow-hidden mb-2">
@@ -121,7 +122,7 @@
 
         <!-- Recent Session -->
         <div class="md:col-span-6 bg-surface rounded-xl retro-border retro-shadow p-6 bento-hover">
-          <h3 class="font-display text-base font-bold uppercase tracking-wide mb-4">최근 세션</h3>
+          <h3 class="font-display text-base font-bold mb-4">최근 세션</h3>
           <div class="space-y-3" id="home-recent"></div>
         </div>
 
@@ -129,19 +130,19 @@
         <div class="md:col-span-12 grid grid-cols-2 md:grid-cols-4 gap-4">
           <a href="calibration.html" class="bg-surface rounded-xl retro-border retro-shadow p-5 flex flex-col items-center text-center gap-3 no-underline hover:bg-surface-container transition-colors group">
             <span class="material-symbols-outlined text-3xl text-primary group-hover:scale-110 transition-transform" style="font-variation-settings:'FILL' 1">tune</span>
-            <span class="font-display text-sm font-bold uppercase tracking-wide">캘리브레이션</span>
+            <span class="font-display text-sm font-bold">캘리브레이션</span>
           </a>
           <a href="history.html" class="bg-surface rounded-xl retro-border retro-shadow p-5 flex flex-col items-center text-center gap-3 no-underline hover:bg-surface-container transition-colors group">
             <span class="material-symbols-outlined text-3xl text-primary group-hover:scale-110 transition-transform" style="font-variation-settings:'FILL' 1">timeline</span>
-            <span class="font-display text-sm font-bold uppercase tracking-wide">통계 및 추세</span>
+            <span class="font-display text-sm font-bold">통계 및 추세</span>
           </a>
           <a href="achievements.html" class="bg-surface rounded-xl retro-border retro-shadow p-5 flex flex-col items-center text-center gap-3 no-underline hover:bg-surface-container transition-colors group">
             <span class="material-symbols-outlined text-3xl text-primary group-hover:scale-110 transition-transform" style="font-variation-settings:'FILL' 1">emoji_events</span>
-            <span class="font-display text-sm font-bold uppercase tracking-wide">나의 업적</span>
+            <span class="font-display text-sm font-bold">나의 업적</span>
           </a>
           <a href="settings.html" class="bg-surface rounded-xl retro-border retro-shadow p-5 flex flex-col items-center text-center gap-3 no-underline hover:bg-surface-container transition-colors group">
             <span class="material-symbols-outlined text-3xl text-primary group-hover:scale-110 transition-transform" style="font-variation-settings:'FILL' 1">settings</span>
-            <span class="font-display text-sm font-bold uppercase tracking-wide">설정</span>
+            <span class="font-display text-sm font-bold">설정</span>
           </a>
         </div>
 
@@ -251,7 +252,7 @@ initPage('home');
     }).join('');
     recentEl.innerHTML = rows + `
       <div class="text-center mt-2">
-        <a href="history.html" class="text-primary text-sm font-display font-bold uppercase tracking-wide hover:underline">전체 기록 보기 →</a>
+        <a href="history.html" class="text-primary text-sm font-display font-bold hover:underline">전체 기록 보기 →</a>
       </div>`;
   }
 

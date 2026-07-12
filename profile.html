@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>ReGrip — 프로필 편집</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=DM+Sans:wght@400;500;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet"/>
 <link rel="stylesheet" href="shared.css"/>
 <script src="tailwind-config.js"></script>
 <style>
@@ -13,34 +14,32 @@
   .field-input {
     width: 100%;
     min-height: 48px;
-    border: 2px solid #0F172A;
-    border-radius: 8px;
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
     padding: 12px 14px;
-    font-family: 'DM Sans', sans-serif;
     font-size: 15px;
-    background: #FFF8F6;
-    color: #251915;
+    background: rgba(255,255,255,0.5);
+    color: var(--ink);
     outline: none;
-    transition: box-shadow 0.15s;
+    transition: box-shadow 0.15s, border-color 0.15s, background 0.15s;
   }
   .field-input:focus {
-    box-shadow: 3px 3px 0px #994626;
-    border-color: #994626;
+    box-shadow: 0 0 0 3px rgba(118,159,205,0.28);
+    border-color: var(--blue-500);
+    background: rgba(255,255,255,0.75);
   }
   select.field-input {
     appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24'%3E%3Cpath fill='%23251915' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24'%3E%3Cpath fill='%2312263A' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 12px center;
     padding-right: 36px;
   }
   .field-label {
-    font-family: 'Space Grotesk', sans-serif;
     font-size: 11px;
     font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: #58423a;
+    letter-spacing: 0.02em;
+    color: var(--ink-secondary);
     margin-bottom: 6px;
     display: block;
   }
@@ -48,8 +47,8 @@
   #avatar-preview {
     width: 120px; height: 120px;
     border-radius: 50%;
-    border: 4px solid #0F172A;
-    box-shadow: 4px 4px 0px #0F172A;
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 8px 24px rgba(42,74,111,0.16);
     object-fit: cover;
     cursor: pointer;
     transition: opacity 0.2s;
@@ -59,14 +58,12 @@
 
   /* Section divider */
   .section-title {
-    font-family: 'Space Grotesk', sans-serif;
     font-size: 12px;
     font-weight: 700;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    color: #994626;
+    letter-spacing: 0.02em;
+    color: var(--blue-700);
     padding-bottom: 8px;
-    border-bottom: 2px solid #FFE9E3;
+    border-bottom: 1px solid var(--glass-border);
     margin-bottom: 16px;
   }
 </style>
@@ -80,15 +77,15 @@
     <div class="max-w-[900px] mx-auto px-8 py-8 flex flex-col gap-6">
 
       <!-- Header -->
-      <section class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b-4 border-ink-black pb-6">
+      <section class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6">
         <div>
-          <h1 class="font-display text-4xl md:text-5xl font-bold uppercase tracking-tight mb-2 flex items-center gap-3">
+          <h1 class="font-display text-4xl md:text-5xl font-bold tracking-tight mb-2 flex items-center gap-3">
             <span class="material-symbols-outlined text-4xl text-primary" style="font-variation-settings:'FILL' 1">manage_accounts</span>
             프로필 편집
           </h1>
           <p class="text-on-surface-variant text-lg">개인 정보와 재활 정보를 관리하세요.</p>
         </div>
-        <button type="button" onclick="goBack('index.html')" class="font-display font-bold text-sm uppercase tracking-wider text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 bg-transparent border-0 cursor-pointer p-0">
+        <button type="button" onclick="goBack('index.html')" class="font-display font-bold text-sm text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 bg-transparent border-0 cursor-pointer p-0">
           <span class="material-symbols-outlined text-base">arrow_back</span>
           돌아가기
         </button>
@@ -103,7 +100,7 @@
           <div class="bg-white retro-border retro-shadow rounded-xl p-6 flex flex-col items-center gap-4">
             <div class="relative">
               <div class="rounded-full overflow-hidden" style="width:120px;height:120px;">
-                <img id="avatar-preview" src="" alt="프로필 사진" role="button" tabindex="0" aria-label="프로필 사진 변경" onclick="triggerAvatar()" onkeydown="onAvatarKey(event)" style="width:100%;height:100%;object-fit:cover;cursor:pointer;border:4px solid #0F172A;border-radius:50%;box-shadow:4px 4px 0px #0F172A;transition:opacity 0.2s;"/>
+                <img id="avatar-preview" src="" alt="프로필 사진" role="button" tabindex="0" aria-label="프로필 사진 변경" onclick="triggerAvatar()" onkeydown="onAvatarKey(event)" style="width:100%;height:100%;object-fit:cover;cursor:pointer;border:1px solid var(--glass-border);border-radius:50%;box-shadow:0 8px 24px rgba(42,74,111,0.16);transition:opacity 0.2s;"/>
               </div>
               <input type="file" id="avatar-input" accept="image/png,image/jpeg,image/webp" onchange="handleAvatarUpload(this)"/>
               <div class="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-primary retro-border flex items-center justify-center cursor-pointer" aria-hidden="true"
@@ -119,7 +116,7 @@
 
           <!-- Level Badge Card -->
           <a href="level.html" class="no-underline block bg-surface-container retro-border retro-shadow rounded-xl p-5 hover:opacity-90 transition-opacity">
-            <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-3">현재 레벨</div>
+            <div class="font-display text-xs font-bold text-on-surface-variant mb-3">현재 레벨</div>
             <div class="flex items-center gap-3 mb-3">
               <span class="material-symbols-outlined text-3xl text-primary" style="font-variation-settings:'FILL' 1">military_tech</span>
               <div>
@@ -130,17 +127,17 @@
             <div class="w-full h-3 bg-white retro-border rounded-full overflow-hidden">
               <div class="h-full bg-primary rounded-full" id="p-xp-bar" style="width:0;"></div>
             </div>
-            <div class="text-xs text-primary mt-2 font-display font-bold uppercase tracking-wider text-center">상세보기 →</div>
+            <div class="text-xs text-primary mt-2 font-display font-bold text-center">상세보기 →</div>
           </a>
 
           <!-- Stats Summary -->
           <div class="bg-white retro-border retro-shadow rounded-xl p-5 grid grid-cols-2 gap-3">
             <div class="text-center">
-              <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">총 세션</div>
+              <div class="font-display text-xs font-bold text-on-surface-variant mb-1">총 세션</div>
               <div id="stat-sessions" class="font-display text-2xl font-bold text-primary">0</div>
             </div>
             <div class="text-center">
-              <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">획득 배지</div>
+              <div class="font-display text-xs font-bold text-on-surface-variant mb-1">획득 배지</div>
               <div class="font-display text-2xl font-bold text-primary tabular" id="p-badges">—</div>
             </div>
           </div>
@@ -221,7 +218,7 @@
               <div>
                 <label class="field-label" for="f-goal-force">목표 악력</label>
                 <div class="flex items-center gap-3">
-                  <input id="f-goal-force" type="range" min="10" max="100" value="70" class="flex-1" style="accent-color:#994626;" oninput="document.getElementById('goal-force-val').textContent=this.value+'%'"/>
+                  <input id="f-goal-force" type="range" min="10" max="100" value="70" class="flex-1" style="accent-color:var(--primary);" oninput="document.getElementById('goal-force-val').textContent=this.value+'%'"/>
                   <span id="goal-force-val" class="font-display font-bold text-primary w-10 text-right">70%</span>
                 </div>
               </div>
@@ -239,7 +236,7 @@
 
           <!-- Save Button -->
           <button onclick="saveProfile()"
-                  class="w-full bg-primary text-white font-display font-bold text-lg uppercase tracking-wider py-4 rounded-xl retro-border retro-shadow hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+                  class="w-full bg-primary text-white font-display font-bold text-lg py-4 rounded-xl retro-border retro-shadow hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
             <span class="material-symbols-outlined">save</span>
             프로필 저장
           </button>

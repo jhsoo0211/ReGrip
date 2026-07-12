@@ -23,7 +23,7 @@ const NAV_ITEMS = [
 ];
 
 // Inline SVG default avatar (retro person glyph) — no external hotlink, works offline.
-const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' fill='%23FFE9E3'/%3E%3Ccircle cx='48' cy='36' r='16' fill='%23994626'/%3E%3Cpath d='M16 90c4-20 17-28 32-28s28 8 32 28z' fill='%23994626'/%3E%3C/svg%3E";
+const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' fill='%23D6E6F2'/%3E%3Ccircle cx='48' cy='36' r='16' fill='%235E86B8'/%3E%3Cpath d='M16 90c4-20 17-28 32-28s28 8 32 28z' fill='%235E86B8'/%3E%3C/svg%3E";
 
 function injectNav(activeKey) {
   const sidebar = document.getElementById('nav-sidebar');
@@ -149,7 +149,7 @@ function _renderFeedbackModal(status) {
         </div>
       </div>
       <div class="modal-hint">
-        <span class="material-symbols-outlined" style="color:#994626;margin-top:2px;flex-shrink:0">help</span>
+        <span class="material-symbols-outlined" style="color:#5E86B8;margin-top:2px;flex-shrink:0">help</span>
         <span><strong>도움말:</strong> ${c.hint}</span>
       </div>
   `;
@@ -1261,7 +1261,7 @@ const GamificationEngine = {
     { name: '중급자', min: 21, max: 40,  range: 'Lv. 21 ~ 40',  icon: 'bolt',                 color: '#9333EA', bg: '#F3E8FF' },
     { name: '숙련자', min: 41, max: 60,  range: 'Lv. 41 ~ 60',  icon: 'local_fire_department', color: '#CA8A04', bg: '#FEF9C3' },
     { name: '전문가', min: 61, max: 80,  range: 'Lv. 61 ~ 80',  icon: 'diamond',              color: '#DC2626', bg: '#FEE2E2' },
-    { name: '마스터', min: 81, max: 100, range: 'Lv. 81 ~ 100', icon: 'workspace_premium',    color: '#994626', bg: '#FFE9E3' },
+    { name: '마스터', min: 81, max: 100, range: 'Lv. 81 ~ 100', icon: 'workspace_premium',    color: '#2A4A6F', bg: '#D6E6F2' },
   ],
 
   // Measurable achievements. `measure(sessions)` returns the current progress count;
@@ -1444,7 +1444,7 @@ const GamificationEngine = {
       const gid = gameIdOf(s);
       const def = gid ? GAME_DEFS[gid] : null;
       const baseXp = Math.min(this.XP_RULES.sessionBase + (s.sets || 0) * this.XP_RULES.perScoreUnit, this.XP_RULES.sessionCap);
-      xpEvents.push({ date: s.date, label: `${def ? def.label : (s.label || '훈련')} 완료`, xp: baseXp, icon: iconForSession(s), color: '#994626' });
+      xpEvents.push({ date: s.date, label: `${def ? def.label : (s.label || '훈련')} 완료`, xp: baseXp, icon: iconForSession(s), color: '#5E86B8' });
       if (s.stars === 3)      xpEvents.push({ date: s.date, label: '별 3개 보너스', xp: this.XP_RULES.threeStarBonus, icon: 'star', color: '#CA8A04' });
       else if (s.stars === 2) xpEvents.push({ date: s.date, label: '별 2개 보너스', xp: this.XP_RULES.twoStarBonus, icon: 'star', color: '#CA8A04' });
     }
@@ -1453,7 +1453,7 @@ const GamificationEngine = {
     }
     for (const a of achievements) {
       if (a.earned && a.earnedDateRaw) {
-        xpEvents.push({ date: a.earnedDateRaw, label: a.title, xp: a.xp, icon: a.icon, color: (RARITY_STYLE[a.rarity] || {}).color || '#994626' });
+        xpEvents.push({ date: a.earnedDateRaw, label: a.title, xp: a.xp, icon: a.icon, color: (RARITY_STYLE[a.rarity] || {}).color || '#5E86B8' });
       }
     }
     xpEvents.sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -1595,12 +1595,12 @@ const GamificationEngine = {
 
     // ── XP events → frontend feed shape (newest first) ──
     const xpEvents = xpRes.data.map(e => {
-      let label = '훈련 완료', icon = 'sports_esports', color = '#994626';
+      let label = '훈련 완료', icon = 'sports_esports', color = '#5E86B8';
       if (e.reason === 'achievement') {
         const a = achById[e.refId];
         label = a ? a.title : '업적 달성';
         icon = a ? a.icon : 'workspace_premium';
-        color = (a && RARITY_STYLE[a.rarity] ? RARITY_STYLE[a.rarity].color : null) || '#994626';
+        color = (a && RARITY_STYLE[a.rarity] ? RARITY_STYLE[a.rarity].color : null) || '#5E86B8';
       } else if (e.reason === 'streak_bonus') {
         label = '7일 연속 훈련'; icon = 'local_fire_department'; color = '#DC2626';
       } else if (e.reason === 'goal_bonus') {
@@ -2155,7 +2155,7 @@ const GameShell = {
       const achEl = document.getElementById('reward-achievements');
       if (achEl) {
         achEl.innerHTML = chips.map(a => {
-          const rs = (typeof RARITY_STYLE !== 'undefined' && RARITY_STYLE[a.rarity]) || { color: '#994626', bg: '#FFE9E3' };
+          const rs = (typeof RARITY_STYLE !== 'undefined' && RARITY_STYLE[a.rarity]) || { color: '#5E86B8', bg: '#D6E6F2' };
           return `<span class="font-display text-xs font-bold px-3 py-1 rounded-full" style="background:${rs.bg};color:${rs.color};border:2px solid #0F172A;">`
             + `${escHtml(a.title)} +${Number(a.rewardXp) || 0} XP</span>`;
         }).join('');

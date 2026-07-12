@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>ReGrip — 나의 업적</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=DM+Sans:wght@400;500;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet"/>
 <link rel="stylesheet" href="shared.css"/>
 <script src="tailwind-config.js"></script>
 <style>
@@ -15,7 +16,7 @@
     position: fixed;
     inset: 0;
     z-index: 200;
-    background: rgba(15,23,42,0.6);
+    background: rgba(18,38,58,0.4);
     align-items: center;
     justify-content: center;
     padding: 24px;
@@ -26,10 +27,12 @@
   @keyframes achPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
 
   .ach-detail-card {
-    background: #FFF8F6;
-    border: 4px solid #0F172A;
-    box-shadow: 8px 8px 0px #0F172A;
-    border-radius: 16px;
+    background: var(--glass-bg);
+    backdrop-filter: blur(24px) saturate(1.5);
+    -webkit-backdrop-filter: blur(24px) saturate(1.5);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    border-radius: 24px;
     width: 100%;
     max-width: 520px;
     max-height: 85vh;
@@ -38,7 +41,7 @@
   }
 
   .ach-detail-banner {
-    border-bottom: 4px solid #0F172A;
+    border-bottom: 1px solid var(--glass-border);
     padding: 16px 24px;
     display: flex;
     align-items: center;
@@ -50,8 +53,8 @@
   .ach-icon-lg {
     width: 120px; height: 120px;
     border-radius: 50%;
-    border: 4px solid #0F172A;
-    box-shadow: 4px 4px 0px #0F172A;
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 8px 24px rgba(42,74,111,0.14);
     overflow: hidden;
     display: flex;
     align-items: center;
@@ -63,19 +66,19 @@
     width: 100%; height: 100%;
     object-fit: cover;
   }
-  .ach-icon-lg.earned { background: #FFE9E3; animation: achPulse 2s ease-in-out infinite; }
-  .ach-icon-lg.locked { background: #f5ded7; }
+  .ach-icon-lg.earned { background: var(--blue-100); animation: achPulse 2s ease-in-out infinite; }
+  .ach-icon-lg.locked { background: var(--blue-100); }
 
   .ach-progress-bar-bg {
     height: 12px;
-    background: #f5ded7;
-    border: 2px solid #0F172A;
+    background: var(--blue-100);
+    border: 1px solid var(--glass-border);
     border-radius: 999px;
     overflow: hidden;
   }
   .ach-progress-bar-fill {
     height: 100%;
-    background: #994626;
+    background: var(--blue-600);
     border-radius: 999px;
     transition: width 0.6s ease;
   }
@@ -86,56 +89,54 @@
     gap: 6px;
     padding: 6px 14px;
     border-radius: 999px;
-    border: 2px solid #0F172A;
-    font-family: 'Space Grotesk', sans-serif;
+    border: 1px solid var(--glass-border);
+    font-family: 'Pretendard Variable', 'Noto Sans KR', sans-serif;
     font-weight: 700;
     font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
   }
 
   /* Inline retro badge (no external image — icon font + CSS circle) */
   .ach-badge {
     width: 112px; height: 112px;
     border-radius: 50%;
-    border: 2px solid #0F172A;
-    box-shadow: 4px 4px 0px #0F172A;
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 4px 16px rgba(42,74,111,0.10);
     display: flex; align-items: center; justify-content: center;
     position: relative;
     flex-shrink: 0;
   }
-  .ach-badge .ach-badge-icon { font-size: 52px; color: #251915; }
+  .ach-badge .ach-badge-icon { font-size: 52px; color: var(--ink); }
   .ach-badge.locked {
-    background: #f5ded7;
-    border-color: #dfc0b6;
-    box-shadow: 4px 4px 0px #dfc0b6;
+    background: var(--blue-100);
+    border-color: var(--glass-border);
+    box-shadow: 0 4px 16px rgba(42,74,111,0.06);
     filter: grayscale(1);
   }
-  .ach-badge.locked .ach-badge-icon { color: #58423a; opacity: 0.4; }
-  .ach-badge-lock { position: absolute; font-size: 46px; color: #58423a; }
+  .ach-badge.locked .ach-badge-icon { color: var(--ink-secondary); opacity: 0.4; }
+  .ach-badge-lock { position: absolute; font-size: 46px; color: var(--ink-secondary); }
 
   /* Decorative corner marker (number-details) */
   .ach-corner-num {
     position: absolute;
     top: 12px; right: 14px;
-    font-family: 'Space Grotesk', sans-serif;
+    font-family: 'Pretendard Variable', 'Noto Sans KR', sans-serif;
     font-weight: 700; font-size: 13px;
-    letter-spacing: 0.14em;
-    color: #dfc0b6;
+    letter-spacing: 0.02em;
+    color: var(--blue-200);
     z-index: 2;
   }
 
   /* Locked progress bar */
   .ach-prog-bg {
     height: 12px;
-    background: #f5ded7;
-    border: 2px solid #dfc0b6;
+    background: var(--blue-100);
+    border: 1px solid var(--glass-border);
     border-radius: 999px;
     overflow: hidden;
   }
   .ach-prog-fill {
     height: 100%;
-    background: #58423a;
+    background: var(--blue-500);
     border-radius: 999px;
     transition: width 0.6s var(--ease-out);
   }
@@ -158,16 +159,16 @@
     <div class="max-w-[1100px] mx-auto px-8 py-8 flex flex-col gap-6">
 
       <!-- Header -->
-      <section class="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 border-b-4 border-ink-black pb-6">
+      <section class="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 border-b border-[rgba(255,255,255,0.65)] pb-6">
         <div>
-          <h1 class="font-display text-4xl md:text-5xl font-bold text-on-surface uppercase tracking-tight mb-2 flex items-center gap-3">
+          <h1 class="font-display text-4xl md:text-5xl font-bold text-on-surface tracking-tight mb-2 flex items-center gap-3">
             <span class="material-symbols-outlined text-4xl text-primary" style="font-variation-settings:'FILL' 1">emoji_events</span>
             나의 업적
           </h1>
           <p class="text-on-surface-variant text-lg">게임 목표를 달성하고 보상을 잠금 해제하세요.</p>
         </div>
         <div class="bg-surface-container-high retro-border retro-shadow px-6 py-4 rounded-xl flex flex-col items-center min-w-[130px]">
-          <span class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">총 획득 배지</span>
+          <span class="font-display text-xs font-bold text-on-surface-variant mb-1">총 획득 배지</span>
           <span id="ach-count" class="font-display text-2xl font-bold text-primary tabular">— / —</span>
         </div>
       </section>
@@ -184,7 +185,7 @@
                 <div class="font-display text-xl font-bold text-primary" id="ls-level">Lv. —</div>
                 <div class="text-on-surface-variant text-sm" id="ls-tier">—</div>
               </div>
-              <span class="font-display text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-1 flex-shrink-0">
+              <span class="font-display text-xs font-bold text-primary flex items-center gap-1 flex-shrink-0">
                 레벨 상세
                 <span class="material-symbols-outlined text-base">arrow_forward</span>
               </span>
@@ -219,7 +220,7 @@ let _lastFocused = null;
 
 function badgeHtml(a) {
   if (a.earned) {
-    const bg = (RARITY_STYLE[a.rarity] || {}).bg || '#FFE9E3';
+    const bg = (RARITY_STYLE[a.rarity] || {}).bg || 'var(--blue-100)';
     return `<div class="ach-badge earned" style="background:${bg}">
         <span class="material-symbols-outlined ach-badge-icon" style="font-variation-settings:'FILL' 1">${a.icon}</span>
       </div>`;
@@ -238,11 +239,11 @@ function achCardHtml(a, i) {
       <article class="ach-card bg-white retro-border retro-shadow rounded-xl p-6 flex flex-col items-center text-center relative overflow-hidden cursor-pointer"
                role="button" tabindex="0" data-idx="${i}" aria-label="${a.title} 업적 상세 보기 (획득함)">
         <span class="ach-corner-num" aria-hidden="true">${nn}</span>
-        <div class="absolute top-0 left-0 w-full h-2 border-b-2 border-ink-black" style="background:${rarity.color}"></div>
+        <div class="absolute top-0 left-0 w-full h-2" style="background:${rarity.color}"></div>
         <div class="mt-3 mb-5">${badgeHtml(a)}</div>
         <h3 class="font-display text-lg font-bold mb-2">${a.title}</h3>
         <p class="text-on-surface-variant text-sm mb-4 flex-1">${a.desc}</p>
-        <div class="w-full border-t-2 border-ink-black pt-4 flex justify-center items-center gap-2">
+        <div class="w-full border-t border-[rgba(255,255,255,0.65)] pt-4 flex justify-center items-center gap-2">
           <span class="material-symbols-outlined text-base" style="color:var(--success);font-variation-settings:'FILL' 1">check_circle</span>
           <span class="font-display text-sm font-bold">획득 ${a.earnedDate}</span>
         </div>
@@ -250,16 +251,15 @@ function achCardHtml(a, i) {
   }
   return `
       <article class="ach-card bg-surface-container-high retro-border rounded-xl p-6 flex flex-col items-center text-center relative overflow-hidden cursor-pointer"
-               style="border-color:#dfc0b6;"
                role="button" tabindex="0" data-idx="${i}" aria-label="${a.title} 업적 상세 보기 (미획득)">
         <span class="ach-corner-num" aria-hidden="true">${nn}</span>
-        <div class="absolute top-0 left-0 w-full h-2 rounded-t-xl" style="background:#dfc0b6;"></div>
+        <div class="absolute top-0 left-0 w-full h-2 rounded-t-xl" style="background:var(--blue-200);"></div>
         <div class="mt-3 mb-5">${badgeHtml(a)}</div>
         <h3 class="font-display text-lg font-bold mb-2 text-on-surface-variant">${a.title}</h3>
         <p class="text-on-surface-variant text-sm mb-4 flex-1">${a.desc}</p>
-        <div class="w-full pt-4" style="border-top:2px solid #dfc0b6;">
+        <div class="w-full pt-4" style="border-top:1px solid var(--glass-border);">
           <div class="flex justify-between items-center mb-2">
-            <span class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">진행률</span>
+            <span class="font-display text-xs font-bold text-on-surface-variant">진행률</span>
             <span class="font-display text-sm font-bold tabular">${a.progressLabel}</span>
           </div>
           <div class="ach-prog-bg">
@@ -306,7 +306,7 @@ function openAchievementDetail(index) {
   const rarity = RARITY_STYLE[a.rarity] || RARITY_STYLE['일반'];
 
   const iconContent = a.earned
-    ? `<span class="material-symbols-outlined ach-modal-icon" style="color:#251915;font-variation-settings:'FILL' 1">${a.icon}</span>`
+    ? `<span class="material-symbols-outlined ach-modal-icon" style="color:var(--ink);font-variation-settings:'FILL' 1">${a.icon}</span>`
     : `<span class="material-symbols-outlined ach-modal-icon text-on-surface-variant" style="font-variation-settings:'FILL' 1">lock</span>`;
 
   const remaining = Math.max(0, Math.round(100 - a.progressPct));
@@ -321,7 +321,7 @@ function openAchievementDetail(index) {
     : `
       <div class="bg-white retro-border rounded-xl p-4">
         <div class="flex justify-between items-center mb-2">
-          <span class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">진행률</span>
+          <span class="font-display text-xs font-bold text-on-surface-variant">진행률</span>
           <span class="font-display text-sm font-bold text-primary tabular">${a.progressLabel}</span>
         </div>
         <div class="ach-progress-bar-bg">
@@ -333,10 +333,10 @@ function openAchievementDetail(index) {
 
   card.innerHTML = `
     <!-- Banner -->
-    <div class="ach-detail-banner" style="background:${a.earned ? '#DCFCE7' : '#f5ded7'};">
+    <div class="ach-detail-banner" style="background:${a.earned ? '#DCFCE7' : 'var(--blue-100)'};">
       <div class="flex items-center gap-3">
-        <span class="material-symbols-outlined text-lg" style="font-variation-settings:'FILL' 1;color:${a.earned ? '#16A34A' : '#58423a'}">${a.earned ? 'emoji_events' : 'lock'}</span>
-        <span class="font-display font-bold text-sm uppercase tracking-widest">${a.earned ? '획득한 업적' : '미획득 업적'}</span>
+        <span class="material-symbols-outlined text-lg" style="font-variation-settings:'FILL' 1;color:${a.earned ? '#16A34A' : 'var(--ink-secondary)'}">${a.earned ? 'emoji_events' : 'lock'}</span>
+        <span class="font-display font-bold text-sm">${a.earned ? '획득한 업적' : '미획득 업적'}</span>
       </div>
       <button type="button" data-modal-close onclick="closeAchievementDetail()" aria-label="닫기"
               class="w-11 h-11 rounded-lg retro-border bg-white flex items-center justify-center hover:bg-surface-container transition-colors">
@@ -360,7 +360,7 @@ function openAchievementDetail(index) {
             <span class="material-symbols-outlined text-sm" style="font-variation-settings:'FILL' 1">diamond</span>
             ${a.rarity}
           </span>
-          <span class="reward-tag" style="background:#FFE9E3;border-color:#994626;color:#994626">
+          <span class="reward-tag" style="background:var(--blue-100);border-color:var(--blue-700);color:var(--blue-700)">
             <span class="material-symbols-outlined text-sm" style="font-variation-settings:'FILL' 1">category</span>
             ${a.category}
           </span>
@@ -372,13 +372,13 @@ function openAchievementDetail(index) {
 
       <!-- Description -->
       <div class="bg-white retro-border rounded-xl p-4">
-        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-2">상세 설명</div>
+        <div class="font-display text-xs font-bold text-on-surface-variant mb-2">상세 설명</div>
         <p class="text-on-surface text-sm leading-relaxed">${a.desc}</p>
       </div>
 
       <!-- Condition -->
       <div class="bg-white retro-border rounded-xl p-4">
-        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-2">획득 조건</div>
+        <div class="font-display text-xs font-bold text-on-surface-variant mb-2">획득 조건</div>
         <div class="flex items-center gap-3">
           <div class="w-8 h-8 rounded-full bg-surface-container retro-border flex items-center justify-center flex-shrink-0">
             <span class="material-symbols-outlined text-primary text-sm" style="font-variation-settings:'FILL' 1">task_alt</span>
@@ -389,7 +389,7 @@ function openAchievementDetail(index) {
 
       <!-- Reward -->
       <div class="bg-white retro-border rounded-xl p-4">
-        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-2">보상</div>
+        <div class="font-display text-xs font-bold text-on-surface-variant mb-2">보상</div>
         <div class="flex items-center gap-3">
           <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style="background:#FEF9C3;border:2px solid #CA8A04;">
             <span class="material-symbols-outlined text-sm" style="color:#CA8A04;font-variation-settings:'FILL' 1">stars</span>
@@ -401,7 +401,7 @@ function openAchievementDetail(index) {
 
       <!-- Close Button -->
       <button type="button" onclick="closeAchievementDetail()"
-              class="w-full bg-primary text-white font-display font-bold text-sm uppercase tracking-wider py-3 rounded-xl retro-border retro-shadow hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+              class="w-full bg-primary text-white font-display font-bold text-sm py-3 rounded-xl retro-border retro-shadow hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
         <span class="material-symbols-outlined text-base">arrow_back</span>
         업적 목록으로 돌아가기
       </button>

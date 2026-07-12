@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>ReGrip — 기록 및 통계</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=DM+Sans:wght@400;500;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet"/>
 <link rel="stylesheet" href="shared.css"/>
 <script src="tailwind-config.js"></script>
 <style>
@@ -15,28 +16,30 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: #fff;
-    color: #58423a;
-    border: 2px solid #0F172A;
+    background: rgba(255,255,255,0.5);
+    color: var(--ink-secondary);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(var(--glass-blur)) saturate(1.5);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.5);
     box-shadow: none;
     transition: background 0.15s, color 0.15s, box-shadow 0.1s, transform 0.1s;
   }
   .tab-btn.active {
-    background: #994626;
+    background: linear-gradient(135deg, var(--blue-500), var(--blue-600));
     color: #fff;
-    border-color: #0F172A;
-    box-shadow: 3px 3px 0px #0F172A;
+    border-color: transparent;
+    box-shadow: 0 10px 26px rgba(94,134,184,0.35);
   }
   .tab-content { display: none; }
   .tab-content.active { display: block; }
 
   /* CSS bar chart */
   .bar-col { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; }
-  .bar-track { width: 100%; background: #FFE9E3; border: 2px solid #0F172A; border-radius: 4px; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; }
-  .bar-fill  { background: #994626; border-radius: 2px; transition: height 0.6s ease; }
-  .bar-label { font-family: 'Space Grotesk', sans-serif; font-size: 12px; font-weight: 700; color: #58423a; text-align: center; }
-  .bar-val   { font-family: 'Space Grotesk', sans-serif; font-size: 12px; font-weight: 700; color: #251915; transition: transform 0.15s ease, color 0.15s ease; }
-  .bar-col:hover .bar-val  { transform: scale(1.18); color: #994626; }
+  .bar-track { width: 100%; background: var(--blue-100); border: 1px solid var(--glass-border); border-radius: 4px; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; }
+  .bar-fill  { background: linear-gradient(180deg, var(--blue-500), var(--blue-600)); border-radius: 2px; transition: height 0.6s ease; }
+  .bar-label { font-family: 'Pretendard Variable', 'Noto Sans KR', sans-serif; font-size: 12px; font-weight: 700; color: var(--ink-secondary); text-align: center; }
+  .bar-val   { font-family: 'Pretendard Variable', 'Noto Sans KR', sans-serif; font-size: 12px; font-weight: 700; color: var(--ink); transition: transform 0.15s ease, color 0.15s ease; }
+  .bar-col:hover .bar-val  { transform: scale(1.18); color: var(--blue-700); }
   .bar-col:hover .bar-fill { filter: brightness(1.08); }
 
   /* Stats empty-state helpers */
@@ -48,10 +51,10 @@
     align-items: center;
     justify-content: center;
     text-align: center;
-    border: 2px dashed #0F172A;
+    border: 2px dashed var(--blue-200);
     border-radius: 12px;
     color: var(--ink-secondary);
-    font-family: 'Space Grotesk', sans-serif;
+    font-family: 'Pretendard Variable', 'Noto Sans KR', sans-serif;
     font-weight: 700;
     font-size: 14px;
     line-height: 1.5;
@@ -65,11 +68,11 @@
 
   /* Decorative number marker (number-details) */
   .card-index {
-    font-family: 'Space Grotesk', sans-serif;
+    font-family: 'Pretendard Variable', 'Noto Sans KR', sans-serif;
     font-weight: 700;
     font-size: 13px;
-    letter-spacing: 0.14em;
-    color: #dfc0b6;
+    letter-spacing: 0.02em;
+    color: var(--blue-200);
     width: 22px;
     text-align: center;
     flex-shrink: 0;
@@ -81,7 +84,7 @@
     position: fixed;
     inset: 0;
     z-index: 200;
-    background: rgba(15,23,42,0.6);
+    background: rgba(18,38,58,0.4);
     align-items: center;
     justify-content: center;
     padding: 24px;
@@ -93,10 +96,12 @@
   @keyframes slideUp { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
   .detail-card {
-    background: #FFF8F6;
-    border: 4px solid #0F172A;
-    box-shadow: 8px 8px 0px #0F172A;
-    border-radius: 16px;
+    background: var(--glass-bg);
+    backdrop-filter: blur(24px) saturate(1.5);
+    -webkit-backdrop-filter: blur(24px) saturate(1.5);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    border-radius: 24px;
     width: 100%;
     max-width: 600px;
     max-height: 85vh;
@@ -105,8 +110,8 @@
   }
 
   .detail-banner {
-    background: #FFE9E3;
-    border-bottom: 4px solid #0F172A;
+    background: rgba(214,230,242,0.6);
+    border-bottom: 1px solid var(--glass-border);
     padding: 16px 24px;
     display: flex;
     align-items: center;
@@ -118,8 +123,8 @@
 
   .force-bar-bg {
     height: 14px;
-    background: #f5ded7;
-    border: 2px solid #0F172A;
+    background: var(--blue-100);
+    border: 1px solid var(--glass-border);
     border-radius: 999px;
     overflow: hidden;
   }
@@ -134,19 +139,19 @@
     align-items: center;
     gap: 12px;
     padding: 10px 0;
-    border-bottom: 1px solid #f5ded7;
+    border-bottom: 1px solid var(--glass-border);
   }
   .set-row:last-child { border-bottom: none; }
 
   .set-num {
     width: 32px; height: 32px;
     border-radius: 50%;
-    border: 2px solid #0F172A;
-    background: #FFE9E3;
+    border: 1px solid var(--glass-border);
+    background: var(--blue-100);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-family: 'Space Grotesk', sans-serif;
+    font-family: 'Pretendard Variable', 'Noto Sans KR', sans-serif;
     font-weight: 700;
     font-size: 13px;
     flex-shrink: 0;
@@ -162,9 +167,9 @@
     <div class="max-w-[1100px] mx-auto px-8 py-8 flex flex-col gap-6">
 
       <!-- Header -->
-      <section class="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 border-b-4 border-ink-black pb-6">
+      <section class="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 border-b border-[rgba(255,255,255,0.65)] pb-6">
         <div>
-          <h1 class="font-display text-4xl md:text-5xl font-bold uppercase tracking-tight mb-2 flex items-center gap-3">
+          <h1 class="font-display text-4xl md:text-5xl font-bold tracking-tight mb-2 flex items-center gap-3">
             <span class="material-symbols-outlined text-4xl text-primary" style="font-variation-settings:'FILL' 1">timeline</span>
             기록 및 통계
           </h1>
@@ -172,7 +177,7 @@
         </div>
         <!-- Total sessions badge -->
         <div id="total-badge" class="bg-surface-container-high retro-border retro-shadow px-6 py-4 rounded-xl flex flex-col items-center min-w-[130px]">
-          <span class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">총 세션</span>
+          <span class="font-display text-xs font-bold text-on-surface-variant mb-1">총 세션</span>
           <span id="total-sessions" class="font-display text-2xl font-bold text-primary">0</span>
         </div>
       </section>
@@ -180,11 +185,11 @@
       <!-- Tabs -->
       <div class="flex gap-3">
         <button type="button" onclick="switchTab('log')" id="tab-log"
-                class="tab-btn active font-display font-bold text-sm uppercase tracking-wider px-6 py-2.5 rounded">
+                class="tab-btn active font-display font-bold text-sm px-6 py-2.5 rounded">
           기록
         </button>
         <button type="button" onclick="switchTab('stats')" id="tab-stats"
-                class="tab-btn font-display font-bold text-sm uppercase tracking-wider px-6 py-2.5 rounded">
+                class="tab-btn font-display font-bold text-sm px-6 py-2.5 rounded">
           통계
         </button>
       </div>
@@ -200,22 +205,22 @@
         <!-- Personal Bests -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div class="bg-white retro-border retro-shadow rounded-xl p-5 text-center">
-            <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-2">최대 악력</div>
+            <div class="font-display text-xs font-bold text-on-surface-variant mb-2">최대 악력</div>
             <div id="stat-max-force" class="font-display text-2xl font-bold text-primary">—</div>
             <div class="text-xs text-on-surface-variant mt-1">%</div>
           </div>
           <div class="bg-white retro-border retro-shadow rounded-xl p-5 text-center">
-            <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-2">총 세션</div>
+            <div class="font-display text-xs font-bold text-on-surface-variant mb-2">총 세션</div>
             <div id="stat-total" class="font-display text-2xl font-bold text-primary">—</div>
             <div class="text-xs text-on-surface-variant mt-1">회</div>
           </div>
           <div class="bg-white retro-border retro-shadow rounded-xl p-5 text-center">
-            <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-2">평균 세트</div>
+            <div class="font-display text-xs font-bold text-on-surface-variant mb-2">평균 세트</div>
             <div id="stat-avg-sets" class="font-display text-2xl font-bold text-primary">—</div>
             <div class="text-xs text-on-surface-variant mt-1">세트</div>
           </div>
           <div class="bg-white retro-border retro-shadow rounded-xl p-5 text-center">
-            <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-2">연속 출석</div>
+            <div class="font-display text-xs font-bold text-on-surface-variant mb-2">연속 출석</div>
             <div id="stat-streak" class="font-display text-2xl font-bold text-primary">—</div>
             <div class="text-xs text-on-surface-variant mt-1">일</div>
           </div>
@@ -223,7 +228,7 @@
 
         <!-- Weekly Force Chart -->
         <div class="bg-white retro-border retro-shadow rounded-xl p-6">
-          <h3 class="font-display text-base font-bold uppercase tracking-wide mb-6">주간 평균 악력 (최근 7일)</h3>
+          <h3 class="font-display text-base font-bold mb-6">주간 평균 악력 (최근 7일)</h3>
           <div id="force-chart" class="flex items-end gap-2 h-[180px]"></div>
         </div>
 
@@ -313,7 +318,7 @@ function openSessionDetail(sessionIndex) {
   // 세션에 실제 setDetails가 없으면 deriveSetDetails가 결정론적으로 파생한 값 → "추정치" 배지 표시.
   const isDerived = !(session && Array.isArray(session.setDetails) && session.setDetails.length);
   const derivedBadge = isDerived
-    ? `<span class="font-display text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ml-2" style="background:#FEF9C3;border:2px solid #CA8A04;color:#CA8A04;">추정치</span>`
+    ? `<span class="font-display text-[10px] font-bold px-2 py-0.5 rounded ml-2" style="background:#FEF9C3;border:1px solid #CA8A04;color:#CA8A04;">추정치</span>`
     : '';
   const icon = iconForSession(session);
   const durationMin = session.durationMin ?? Math.round((session.durationSec || 0) / 60);
@@ -324,7 +329,7 @@ function openSessionDetail(sessionIndex) {
           <span class="material-symbols-outlined text-primary text-base" style="font-variation-settings:'FILL' 1">${icon}</span>
         </div>
         <div>
-          <div class="font-display text-[10px] font-bold tracking-widest text-on-surface-variant uppercase">크레인 시도</div>
+          <div class="font-display text-[10px] font-bold text-on-surface-variant">크레인 시도</div>
           <div class="font-bold text-sm">시도 ${session.attempts}회 중 ${session.sets}개 성공</div>
         </div>
       </div>` : '';
@@ -337,7 +342,7 @@ function openSessionDetail(sessionIndex) {
           <span class="material-symbols-outlined text-primary text-lg" style="font-variation-settings:'FILL' 1">${icon}</span>
         </div>
         <div>
-          <div class="font-display font-bold text-base uppercase tracking-wide">${session.label}</div>
+          <div class="font-display font-bold text-base">${session.label}</div>
           <div class="text-on-surface-variant text-xs">${formatKoreanDate(session.date)}</div>
         </div>
       </div>
@@ -358,17 +363,17 @@ function openSessionDetail(sessionIndex) {
       <!-- Summary Stats Grid -->
       <div class="grid grid-cols-3 gap-3">
         <div class="bg-white retro-border rounded-xl p-4 text-center">
-          <div class="font-display text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-1">소요 시간</div>
+          <div class="font-display text-[10px] font-bold text-on-surface-variant mb-1">소요 시간</div>
           <div class="font-display text-xl font-bold text-primary tabular">${durationMin}</div>
           <div class="text-xs text-on-surface-variant">분</div>
         </div>
         <div class="bg-white retro-border rounded-xl p-4 text-center">
-          <div class="font-display text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-1">총 세트</div>
+          <div class="font-display text-[10px] font-bold text-on-surface-variant mb-1">총 세트</div>
           <div class="font-display text-xl font-bold text-primary tabular">${session.sets}</div>
           <div class="text-xs text-on-surface-variant">세트</div>
         </div>
         <div class="bg-white retro-border rounded-xl p-4 text-center">
-          <div class="font-display text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-1">최대 악력</div>
+          <div class="font-display text-[10px] font-bold text-on-surface-variant mb-1">최대 악력</div>
           <div class="font-display text-xl font-bold text-primary tabular">${session.maxForce}</div>
           <div class="text-xs text-on-surface-variant">%</div>
         </div>
@@ -379,14 +384,14 @@ function openSessionDetail(sessionIndex) {
       <!-- Force Bars -->
       <div class="bg-white retro-border rounded-xl p-4">
         <div class="flex justify-between items-center mb-3">
-          <span class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">평균 악력</span>
+          <span class="font-display text-xs font-bold text-on-surface-variant">평균 악력</span>
           <span class="font-display text-lg font-bold text-primary tabular">${session.avgForce}%</span>
         </div>
         <div class="force-bar-bg">
           <div class="force-bar-fill bg-primary" style="width:${session.avgForce}%"></div>
         </div>
         <div class="flex justify-between items-center mb-3 mt-4">
-          <span class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">최대 악력</span>
+          <span class="font-display text-xs font-bold text-on-surface-variant">최대 악력</span>
           <span class="font-display text-lg font-bold tabular" style="color:#16A34A">${session.maxForce}%</span>
         </div>
         <div class="force-bar-bg">
@@ -396,9 +401,9 @@ function openSessionDetail(sessionIndex) {
 
       <!-- Per-Set Breakdown -->
       <div class="bg-white retro-border rounded-xl overflow-hidden">
-        <div class="bg-surface-container border-b-2 border-ink-black px-4 py-3 flex items-center gap-2">
+        <div class="bg-surface-container border-b border-[rgba(255,255,255,0.65)] px-4 py-3 flex items-center gap-2">
           <span class="material-symbols-outlined text-primary text-base" style="font-variation-settings:'FILL' 1">format_list_numbered</span>
-          <span class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">세트별 상세</span>
+          <span class="font-display text-xs font-bold text-on-surface-variant">세트별 상세</span>
           ${derivedBadge}
         </div>
         <div class="px-4 py-2">
@@ -408,7 +413,7 @@ function openSessionDetail(sessionIndex) {
 
       <!-- Close Button -->
       <button type="button" onclick="closeSessionDetail()"
-              class="w-full bg-primary text-white font-display font-bold text-sm uppercase tracking-wider py-3 rounded-xl retro-border retro-shadow hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+              class="w-full bg-primary text-white font-display font-bold text-sm py-3 rounded-xl retro-border retro-shadow hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
         <span class="material-symbols-outlined text-base">arrow_back</span>
         기록 목록으로 돌아가기
       </button>
@@ -478,7 +483,7 @@ function renderLog(sessions) {
       </div>
       <div class="flex items-center gap-4 flex-shrink-0">
         <div class="text-center">
-          <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">평균 악력</div>
+          <div class="font-display text-xs font-bold text-on-surface-variant">평균 악력</div>
           <div class="font-display text-lg font-bold text-primary tabular">${s.avgForce}%</div>
         </div>
         <div class="flex gap-0.5">${starsHtml(s.stars)}</div>
