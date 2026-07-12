@@ -172,6 +172,31 @@
         </div>
       </section>
 
+      <!-- Level summary (F6 IA: 업적의 상위 요약 → 레벨 상세로 이동) -->
+      <a href="level.html" id="level-summary" class="no-underline block bg-surface retro-border retro-shadow rounded-xl p-6 hover:opacity-95 transition-opacity">
+        <div class="flex items-center gap-4">
+          <div class="w-14 h-14 rounded-full bg-surface-container retro-border flex items-center justify-center flex-shrink-0">
+            <span class="material-symbols-outlined text-primary text-2xl" style="font-variation-settings:'FILL' 1">military_tech</span>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between gap-3 mb-2">
+              <div>
+                <div class="font-display text-xl font-bold text-primary" id="ls-level">Lv. —</div>
+                <div class="text-on-surface-variant text-sm" id="ls-tier">—</div>
+              </div>
+              <span class="font-display text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-1 flex-shrink-0">
+                레벨 상세
+                <span class="material-symbols-outlined text-base">arrow_forward</span>
+              </span>
+            </div>
+            <div class="w-full h-3 bg-surface-container rounded-full retro-border overflow-hidden">
+              <div class="h-full bg-primary rounded-full" id="ls-bar" style="width:0;"></div>
+            </div>
+            <div class="text-xs text-on-surface-variant mt-1 tabular" id="ls-remaining">—</div>
+          </div>
+        </div>
+      </a>
+
       <!-- Achievements Grid (rendered from GamificationEngine.getStats().achievements) -->
       <section id="ach-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></section>
     </div>
@@ -410,6 +435,23 @@ document.addEventListener('keydown', e => {
   const stats = await GamificationEngine.getStats();
   _achievements = stats.achievements;
   document.getElementById('ach-count').textContent = `${stats.earnedCount} / ${stats.totalAchievements}`;
+
+  // ── 레벨 요약 카드 (index 레벨 카드 문법 참조) ──
+  document.getElementById('ls-level').textContent = `Lv. ${stats.level}`;
+  document.getElementById('ls-tier').textContent  = stats.tier.name;
+  const atMax     = stats.xpForNext <= 0;
+  const remaining = atMax ? 0 : Math.max(0, stats.xpForNext - stats.xpIntoLevel);
+  document.getElementById('ls-remaining').textContent =
+    atMax ? '최고 레벨 달성' : `다음 레벨까지 ${remaining} XP`;
+  const lsBar = document.getElementById('ls-bar');
+  const lsPct = atMax ? 100 : Math.round(stats.progressPct);
+  if (prefersReducedMotion()) {
+    lsBar.style.width = lsPct + '%';
+  } else {
+    lsBar.style.transition = 'width 800ms var(--ease-out)';
+    requestAnimationFrame(() => { lsBar.style.width = lsPct + '%'; });
+  }
+
   renderAchievements(_achievements);
 })();
 </script>

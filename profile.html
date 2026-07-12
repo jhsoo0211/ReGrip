@@ -88,10 +88,10 @@
           </h1>
           <p class="text-on-surface-variant text-lg">개인 정보와 재활 정보를 관리하세요.</p>
         </div>
-        <a href="index.html" class="font-display font-bold text-sm uppercase tracking-wider text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 no-underline">
+        <button type="button" onclick="goBack('index.html')" class="font-display font-bold text-sm uppercase tracking-wider text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 bg-transparent border-0 cursor-pointer p-0">
           <span class="material-symbols-outlined text-base">arrow_back</span>
           돌아가기
-        </a>
+        </button>
       </section>
 
       <div class="flex flex-col lg:flex-row gap-6 items-start">
@@ -377,12 +377,12 @@ function handleAvatarUpload(input) {
   // 클라이언트 측 가드 — 서버의 415(SVG 등)/413(2MiB 초과)을 사전 차단.
   const ALLOWED = ['image/png', 'image/jpeg', 'image/webp'];
   if (!ALLOWED.includes(file.type)) {
-    showToast('PNG, JPEG, WebP 이미지만 업로드할 수 있습니다', 'error');
+    showToast('PNG, JPEG, WebP 이미지만 업로드할 수 있습니다', { type: 'error' });
     input.value = '';
     return;
   }
   if (file.size > 2 * 1024 * 1024) {   // 2MiB
-    showToast('이미지는 2MB 이하만 가능합니다', 'error');
+    showToast('이미지는 2MB 이하만 가능합니다', { type: 'error' });
     input.value = '';
     return;
   }
@@ -393,20 +393,6 @@ function handleAvatarUpload(input) {
     window._pendingAvatar = e.target.result;
   };
   reader.readAsDataURL(file);
-}
-
-// ── 토스트 (우하단). 성공: role="status"/2.5s, 실패: --error 계열/role="alert"/3.5s ──
-function showToast(msg, type = 'success') {
-  const isErr = type === 'error';
-  const t = document.createElement('div');
-  t.className = 'retro-toast';
-  t.setAttribute('role', isErr ? 'alert' : 'status');
-  const icon  = isErr ? 'error' : 'check_circle';
-  const color = isErr ? 'var(--error)' : 'var(--success-text)';
-  if (isErr) { t.style.borderColor = 'var(--error)'; t.style.color = 'var(--error)'; }
-  t.innerHTML = `<span class="material-symbols-outlined" style="color:${color}">${icon}</span>${msg}`;
-  document.body.appendChild(t);
-  setTimeout(() => t.remove(), isErr ? 3500 : 2500);
 }
 
 let savingProfile = false;
@@ -456,7 +442,7 @@ async function saveProfile() {
     }
 
     if (ok) showToast('프로필이 저장되었습니다');
-    else    showToast('서버에 저장하지 못했습니다. 로컬에 임시 저장됨', 'error');
+    else    showToast('서버에 저장하지 못했습니다. 로컬에 임시 저장됨', { type: 'error' });
   } finally {
     savingProfile = false;
   }

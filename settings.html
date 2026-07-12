@@ -176,8 +176,8 @@
           <div class="radio-pill">
             <input type="radio" name="difficulty" id="diff-easy" value="easy"/>
             <label for="diff-easy">초급</label>
-            <input type="radio" name="difficulty" id="diff-mid" value="medium" checked/>
-            <label for="diff-mid">중급</label>
+            <input type="radio" name="difficulty" id="diff-medium" value="medium" checked/>
+            <label for="diff-medium">중급</label>
             <input type="radio" name="difficulty" id="diff-hard" value="hard"/>
             <label for="diff-hard">고급</label>
           </div>
@@ -189,9 +189,9 @@
             <div class="settings-row-sub">기본값: 30초</div>
           </div>
           <div class="flex items-center gap-3">
-            <button onclick="adjustRest(-5)" class="w-9 h-9 retro-border retro-shadow rounded-lg font-display font-bold text-lg bg-white hover:bg-surface-container transition-colors flex items-center justify-center">−</button>
+            <button onclick="adjustRest(-5)" aria-label="휴식 시간 5초 줄이기" class="w-11 h-11 retro-border retro-shadow rounded-lg font-display font-bold text-lg bg-white hover:bg-surface-container transition-colors flex items-center justify-center">−</button>
             <span id="rest-val" class="font-display font-bold text-xl w-12 text-center">30초</span>
-            <button onclick="adjustRest(5)"  class="w-9 h-9 retro-border retro-shadow rounded-lg font-display font-bold text-lg bg-white hover:bg-surface-container transition-colors flex items-center justify-center">+</button>
+            <button onclick="adjustRest(5)"  aria-label="휴식 시간 5초 늘리기" class="w-11 h-11 retro-border retro-shadow rounded-lg font-display font-bold text-lg bg-white hover:bg-surface-container transition-colors flex items-center justify-center">+</button>
           </div>
         </div>
         <!-- Reduced Motion -->
@@ -204,6 +204,28 @@
             <input type="checkbox" id="reduced-motion-toggle" onchange="toggleReducedMotion(this)"/>
             <span class="toggle-track"></span>
           </label>
+        </div>
+      </div>
+
+      <!-- 2.5 화면 표시 -->
+      <div class="settings-card">
+        <div class="settings-card-header">
+          <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1">format_size</span>
+          화면 표시
+        </div>
+        <div class="settings-row flex-wrap gap-4">
+          <div>
+            <div class="settings-row-label">글자 크기</div>
+            <div class="settings-row-sub">화면의 모든 글자 크기를 조절합니다</div>
+          </div>
+          <div class="radio-pill" role="radiogroup" aria-label="글자 크기">
+            <input type="radio" name="fontSize" id="font-normal" value="normal" checked/>
+            <label for="font-normal">보통</label>
+            <input type="radio" name="fontSize" id="font-large" value="large"/>
+            <label for="font-large">크게</label>
+            <input type="radio" name="fontSize" id="font-xlarge" value="xlarge"/>
+            <label for="font-xlarge">아주 크게</label>
+          </div>
         </div>
       </div>
 
@@ -320,19 +342,6 @@ function toggleReducedMotion(el) {
   document.documentElement.toggleAttribute('data-reduced-motion', el.checked);
 }
 
-// Retro toast (uses shared .retro-toast).
-function showToast(msg, icon = 'check_circle') {
-  const t = document.createElement('div');
-  t.className = 'retro-toast';
-  t.innerHTML = `<span class="material-symbols-outlined" style="color:var(--primary);font-variation-settings:'FILL' 1">${icon}</span><span>${msg}</span>`;
-  document.body.appendChild(t);
-  setTimeout(() => {
-    t.style.transition = 'opacity 0.3s';
-    t.style.opacity = '0';
-    setTimeout(() => t.remove(), 300);
-  }, 2000);
-}
-
 function saveSettings() {
   let timezone = DataService.getSettingsSync().timezone;
   try { timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || timezone; } catch {}
@@ -347,6 +356,7 @@ function saveSettings() {
     sessionSummaryEnabled: document.getElementById('session-summary-toggle').checked,
     sensorName: document.getElementById('sensor-name').value,
     reducedMotion: document.getElementById('reduced-motion-toggle').checked,
+    fontSize: document.querySelector('input[name=fontSize]:checked')?.value || 'normal',
     timezone,
   };
   delete settings.summaryEnabled;   // drop legacy key name
@@ -356,29 +366,39 @@ function saveSettings() {
 }
 
 function clearData() {
+  // F12: 서버 연결 모드에서는 로컬 캐시(임시 사본)만 정리한다 — 서버 데이터는 건드리지 않는다.
+  // 로컬 저장 모드에서만 실제 '초기화'(되돌릴 수 없음)로 동작한다.
+  const rest = DataService.isRest();
   openConfirmModal({
-    title: '데이터 초기화',
-    body: '모든 훈련 기록과 센서 보정 데이터를 삭제합니다. 이 작업은 되돌릴 수 없습니다.',
-    confirmLabel: '초기화',
+    title: rest ? '로컬 캐시 정리' : '데이터 초기화',
+    body: rest
+      ? '이 브라우저에 저장된 로컬 캐시(임시 사본)를 정리합니다. 서버에 저장된 훈련 기록에는 영향을 주지 않으며, 새로고침 시 서버에서 다시 불러옵니다.'
+      : '모든 훈련 기록과 센서 보정 데이터를 삭제합니다. 이 작업은 되돌릴 수 없습니다.',
+    confirmLabel: rest ? '캐시 정리' : '초기화',
     cancelLabel: '취소',
-    danger: true,
+    danger: !rest,
     onConfirm: () => {
       localStorage.removeItem('regrip_sessions');
       localStorage.removeItem('regrip_calibration');
-      location.reload();
+      if (rest) {
+        // 서버 데이터는 그대로 — 새로고침 시 서버에서 다시 채워진다. 토스트를 위해 reload 생략.
+        showToast('로컬 캐시를 정리했습니다. 서버 기록은 그대로입니다.', { type: 'info' });
+      } else {
+        location.reload();
+      }
     },
   });
 }
 
 function fillDemoData() {
   if (DataService.isRest()) {
-    showToast('서버 연결 모드에서는 데모 데이터를 사용할 수 없습니다', 'info');
+    showToast('서버 연결 모드에서는 데모 데이터를 사용할 수 없습니다', { type: 'info' });
     return;
   }
   if (seedDemoData()) {
     location.reload();
   } else {
-    showToast('이미 훈련 데이터가 있습니다', 'info');
+    showToast('이미 훈련 데이터가 있습니다', { type: 'info' });
   }
 }
 
@@ -496,6 +516,15 @@ if (!DataService.isRest() && typeof saved.summaryEnabled === 'boolean' && typeof
 if (saved.sensorName) document.getElementById('sensor-name').value = saved.sensorName;
 // initPage already set data-reduced-motion from saved.reducedMotion; mirror the toggle state.
 if (typeof saved.reducedMotion === 'boolean') document.getElementById('reduced-motion-toggle').checked = saved.reducedMotion;
+// 글자 크기 복원 (initPage가 이미 applyFontSize로 실제 반영 — 여기선 라디오 상태만 동기화).
+if (saved.fontSize) {
+  const fontEl = document.getElementById(`font-${saved.fontSize}`);
+  if (fontEl) fontEl.checked = true;
+}
+// 글자 크기 즉시 반영(저장 전에도 미리보기). normal이면 attribute 제거 = applyFontSize 내부 처리.
+document.querySelectorAll('input[name=fontSize]').forEach(r => {
+  r.addEventListener('change', () => { if (r.checked) applyFontSize(r.value); });
+});
 
 // Timezone caption (auto-detected).
 try {

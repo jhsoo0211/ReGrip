@@ -58,8 +58,8 @@
                style="background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.3) 0,rgba(255,255,255,.3) 10px,transparent 10px,transparent 20px);background-size:28px 28px;"></div>
           <div class="relative z-10">
             <div class="font-display text-xs font-bold tracking-widest text-ink-black uppercase opacity-60 mb-2">오늘의 훈련</div>
-            <h2 class="font-display text-3xl font-bold text-ink-black mb-2 uppercase leading-tight">완전 악력 훈련</h2>
-            <p class="text-ink-black opacity-70 text-base">4세트 · 세트당 8회 · 권장 시간 25분</p>
+            <h2 id="today-title" class="font-display text-3xl font-bold text-ink-black mb-2 uppercase leading-tight">추천 훈련을 불러오는 중…</h2>
+            <p id="today-sub" class="text-ink-black opacity-70 text-base">잠시만 기다려 주세요.</p>
           </div>
           <div class="relative z-10 flex gap-3 flex-wrap mt-6">
             <a href="calibration.html"
@@ -67,7 +67,7 @@
               <span class="material-symbols-outlined text-base">tune</span>
               캘리브레이션
             </a>
-            <a href="training.html"
+            <a id="today-start" href="training.html"
                class="bg-primary text-white font-display font-bold text-sm uppercase tracking-wider px-6 py-3 rounded border-2 border-ink-black retro-shadow flex items-center gap-2 no-underline transition-all hover:opacity-90">
               <span class="material-symbols-outlined text-base">play_arrow</span>
               바로 시작
@@ -93,6 +93,7 @@
             <div>
               <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase">이번 주 악력</div>
               <div class="font-display text-2xl font-bold text-primary tabular" id="home-force-delta" aria-live="polite">—</div>
+              <div id="home-force-caption" class="text-[11px] text-on-surface-variant leading-tight mt-0.5" hidden>지난주 기록이 쌓이면 비교해드려요</div>
             </div>
           </div>
           <div class="bg-surface rounded-xl retro-border retro-shadow p-5 flex items-center gap-4 bento-hover">
@@ -177,12 +178,26 @@ initPage('home');
   document.getElementById('home-level').textContent = `Lv. ${stats.level}`;
   document.getElementById('home-tier').textContent  = stats.tier.name;
 
+  // ── 오늘의 훈련 (recommendTraining 단일 소스 → 게임 딥링크) ──
+  try {
+    const sessions = await DataService.getSessions();
+    const rec = recommendTraining(sessions);
+    document.getElementById('today-title').textContent = rec.def.label;
+    document.getElementById('today-sub').textContent =
+      `${rec.reason} · ${rec.def.durationLabel} · 난이도 ${rec.intensity}/5`;
+    document.getElementById('today-start').setAttribute('href', rec.def.page);
+  } catch (e) {
+    console.warn('[home] recommendTraining 실패:', e && e.message);
+  }
+
   // ── 오늘의 통계 ──
   animateCount(document.getElementById('home-streak'), stats.streak, { suffix: '일' });
 
   const d = stats.weeklyForceDeltaPct;               // null 가능
   document.getElementById('home-force-delta').textContent =
     d == null ? '—' : `${d > 0 ? '+' : ''}${Math.round(d)}%`;
+  // 비교 데이터가 없을 때만(값이 '—') 안내 캡션 노출.
+  document.getElementById('home-force-caption').hidden = (d != null);
 
   document.getElementById('home-badges').textContent = `${stats.earnedCount} / ${stats.totalAchievements}`;
 

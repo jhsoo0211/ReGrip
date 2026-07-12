@@ -47,6 +47,8 @@
   .card-enter { display: flex; animation: cardRise 350ms var(--ease-out) both; }
   .card-enter > .game-card { flex: 1; }
   .card-enter:nth-child(2) { animation-delay: 70ms; }
+  .card-enter:nth-child(3) { animation-delay: 200ms; }
+  .card-enter:nth-child(4) { animation-delay: 300ms; }
   @keyframes cardRise {
     from { opacity: 0; transform: translateY(16px); }
     to   { opacity: 1; transform: translateY(0); }
@@ -140,7 +142,7 @@
           <div class="p-6 flex flex-col flex-1">
             <div class="flex items-center justify-between mb-2">
               <h2 class="font-display text-2xl font-bold">풍선 게임</h2>
-              <span class="font-display text-xs font-bold tracking-widest uppercase px-3 py-1 rounded-full retro-border text-on-surface-variant bg-surface-container">2분</span>
+              <span class="font-display text-xs font-bold tracking-widest uppercase px-3 py-1 rounded-full retro-border text-on-surface-variant bg-surface-container" data-duration="balloon">2분</span>
             </div>
             <p class="text-on-surface-variant text-sm mb-4 flex-1">
               그립력으로 풍선을 원하는 높이로 조절하세요. 목표 구간에 3초간 유지하면 팝! 재활 목적: <strong>지속적 악력 유지 훈련</strong>
@@ -155,13 +157,7 @@
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2">
                 <span class="font-display text-xs font-bold text-on-surface-variant uppercase tracking-wider">난이도</span>
-                <div class="flex gap-1" role="img" aria-label="난이도 2/5">
-                  <span class="difficulty-dot dot-filled"></span>
-                  <span class="difficulty-dot dot-filled"></span>
-                  <span class="difficulty-dot dot-empty"></span>
-                  <span class="difficulty-dot dot-empty"></span>
-                  <span class="difficulty-dot dot-empty"></span>
-                </div>
+                <div class="flex gap-1" data-dots="balloon"></div>
               </div>
               <div class="font-display font-bold text-sm text-primary flex items-center gap-1">
                 시작하기
@@ -207,28 +203,133 @@
           <div class="p-6 flex flex-col flex-1">
             <div class="flex items-center justify-between mb-2">
               <h2 class="font-display text-2xl font-bold">크레인 게임</h2>
-              <span class="font-display text-xs font-bold tracking-widest uppercase px-3 py-1 rounded-full retro-border text-on-surface-variant bg-surface-container">60초</span>
+              <span class="font-display text-xs font-bold tracking-widest uppercase px-3 py-1 rounded-full retro-border text-on-surface-variant bg-surface-container" data-duration="crane">60초</span>
             </div>
             <p class="text-on-surface-variant text-sm mb-4 flex-1">
-              크레인이 좌우로 이동합니다. 목표 악력(80%) 이상으로 3초간 유지하면 캡슐을 획득! 재활 목적: <strong>최대 악력 도달 및 유지</strong>
+              꽉 쥐어 캡슐을 집고, 힘을 유지하며 운반한 뒤 배출구에서 천천히 놓아주세요. 재활 목적: <strong>파지 유지·이완 제어 훈련</strong>
             </p>
             <!-- Rehab tags -->
             <div class="flex flex-wrap gap-2 mb-4">
               <span class="font-display text-xs font-bold uppercase tracking-wider px-2 py-1 rounded" style="background:#FEE2E2;border:2px solid #DC2626;color:#DC2626;">최대 악력</span>
-              <span class="font-display text-xs font-bold uppercase tracking-wider px-2 py-1 rounded" style="background:#DCFCE7;border:2px solid #16A34A;color:#16A34A;">폭발력</span>
-              <span class="font-display text-xs font-bold uppercase tracking-wider px-2 py-1 rounded" style="background:#F3E8FF;border:2px solid #9333EA;color:#9333EA;">타이밍</span>
+              <span class="font-display text-xs font-bold uppercase tracking-wider px-2 py-1 rounded" style="background:#DCFCE7;border:2px solid #16A34A;color:#16A34A;">유지·운반</span>
+              <span class="font-display text-xs font-bold uppercase tracking-wider px-2 py-1 rounded" style="background:#F3E8FF;border:2px solid #9333EA;color:#9333EA;">이완 제어</span>
             </div>
             <!-- Difficulty -->
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2">
                 <span class="font-display text-xs font-bold text-on-surface-variant uppercase tracking-wider">난이도</span>
-                <div class="flex gap-1" role="img" aria-label="난이도 3/5">
-                  <span class="difficulty-dot dot-filled"></span>
-                  <span class="difficulty-dot dot-filled"></span>
-                  <span class="difficulty-dot dot-filled"></span>
-                  <span class="difficulty-dot dot-empty"></span>
-                  <span class="difficulty-dot dot-empty"></span>
-                </div>
+                <div class="flex gap-1" data-dots="crane"></div>
+              </div>
+              <div class="font-display font-bold text-sm text-primary flex items-center gap-1">
+                시작하기
+                <span class="material-symbols-outlined text-base">arrow_forward</span>
+              </div>
+            </div>
+          </div>
+        </a>
+        </div>
+
+        <!-- Rhythm Pump Game -->
+        <div class="card-enter">
+        <a href="game-rhythm.html" class="game-card">
+          <!-- Preview Banner -->
+          <div class="h-48 relative overflow-hidden flex items-center justify-center"
+               style="background:linear-gradient(135deg,#E0F2FE 0%,#FFE4D4 60%,#FFD4BC 100%);">
+            <span class="card-number" aria-hidden="true">03</span>
+            <!-- Clouds -->
+            <div class="absolute top-5 left-8 w-14 h-7 bg-white rounded-full opacity-70"></div>
+            <div class="absolute top-9 right-10 w-16 h-6 bg-white rounded-full opacity-60"></div>
+            <!-- Beat bars (pump rhythm) -->
+            <div class="absolute left-6 bottom-6 flex gap-1.5 items-end" style="opacity:0.75;">
+              <div class="w-2 rounded-t" style="height:14px;background:#994626;border:2px solid #0F172A;"></div>
+              <div class="w-2 rounded-t" style="height:26px;background:#994626;border:2px solid #0F172A;"></div>
+              <div class="w-2 rounded-t" style="height:18px;background:#994626;border:2px solid #0F172A;"></div>
+              <div class="w-2 rounded-t" style="height:30px;background:#994626;border:2px solid #0F172A;"></div>
+            </div>
+            <!-- Hot air balloon SVG (reuses preview-balloon hover float) -->
+            <svg class="preview-balloon relative z-10" width="92" height="120" viewBox="0 0 92 120" fill="none">
+              <path d="M46 8 C22 8 14 30 14 46 C14 64 32 78 40 86 L52 86 C60 78 78 64 78 46 C78 30 70 8 46 8Z" fill="#F59E0B" stroke="#0F172A" stroke-width="3"/>
+              <path d="M46 8 C38 8 34 30 34 50 C34 68 40 80 46 86 C52 80 58 68 58 50 C58 30 54 8 46 8Z" fill="#FBBF24" stroke="#0F172A" stroke-width="2"/>
+              <line x1="40" y1="86" x2="42" y2="98" stroke="#0F172A" stroke-width="2"/>
+              <line x1="52" y1="86" x2="50" y2="98" stroke="#0F172A" stroke-width="2"/>
+              <rect x="38" y="98" width="16" height="13" rx="2" fill="#994626" stroke="#0F172A" stroke-width="2.5"/>
+            </svg>
+          </div>
+          <!-- Card Body -->
+          <div class="p-6 flex flex-col flex-1">
+            <div class="flex items-center justify-between mb-2">
+              <h2 class="font-display text-2xl font-bold">리듬 펌프 게임</h2>
+              <span class="font-display text-xs font-bold tracking-widest uppercase px-3 py-1 rounded-full retro-border text-on-surface-variant bg-surface-container" data-duration="rhythm">3세트×8회</span>
+            </div>
+            <p class="text-on-surface-variant text-sm mb-4 flex-1">
+              박자에 맞춰 쥐었다 완전히 풀며 열기구를 띄우세요. 반복적인 쥐기·이완이 핵심입니다. 재활 목적: <strong>반복 쥐기·이완 리듬 훈련</strong>
+            </p>
+            <!-- Rehab tags -->
+            <div class="flex flex-wrap gap-2 mb-4">
+              <span class="font-display text-xs font-bold uppercase tracking-wider px-2 py-1 rounded" style="background:#DCFCE7;border:2px solid #16A34A;color:#16A34A;">반복 쥐기</span>
+              <span class="font-display text-xs font-bold uppercase tracking-wider px-2 py-1 rounded" style="background:#E0F2FE;border:2px solid #0284C7;color:#0284C7;">이완 제어</span>
+              <span class="font-display text-xs font-bold uppercase tracking-wider px-2 py-1 rounded" style="background:#F3E8FF;border:2px solid #9333EA;color:#9333EA;">리듬감</span>
+            </div>
+            <!-- Difficulty -->
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="font-display text-xs font-bold text-on-surface-variant uppercase tracking-wider">난이도</span>
+                <div class="flex gap-1" data-dots="rhythm"></div>
+              </div>
+              <div class="font-display font-bold text-sm text-primary flex items-center gap-1">
+                시작하기
+                <span class="material-symbols-outlined text-base">arrow_forward</span>
+              </div>
+            </div>
+          </div>
+        </a>
+        </div>
+
+        <!-- Submarine (Glide) Game -->
+        <div class="card-enter">
+        <a href="game-glide.html" class="game-card">
+          <!-- Preview Banner -->
+          <div class="h-48 relative overflow-hidden flex items-center justify-center"
+               style="background:linear-gradient(180deg,#1E3A5F 0%,#0F2942 100%);">
+            <span class="card-number" aria-hidden="true" style="color:rgba(255,255,255,0.4);">04</span>
+            <!-- Bubbles -->
+            <div class="absolute top-6 left-10 w-2 h-2 rounded-full bg-white" style="opacity:0.3;"></div>
+            <div class="absolute top-12 left-16 w-1.5 h-1.5 rounded-full bg-white" style="opacity:0.2;"></div>
+            <div class="absolute top-8 right-16 w-2.5 h-2.5 rounded-full bg-white" style="opacity:0.25;"></div>
+            <!-- Mint gate -->
+            <div class="absolute right-7 top-1/2 -translate-y-1/2 w-4 rounded-full" style="height:120px;background:#5EEAD4;border:3px solid #0F172A;opacity:0.9;"></div>
+            <div class="absolute right-7 w-4 rounded-full" style="top:26px;height:38px;background:#0F2942;"></div>
+            <!-- Submarine SVG -->
+            <svg class="relative z-10" width="132" height="84" viewBox="0 0 132 84" fill="none">
+              <path d="M104 46 l16 -11 v22 z" fill="#994626" stroke="#0F172A" stroke-width="3" stroke-linejoin="round"/>
+              <ellipse cx="60" cy="46" rx="44" ry="23" fill="#FBBF24" stroke="#0F172A" stroke-width="3"/>
+              <rect x="52" y="16" width="20" height="16" rx="4" fill="#FBBF24" stroke="#0F172A" stroke-width="3"/>
+              <line x1="62" y1="16" x2="62" y2="6" stroke="#0F172A" stroke-width="3"/>
+              <circle cx="62" cy="5" r="3.5" fill="#EF4444" stroke="#0F172A" stroke-width="2"/>
+              <circle cx="48" cy="46" r="7" fill="#E0F2FE" stroke="#0F172A" stroke-width="3"/>
+              <circle cx="72" cy="46" r="7" fill="#E0F2FE" stroke="#0F172A" stroke-width="3"/>
+            </svg>
+          </div>
+          <!-- Card Body -->
+          <div class="p-6 flex flex-col flex-1">
+            <div class="flex items-center justify-between mb-2">
+              <h2 class="font-display text-2xl font-bold">잠수함 게임</h2>
+              <span class="font-display text-xs font-bold tracking-widest uppercase px-3 py-1 rounded-full retro-border text-on-surface-variant bg-surface-container" data-duration="glide">90초</span>
+            </div>
+            <p class="text-on-surface-variant text-sm mb-4 flex-1">
+              악력으로 잠수함 심도를 정밀하게 조절해 게이트를 통과하세요. 목표 힘을 꾸준히 추적합니다. 재활 목적: <strong>정밀 악력 제어·힘 추적 훈련</strong>
+            </p>
+            <!-- Rehab tags -->
+            <div class="flex flex-wrap gap-2 mb-4">
+              <span class="font-display text-xs font-bold uppercase tracking-wider px-2 py-1 rounded" style="background:#FEF9C3;border:2px solid #CA8A04;color:#CA8A04;">정밀 제어</span>
+              <span class="font-display text-xs font-bold uppercase tracking-wider px-2 py-1 rounded" style="background:#DCFCE7;border:2px solid #16A34A;color:#16A34A;">힘 추적</span>
+              <span class="font-display text-xs font-bold uppercase tracking-wider px-2 py-1 rounded" style="background:#E0F2FE;border:2px solid #0284C7;color:#0284C7;">집중력</span>
+            </div>
+            <!-- Difficulty -->
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="font-display text-xs font-bold text-on-surface-variant uppercase tracking-wider">난이도</span>
+                <div class="flex gap-1" data-dots="glide"></div>
               </div>
               <div class="font-display font-bold text-sm text-primary flex items-center gap-1">
                 시작하기
@@ -259,6 +360,26 @@
 <script src="shared.js"></script>
 <script>
   initPage('training');
+
+  // Difficulty dots + duration badges — single source: GAME_DEFS / intensityFor / gameConfig.
+  // Dots react to the saved difficulty (easy → fewer, hard → more).
+  (function renderCardMeta() {
+    document.querySelectorAll('[data-duration]').forEach(el => {
+      const def = GAME_DEFS[el.getAttribute('data-duration')];
+      if (def) el.textContent = def.durationLabel;
+    });
+    document.querySelectorAll('[data-dots]').forEach(container => {
+      const gid = container.getAttribute('data-dots');
+      const n = intensityFor(gid, gameConfig(gid).difficulty);
+      container.setAttribute('role', 'img');
+      container.setAttribute('aria-label', `난이도 ${n}/5`);
+      let out = '';
+      for (let i = 1; i <= 5; i++) {
+        out += `<span class="difficulty-dot ${i <= n ? 'dot-filled' : 'dot-empty'}"></span>`;
+      }
+      container.innerHTML = out;
+    });
+  })();
 
   // Calibration banner — reflect whether a calibration record exists.
   (async () => {

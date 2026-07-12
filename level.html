@@ -133,10 +133,10 @@
           </h1>
           <p class="text-on-surface-variant text-lg">훈련을 통해 경험치를 모으고 등급을 올려보세요!</p>
         </div>
-        <a href="index.html" class="font-display font-bold text-sm uppercase tracking-wider text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 no-underline">
+        <button type="button" onclick="goBack('achievements.html')" class="font-display font-bold text-sm uppercase tracking-wider text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 bg-transparent border-0 cursor-pointer p-0">
           <span class="material-symbols-outlined text-base">arrow_back</span>
-          홈으로
-        </a>
+          업적으로
+        </button>
       </section>
 
       <div class="flex flex-col lg:flex-row gap-6">
@@ -306,7 +306,7 @@
 
 <script src="shared.js"></script>
 <script>
-initPage(null);
+initPage('achievements');   // F6 IA: 레벨은 업적의 하위 상세 → 하단 내비 'achievements' 활성
 
 // 이 페이지의 모든 게이미피케이션 수치는 GamificationEngine.getStats() 단일 소스에서만 렌더한다.
 // (로컬 상수 TIERS / CURRENT_LEVEL / CURRENT_TIER_INDEX / XP_HISTORY 삭제됨)
