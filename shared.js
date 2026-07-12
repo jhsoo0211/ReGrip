@@ -1071,7 +1071,7 @@ function gameConfig(gameId) {
   try { profile = DataService.getProfileSync() || {}; } catch {}
 
   const difficulty = _normalizeDifficulty(settings.difficulty);
-  const restSeconds = Number(settings.restSeconds) || 60;
+  const restSeconds = Number(settings.restSeconds) || 30;   // settings.html 표기 기본값(30초)과 일치
   const handUsed = (settings.hand === 'left' || settings.hand === 'right') ? settings.hand : null;
 
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
