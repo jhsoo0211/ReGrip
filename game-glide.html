@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ReGrip — 잠수함 게임</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=DM+Sans:wght@400;500;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="shared.css"/>
+<script src="tailwind-config.js"></script>
+<style>
+  /* ── Viewport (deep-sea) ─────────────────────────────────────────────── */
+  #game-viewport {
+    background: linear-gradient(180deg, #12405F 0%, #0F2A43 32%, #0B2036 68%, #071A2E 100%);
+    position: relative; overflow: hidden;
+  }
+  /* Surface light shimmer near the top */
+  #surface-glow {
+    position: absolute; top: 0; left: 0; right: 0; height: 22%;
+    background: linear-gradient(180deg, rgba(125,211,252,0.28) 0%, rgba(125,211,252,0.06) 60%, transparent 100%);
+    pointer-events: none; z-index: 1;
+  }
+
+  /* Parallax cave silhouettes (decorative — global reduced-motion rule freezes these) */
+  .cave-layer { position: absolute; left: 0; width: 200%; pointer-events: none; }
+  #ceiling { top: 0; height: 128px; z-index: 2; animation: caveDrift 34s linear infinite; }
+  #floor   { bottom: 0; height: 96px;  z-index: 2; animation: caveDrift 52s linear infinite; }
+  @keyframes caveDrift { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+  /* Field SVG (path + gates + arrival line) fills the viewport, non-uniform scale */
+  #field-svg { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none; }
+  #path-line { fill: none; stroke: rgba(94,234,212,0.75); stroke-width: 2.4; stroke-linecap: round; stroke-dasharray: 2 5.5; }
+  #arrival-line { stroke: rgba(255,255,255,0.30); stroke-width: 1.6; stroke-dasharray: 1.5 3; }
+  .gate-ink  { fill: none; stroke: #0F172A; stroke-width: 5.5; }
+  .gate-mint { fill: rgba(52,211,153,0.10); stroke: #34D399; stroke-width: 2.6; }
+  .gate.gate-pass .gate-mint { fill: rgba(52,211,153,0.42); stroke: #34D399; }
+  .gate.gate-miss .gate-mint { fill: none; stroke: #94A3B8; }
+  .gate.gate-miss .gate-ink  { stroke: #475569; }
+
+  /* Submarine (own layer, fixed px size) */
+  #sub-wrap {
+    position: absolute; left: 33%; bottom: 10%; z-index: 6;
+    transform: translate(-50%, 50%);
+    will-change: bottom, transform;
+  }
+
+  /* Bubbles */
+  .bubble {
+    position: absolute; z-index: 5; border-radius: 50%;
+    background: rgba(186,230,253,0.55); border: 1px solid rgba(255,255,255,0.6);
+    pointer-events: none;
+  }
+  @keyframes bubbleRise {
+    0%   { transform: translate(0,0) scale(1); opacity: 0.7; }
+    100% { transform: translate(var(--bx), var(--by)) scale(0.4); opacity: 0; }
+  }
+
+  /* Judge icon flash (check / cancel) */
+  .judge-icon {
+    position: absolute; z-index: 20; pointer-events: none;
+    transform: translate(-50%, -50%);
+  }
+  .judge-icon .material-symbols-outlined {
+    font-size: 46px; text-shadow: 2px 2px 0 #0F172A; font-variation-settings: 'FILL' 1;
+  }
+
+  /* Timer last-10s warning */
+  @keyframes timerPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+  #timer-display.timer-warning { color: var(--error) !important; transform-origin: left center; animation: timerPulse 0.6s ease-in-out infinite; }
+
+  /* Gauge */
+  #gauge-fill { transition: height 0.08s linear, background 0.18s ease; }
+  .gauge-tick { position: absolute; left: 2px; right: 2px; height: 2px; background: rgba(15,23,42,0.22); z-index: 3; pointer-events: none; }
+  #gauge-target-band { transition: bottom 0.08s linear, height 0.08s linear; }
+  #gauge-target-line { transition: bottom 0.08s linear; }
+
+  /* Result overlay (page owns markup; shell drives open/shown + fills stars/actions/reward) */
+  #result-overlay { display: none; }
+  #result-overlay.open { display: flex; }
+  #result-overlay .result-card {
+    transform: translateY(24px); opacity: 0;
+    transition: transform 0.4s var(--ease-out), opacity 0.4s var(--ease-out);
+  }
+  #result-overlay.shown .result-card { transform: translateY(0); opacity: 1; }
+  @keyframes starPop { 0% { transform: scale(0); opacity: 0; } 70% { transform: scale(1.25); } 100% { transform: scale(1); opacity: 1; } }
+  #result-stars .star-pop { display: inline-block; animation: starPop 0.34s var(--ease-out) both; }
+</style>
+</head>
+<body class="text-on-surface" style="background:#071A2E;">
+
+<!-- ══ GAME SCREEN ══════════════════════════════════════════════════════════ -->
+<div id="game-screen" class="min-h-screen flex flex-col">
+
+  <!-- Header (minimal) -->
+  <header class="flex items-center justify-between px-6 py-3" style="background:#FFF8F6;border-bottom:4px solid #0F172A;">
+    <div class="font-display text-xl font-bold text-primary italic">ReGrip</div>
+    <div class="flex items-center gap-4">
+      <div class="font-display text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full text-on-surface-variant animate-pulse" style="background:#FFE9E3;border:2px solid #dfc0b6;">
+        SPACE / 클릭 홀드
+      </div>
+      <!-- Sensor status (filled by shell bindSensorBadge) -->
+      <div id="sensor-badge" class="font-display text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full flex items-center gap-2" style="background:#FFF8F6;border:2px solid #0F172A;"></div>
+      <button id="exit-btn" class="font-display font-bold text-sm uppercase tracking-wider px-4 py-2 rounded" style="background:#FFF8F6;border:2px solid #0F172A;box-shadow:2px 2px 0 #0F172A;">
+        종료
+      </button>
+    </div>
+  </header>
+
+  <!-- Game Layout -->
+  <div class="flex-1 flex gap-0">
+
+    <!-- Left HUD -->
+    <aside class="w-56 p-5 flex flex-col gap-4 flex-shrink-0" style="background:#FFF8F6;border-right:4px solid #0F172A;">
+      <!-- Timer -->
+      <div class="rounded-xl p-4" style="background:#fff;border:4px solid #0F172A;box-shadow:4px 4px 0 #0F172A;border-top:6px solid #994626;">
+        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">남은 시간</div>
+        <div id="timer-display" class="font-display text-5xl font-bold text-primary tabular">1:30</div>
+      </div>
+      <!-- Score (gates cleared) -->
+      <div class="rounded-xl p-4" style="background:#fff;border:4px solid #0F172A;box-shadow:4px 4px 0 #0F172A;border-top:6px solid #34D399;">
+        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">통과 게이트</div>
+        <div class="flex items-baseline gap-1">
+          <div id="score-display" class="font-display text-5xl font-bold tabular" style="color:#0EA371;" aria-live="polite">0</div>
+          <div class="font-display text-lg font-bold text-on-surface-variant">/ 30</div>
+        </div>
+      </div>
+      <!-- Combo + Accuracy -->
+      <div class="grid grid-cols-2 gap-3">
+        <div class="rounded-xl p-3 text-center" style="background:#fff;border:2px solid #0F172A;">
+          <div class="font-display text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-1">연속</div>
+          <div id="combo-display" class="font-display text-2xl font-bold text-primary tabular">0</div>
+        </div>
+        <div class="rounded-xl p-3 text-center" style="background:#fff;border:2px solid #0F172A;">
+          <div class="font-display text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-1">정확도</div>
+          <div id="accuracy-display" class="font-display text-2xl font-bold tabular" style="color:#0EA371;">—</div>
+        </div>
+      </div>
+      <!-- Instructions -->
+      <div class="mt-auto rounded-lg p-4 text-sm" style="background:#EFF6FF;border:2px dashed #0F172A;">
+        <strong class="text-primary block mb-1 font-display text-xs uppercase tracking-wider">훈련 방법</strong>
+        악력으로 잠수함 심도를 조절해 점선 항로를 따라가세요. 게이트가 도착선에 닿을 때 민트 개구부 안에 있으면 통과!
+      </div>
+    </aside>
+
+    <!-- Center Viewport -->
+    <div id="game-viewport" class="flex-1 relative overflow-hidden select-none">
+      <div id="surface-glow" aria-hidden="true"></div>
+
+      <!-- Parallax cave silhouettes -->
+      <div id="ceiling" class="cave-layer" aria-hidden="true">
+        <svg width="100%" height="100%" viewBox="0 0 1200 128" preserveAspectRatio="none">
+          <path d="M0,0 H1200 V40 L1150,110 1110,44 1060,96 1010,40 950,120 900,50 840,100 780,38 720,112 660,54 600,104 540,42 480,118 420,52 360,98 300,40 240,114 180,50 120,102 60,44 0,108 Z"
+                fill="#0A1E30" opacity="0.9"/>
+        </svg>
+      </div>
+      <div id="floor" class="cave-layer" aria-hidden="true">
+        <svg width="100%" height="100%" viewBox="0 0 1200 96" preserveAspectRatio="none">
+          <path d="M0,96 H1200 V56 L1150,10 1100,60 1040,20 980,66 920,14 860,58 800,24 740,64 680,12 620,60 560,22 500,66 440,16 380,58 320,26 260,62 200,14 140,60 80,22 20,64 0,44 Z"
+                fill="#05131F" opacity="0.95"/>
+        </svg>
+      </div>
+
+      <!-- Field: target path (dotted) + gates + arrival line -->
+      <svg id="field-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        <line id="arrival-line" x1="33" y1="3" x2="33" y2="97" vector-effect="non-scaling-stroke"/>
+        <polyline id="path-line" points="" vector-effect="non-scaling-stroke"/>
+        <g id="gates"></g>
+      </svg>
+
+      <!-- Submarine -->
+      <div id="sub-wrap" aria-hidden="true">
+        <svg id="sub-svg" width="76" height="46" viewBox="0 0 76 46" fill="none">
+          <!-- propeller -->
+          <g id="sub-prop">
+            <line x1="6" y1="23" x2="6" y2="23" stroke="#0F172A" stroke-width="2"/>
+            <path d="M8 23 L2 16 L2 30 Z" fill="#E0A93B" stroke="#0F172A" stroke-width="2" stroke-linejoin="round"/>
+          </g>
+          <!-- body -->
+          <ellipse cx="42" cy="23" rx="30" ry="15" fill="#FBBF24" stroke="#0F172A" stroke-width="3"/>
+          <!-- conning tower -->
+          <path d="M38 9 h12 a3 3 0 0 1 3 3 v4 h-18 v-4 a3 3 0 0 1 3 -3 Z" fill="#F59E0B" stroke="#0F172A" stroke-width="2.5"/>
+          <line x1="44" y1="9" x2="44" y2="2" stroke="#0F172A" stroke-width="2.5" stroke-linecap="round"/>
+          <!-- portholes -->
+          <circle cx="40" cy="23" r="5" fill="#BAE6FD" stroke="#0F172A" stroke-width="2.5"/>
+          <circle cx="55" cy="23" r="3.5" fill="#7DD3FC" stroke="#0F172A" stroke-width="2"/>
+          <!-- nose fin -->
+          <path d="M72 23 q6 -3 6 -6 v12 q0 -3 -6 -6 Z" fill="#E0A93B" stroke="#0F172A" stroke-width="2" stroke-linejoin="round"/>
+        </svg>
+      </div>
+
+      <!-- sr-only gate result summary -->
+      <span id="gate-live" class="sr-only" aria-live="polite"></span>
+    </div>
+
+    <!-- Right Gauge -->
+    <aside class="w-28 p-4 flex flex-col items-center flex-shrink-0" style="background:#FFF8F6;border-left:4px solid #0F172A;">
+      <div class="font-display text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-3 text-center">악력 / 심도</div>
+      <div class="font-display text-sm text-on-surface-variant mb-1">100%</div>
+      <div id="gauge-track" role="meter" aria-label="악력 게이지" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"
+           class="flex-1 w-10 relative rounded-full overflow-hidden" style="background:#F0F9FF;border:2px solid #0F172A;">
+        <!-- Target tolerance band (moves with target depth) -->
+        <div id="gauge-target-band" class="absolute left-0 right-0 pointer-events-none" style="z-index:1;background:rgba(52,211,153,0.20);border-top:2px solid #34D399;border-bottom:2px solid #34D399;bottom:40%;height:16%;"></div>
+        <!-- Target depth marker line -->
+        <div id="gauge-target-line" class="absolute left-0 right-0 pointer-events-none" style="z-index:4;height:3px;background:#0EA371;bottom:45%;"></div>
+        <!-- Scale ticks -->
+        <div class="gauge-tick" style="bottom:25%;"></div>
+        <div class="gauge-tick" style="bottom:50%;"></div>
+        <div class="gauge-tick" style="bottom:75%;"></div>
+        <!-- Fill (current force) -->
+        <div id="gauge-fill" class="absolute bottom-0 left-0 right-0 rounded-full" style="z-index:2;height:0%;background:#994626;"></div>
+      </div>
+      <div class="mt-2 mb-1 font-display text-sm text-on-surface-variant">0%</div>
+      <div id="force-pct" class="font-display text-2xl font-bold text-primary mt-2 tabular">0%</div>
+      <span id="force-live" class="sr-only" aria-live="polite"></span>
+    </aside>
+
+  </div>
+
+</div>
+
+
+<!-- ══ RESULT OVERLAY ══════════════════════════════════════════════════════ -->
+<div id="result-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-6" style="background:rgba(15,23,42,0.75);">
+  <div class="result-card w-full max-w-md overflow-hidden" style="background:#FFF8F6;border:4px solid #0F172A;box-shadow:8px 8px 0 #0F172A;border-radius:16px;">
+    <!-- Banner -->
+    <div class="p-8 flex flex-col items-center gap-3 text-center" style="background:#7DD3FC;">
+      <div class="w-16 h-16 rounded-full flex items-center justify-center" style="background:#fff;border:3px solid #0F172A;">
+        <span class="material-symbols-outlined text-3xl text-primary" style="font-variation-settings:'FILL' 1">sailing</span>
+      </div>
+      <h2 class="font-display text-3xl font-bold uppercase tracking-tight text-ink-black">항해 완료</h2>
+      <!-- shell renders stars here -->
+      <div id="result-stars" class="flex gap-1"></div>
+    </div>
+    <!-- Stats -->
+    <div class="p-6 grid grid-cols-2 gap-3">
+      <div class="rounded-xl p-4 text-center" style="background:#FFE9E3;border:2px solid #0F172A;">
+        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">통과 게이트</div>
+        <div id="res-score" class="font-display text-3xl font-bold text-primary tabular">0</div>
+      </div>
+      <div class="rounded-xl p-4 text-center" style="background:#FFE9E3;border:2px solid #0F172A;">
+        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">정확 추적</div>
+        <div id="res-track" class="font-display text-3xl font-bold text-primary tabular">0s</div>
+      </div>
+      <div class="rounded-xl p-4 text-center" style="background:#FFE9E3;border:2px solid #0F172A;">
+        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">최대 악력</div>
+        <div id="res-max" class="font-display text-3xl font-bold text-primary tabular">0%</div>
+      </div>
+      <div class="rounded-xl p-4 text-center" style="background:#FFE9E3;border:2px solid #0F172A;">
+        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">평균 악력</div>
+        <div id="res-avg" class="font-display text-3xl font-bold text-primary tabular">0%</div>
+      </div>
+    </div>
+    <!-- Actions (empty — shell renders 다시 플레이 / 기록 보기) -->
+    <div id="result-actions" class="px-6 pb-6 flex gap-3"></div>
+
+    <!-- Reward confirmation (shell fills reward-xp / levelup / achievements) -->
+    <div id="reward-view" class="px-6 pb-6 pt-2 flex-col items-center gap-4 text-center" style="display:none;">
+      <div class="font-display text-xs font-bold tracking-widest uppercase" style="color:var(--success-text);">서버에 저장 완료</div>
+      <div class="flex items-baseline justify-center gap-1">
+        <span class="font-display text-4xl font-bold text-primary tabular">+</span>
+        <span id="reward-xp" class="font-display text-4xl font-bold text-primary tabular">0</span>
+        <span class="font-display text-xl font-bold text-primary">XP</span>
+      </div>
+      <div id="reward-levelup" class="font-display text-lg font-bold px-4 py-1 rounded-full" style="display:none;background:#FEF9C3;color:#CA8A04;border:2px solid #0F172A;">Lv. — 달성!</div>
+      <div id="reward-achievements" class="flex flex-wrap gap-2 justify-center"></div>
+      <a id="reward-go-btn" href="history.html" class="w-full font-display font-bold uppercase tracking-wider py-3 rounded text-white flex items-center justify-center gap-2" style="background:#994626;border:2px solid #0F172A;box-shadow:3px 3px 0 #0F172A;">
+        <span class="material-symbols-outlined text-base">timeline</span> 기록 보기
+      </a>
+    </div>
+  </div>
+</div>
+
+
+<script src="shared.js"></script>
+<script>
+// ═══ 잠수함 항로 — 시각-운동 힘 추적 (glide) ═══════════════════════════════════
+// 셸(GameShell)이 준비/카운트다운/일시정지/종료확인/저장/보상/결과버튼/별을 소유한다.
+// 이 페이지는 게임 로직 + HUD + 결과 통계(#res-*)만 담당한다.
+
+// ── Reduced motion (연출용 지역 플래그 — 셸이 data-reduced-motion 세팅) ────────
+let reducedMotion = prefersReducedMotion();
+if (window.matchMedia) {
+  const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const upd = () => { reducedMotion = prefersReducedMotion(); };
+  if (mq.addEventListener) mq.addEventListener('change', upd);
+  else if (mq.addListener) mq.addListener(upd);
+}
+
+// ── DOM refs ─────────────────────────────────────────────────────────────────
+const viewport      = document.getElementById('game-viewport');
+const fieldSvg      = document.getElementById('field-svg');
+const pathLine      = document.getElementById('path-line');
+const gatesGroup    = document.getElementById('gates');
+const subWrap       = document.getElementById('sub-wrap');
+const subSvg        = document.getElementById('sub-svg');
+const gaugeFill     = document.getElementById('gauge-fill');
+const gaugeTrack    = document.getElementById('gauge-track');
+const gaugeBand     = document.getElementById('gauge-target-band');
+const gaugeLine     = document.getElementById('gauge-target-line');
+const forcePctEl    = document.getElementById('force-pct');
+const forceLive     = document.getElementById('force-live');
+const gateLive      = document.getElementById('gate-live');
+const timerEl       = document.getElementById('timer-display');
+const scoreEl       = document.getElementById('score-display');
+const comboEl       = document.getElementById('combo-display');
+const accuracyEl    = document.getElementById('accuracy-display');
+const SVG_NS        = 'http://www.w3.org/2000/svg';
+
+// ── Shell handle (created below; referenced by loop) ─────────────────────────
+let shell = null;
+
+// ── Config (all judgement from shell.cfg) ────────────────────────────────────
+// Read via gameConfig for the pre-start path build; shell.cfg is the same object.
+const CFG        = gameConfig('glide');
+const DURATION   = CFG.durationSec;                 // 90
+const GATE_COUNT = CFG.gates;                       // 30
+const GATE_INT   = CFG.gateIntervalMs / 1000;       // 3s
+const TOL        = CFG.tolerance;                   // easy 12 / medium 8 / hard 5
+const PATH_LO    = CFG.pathLo;                      // 20
+const PATH_HI    = CFG.pathHi;                      // 70
+const MID        = (PATH_LO + PATH_HI) / 2;         // 45
+const HALF       = (PATH_HI - PATH_LO) / 2;         // 25
+
+// Layout: arrival line at viewport left-third; ~6s preview horizon.
+const ARRIVAL_X  = 33;                              // SVG x-units (also submarine left %)
+const TRAVEL_SEC = 6;
+const SEC_PER_X  = TRAVEL_SEC / (100 - ARRIVAL_X);  // seconds per SVG x-unit
+
+// ── Seeded sine-composite path (deterministic within a play, varies per play) ─
+// target(t) = MID + A1·sin(2π t/T1 + φ1) + A2·sin(2π t/T2 + φ2), clamped to [LO,HI].
+// A1+A2 = 25 = HALF → uses the full band; max slope ≈ 2π(A1/T1 + A2/T2) ≤ ~13.5 %p/s
+// (bounded by the period ranges) < cfg.maxSlopePctPerSec(20).
+const seededRand = mulberry32((Date.now() & 0xffffffff) >>> 0);
+const A1 = 18, A2 = 7;
+const T1 = 16 + seededRand() * 3;      // 16–19 s
+const T2 = 6.8 + seededRand() * 1.2;   // 6.8–8.0 s
+const PH1 = seededRand() * Math.PI * 2;
+const PH2 = seededRand() * Math.PI * 2;
+const W1 = (Math.PI * 2) / T1;
+const W2 = (Math.PI * 2) / T2;
+function targetAt(t) {
+  const v = MID + A1 * Math.sin(W1 * t + PH1) + A2 * Math.sin(W2 * t + PH2);
+  return Math.max(PATH_LO, Math.min(PATH_HI, v));
+}
+
+// ── Gates (precomputed: arrival time + fixed depth) ──────────────────────────
+// Gate i arrives at the submarine x when elapsed === A_i. Its y sits on the path.
+const gates = [];
+for (let i = 0; i < GATE_COUNT; i++) {
+  const A = (i + 1) * GATE_INT;                     // 3,6,…,90
+  const depth = targetAt(A);                        // 20–70 %
+  const gy = 100 - depth;                           // SVG y (0 top .. 100 bottom)
+  const g = document.createElementNS(SVG_NS, 'g');
+  g.setAttribute('class', 'gate');
+  g.style.display = 'none';
+  const ink = document.createElementNS(SVG_NS, 'rect');
+  ink.setAttribute('class', 'gate-ink');
+  const mint = document.createElementNS(SVG_NS, 'rect');
+  mint.setAttribute('class', 'gate-mint');
+  // Opening height = TOL×2 (difficulty is visible). Width fixed.
+  for (const r of [ink, mint]) {
+    r.setAttribute('x', -4.3);
+    r.setAttribute('y', -TOL);
+    r.setAttribute('width', 8.6);
+    r.setAttribute('height', TOL * 2);
+    r.setAttribute('rx', 2.2);
+    r.setAttribute('vector-effect', 'non-scaling-stroke');
+  }
+  g.appendChild(ink);
+  g.appendChild(mint);
+  gatesGroup.appendChild(g);
+  gates.push({ A, depth, gy, el: g, judged: false, passed: false });
+}
+
+// ── State ────────────────────────────────────────────────────────────────────
+let gripForce   = 0;       // 0–100 (판정용 원 force)
+let renderForce = 0;       // 렌더 스무딩용
+let pressActive = false;
+let currentTarget = MID;
+let elapsed     = 0;       // 초
+let score       = 0;       // 통과 게이트 (= sets)
+let judged      = 0;       // 판정된 게이트 (= attempts, also next-gate pointer)
+let combo       = 0;
+let running     = false;
+let ended       = false;
+let rafId       = null;
+let lastTick    = 0;
+
+// aggregation
+let forceSum = 0, forceCount = 0, maxForceRaw = 0;
+const WINS = 6;                                    // 15초 × 6 = 90초
+const winForceSum = new Array(WINS).fill(0);
+const winForceCount = new Array(WINS).fill(0);
+const winTrackSecs = new Array(WINS).fill(0);
+const winReps = new Array(WINS).fill(0);
+
+// a11y throttles
+let ariaAccum = 0, gateAccum = 0;
+let lastSecShown = -1;
+let bubbleAccum = 0;
+
+let finalResult = null;
+
+// ── Sensor force (real path). setSimulatedForce also fires this (idempotent). ──
+const onForce = f => { gripForce = f; };
+SensorService.onForceUpdate(onForce);
+
+// ── Juice helpers (no-op under reduced motion) ───────────────────────────────
+function spawnBubbles() {
+  if (reducedMotion) return;
+  const r = subWrap.getBoundingClientRect();
+  const vp = viewport.getBoundingClientRect();
+  const bx0 = r.left - vp.left + 4;                 // tail (left) side
+  const by0 = r.top - vp.top + r.height / 2;
+  const n = 1 + Math.floor(Math.random() * 2);
+  for (let i = 0; i < n; i++) {
+    const b = document.createElement('div');
+    b.className = 'bubble';
+    const size = 4 + Math.random() * 6;
+    b.style.width = size + 'px';
+    b.style.height = size + 'px';
+    b.style.left = (bx0 - Math.random() * 8) + 'px';
+    b.style.top  = (by0 + (Math.random() * 10 - 5)) + 'px';
+    b.style.setProperty('--bx', (-14 - Math.random() * 22) + 'px');
+    b.style.setProperty('--by', (-18 - Math.random() * 30) + 'px');
+    b.style.animation = `bubbleRise ${0.9 + Math.random() * 0.6}s ease-out forwards`;
+    viewport.appendChild(b);
+    setTimeout(() => b.remove(), 1600);
+  }
+}
+
+function floatJudge(pass) {
+  const r = subWrap.getBoundingClientRect();
+  const vp = viewport.getBoundingClientRect();
+  const cx = r.left - vp.left + r.width / 2;
+  const cy = r.top - vp.top + r.height / 2;
+  const el = document.createElement('div');
+  el.className = 'judge-icon';
+  el.style.left = cx + 'px';
+  el.style.top = cy + 'px';
+  el.style.color = pass ? '#34D399' : '#94A3B8';
+  el.innerHTML = `<span class="material-symbols-outlined">${pass ? 'check_circle' : 'cancel'}</span>`;
+  viewport.appendChild(el);
+  if (!reducedMotion && el.animate) {
+    const a = el.animate(
+      [{ transform: 'translate(-50%,-50%) scale(0.5)', opacity: 0 },
+       { transform: 'translate(-50%,-50%) scale(1.2)', opacity: 1, offset: 0.3 },
+       { transform: 'translate(-50%,-55%) translateY(-22px) scale(1)', opacity: 0 }],
+      { duration: 680, easing: 'cubic-bezier(0.22,1,0.36,1)' });
+    a.onfinish = () => el.remove();
+  } else {
+    setTimeout(() => el.remove(), 500);
+  }
+}
+
+// ── Gate judgement (at the crossing time) ────────────────────────────────────
+function judgeGate(g) {
+  g.judged = true;
+  judged++;
+  const w = Math.min(WINS - 1, Math.floor(g.A / 15));
+  const pass = Math.abs(gripForce - g.depth) <= TOL;   // depth = targetAt(A)
+  if (pass) {
+    g.passed = true;
+    score++;
+    combo++;
+    winReps[w]++;
+    g.el.classList.add('gate-pass');
+    if (!reducedMotion && g.el.animate) {
+      g.el.animate([{ opacity: 0.4 }, { opacity: 1 }, { opacity: 0.9 }], { duration: 260, easing: 'ease-out' });
+    }
+    scoreEl.textContent = score;
+    if (!reducedMotion && scoreEl.animate) {
+      scoreEl.animate([{ transform: 'scale(1.35)' }, { transform: 'scale(1)' }],
+        { duration: 300, easing: 'cubic-bezier(0.34,1.56,0.64,1)' });
+    }
+  } else {
+    combo = 0;
+    g.el.classList.add('gate-miss');
+  }
+  floatJudge(pass);
+  comboEl.textContent = combo;
+  const acc = judged ? Math.round((score / judged) * 100) : 0;
+  accuracyEl.textContent = acc + '%';
+}
+
+// ── Render: path preview, gates, submarine, gauge ────────────────────────────
+function renderField() {
+  // Dotted preview polyline sampled across the viewport.
+  let pts = '';
+  for (let x = 0; x <= 100; x += 2) {
+    const t = elapsed + (x - ARRIVAL_X) * SEC_PER_X;
+    const y = 100 - targetAt(t);
+    pts += x + ',' + y.toFixed(2) + ' ';
+  }
+  pathLine.setAttribute('points', pts.trim());
+
+  // Gates: x from arrival time; y fixed on the path.
+  for (const g of gates) {
+    const gx = ARRIVAL_X + (g.A - elapsed) / SEC_PER_X;
+    if (gx < -12 || gx > 112) {
+      if (g.el.style.display !== 'none') g.el.style.display = 'none';
+      continue;
+    }
+    if (g.el.style.display === 'none') g.el.style.display = '';
+    g.el.setAttribute('transform', `translate(${gx.toFixed(2)},${g.gy.toFixed(2)})`);
+  }
+}
+
+function renderSub(dt) {
+  // Smooth toward the raw force for visuals; judgement uses raw gripForce.
+  renderForce += (gripForce - renderForce) * Math.min(1, dt * 12);
+  const b = Math.max(2, Math.min(98, renderForce));
+  subWrap.style.bottom = b + '%';
+  if (!reducedMotion) {
+    const pitch = Math.max(-16, Math.min(16, (gripForce - renderForce) * 1.4));
+    subWrap.style.transform = `translate(-50%, 50%) rotate(${(-pitch).toFixed(1)}deg)`;
+  } else {
+    subWrap.style.transform = 'translate(-50%, 50%)';
+  }
+}
+
+function renderGauge() {
+  gaugeFill.style.height = gripForce + '%';
+  const near = Math.abs(gripForce - currentTarget) <= TOL;
+  gaugeFill.style.background = near ? '#0EA371' : '#994626';
+  forcePctEl.textContent = Math.round(gripForce) + '%';
+
+  // Target depth marker + tolerance band track the live target.
+  const bandLo = Math.max(0, currentTarget - TOL);
+  const bandHi = Math.min(100, currentTarget + TOL);
+  gaugeBand.style.bottom = bandLo + '%';
+  gaugeBand.style.height = (bandHi - bandLo) + '%';
+  gaugeLine.style.bottom = currentTarget + '%';
+}
+
+function fmtTime(sec) {
+  sec = Math.max(0, Math.ceil(sec));
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return m + ':' + String(s).padStart(2, '0');
+}
+
+// ── Main loop ────────────────────────────────────────────────────────────────
+function gameTick() {
+  if (!running) { rafId = null; return; }
+  const now = Date.now();
+  let dt = (now - lastTick) / 1000;
+  lastTick = now;
+  if (dt > 0.1) dt = 0.1;                          // clamp tab-throttle spikes
+  elapsed += dt;
+
+  // Simulation ramp (real sensor path skips this).
+  if (SensorService.getMode() === 'simulation') {
+    gripForce = pressActive ? Math.min(100, gripForce + 55 * dt)
+                            : Math.max(0, gripForce - 45 * dt);
+    SensorService.setSimulatedForce(gripForce);
+  }
+
+  // Aggregation
+  forceSum += gripForce; forceCount++;
+  if (gripForce > maxForceRaw) maxForceRaw = gripForce;
+  currentTarget = targetAt(elapsed);
+  const w = Math.min(WINS - 1, Math.floor(elapsed / 15));
+  winForceSum[w] += gripForce; winForceCount[w]++;
+  if (Math.abs(gripForce - currentTarget) <= TOL) winTrackSecs[w] += dt;
+
+  // Judge any gates that have reached the arrival line.
+  while (judged < gates.length && elapsed >= gates[judged].A) {
+    judgeGate(gates[judged]);
+  }
+
+  // Render
+  renderField();
+  renderSub(dt);
+  renderGauge();
+
+  // HUD timer (write only when the whole second changes)
+  const remSec = Math.ceil(Math.max(0, DURATION - elapsed));
+  if (remSec !== lastSecShown) {
+    lastSecShown = remSec;
+    timerEl.textContent = fmtTime(DURATION - elapsed);
+    if (remSec <= 10) timerEl.classList.add('timer-warning');
+  }
+
+  // Bubbles
+  bubbleAccum += dt;
+  if (bubbleAccum >= 0.28) { bubbleAccum = 0; if (pressActive || gripForce > 8) spawnBubbles(); }
+
+  // a11y — meter value + throttled force mirror (1s)
+  ariaAccum += dt;
+  if (ariaAccum >= 1) {
+    ariaAccum = 0;
+    const fv = Math.round(gripForce);
+    gaugeTrack.setAttribute('aria-valuenow', fv);
+    if (forceLive) forceLive.textContent = '악력 ' + fv + '퍼센트';
+  }
+  // a11y — throttled gate summary (1s)
+  gateAccum += dt;
+  if (gateAccum >= 1) {
+    gateAccum = 0;
+    if (gateLive) gateLive.textContent = `통과 ${score} / 미스 ${judged - score}`;
+  }
+
+  if (elapsed >= DURATION) { finish(); return; }
+  rafId = requestAnimationFrame(gameTick);
+}
+
+// ── Result build ─────────────────────────────────────────────────────────────
+function computeResult() {
+  const avgF = forceCount ? Math.round(forceSum / forceCount) : 0;
+  // 서버 제약: avgForce ≤ maxForce ≤ 100.
+  const maxF = Math.min(100, Math.max(Math.round(maxForceRaw), avgF));
+  const stars = starsForScore('glide', score);
+  const elapsedSec = Math.round(elapsed);
+  const durationMin = Math.max(1, Math.round(elapsedSec / 60));
+
+  const setDetails = [];
+  for (let i = 0; i < WINS; i++) {
+    const f = winForceCount[i] ? Math.round(winForceSum[i] / winForceCount[i]) : 0;
+    const hold = Math.round(winTrackSecs[i] * 10) / 10;   // 소수 1자리
+    setDetails.push({ setNum: i + 1, reps: winReps[i], force: f, holdSecs: hold });
+  }
+
+  return {
+    date:        new Date().toISOString(),
+    gameId:      'glide',
+    label:       GAME_DEFS.glide.label,
+    durationMin,
+    durationSec: elapsedSec,
+    sets:        score,          // 통과 게이트
+    attempts:    judged,         // 도착(판정)한 게이트 수 (완주 시 30)
+    avgForce:    avgF,
+    maxForce:    maxF,
+    stars,
+    setDetails,
+  };
+}
+
+function finish() {
+  if (ended) return;
+  ended = true;
+  running = false;
+  if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+
+  finalResult = computeResult();
+
+  // Fill result stats (#res-*) BEFORE shell.end() per contract.
+  const trackTotal = finalResult.setDetails.reduce((a, r) => a + r.holdSecs, 0);
+  animateCount(document.getElementById('res-score'), finalResult.sets,     { duration: 700 });
+  animateCount(document.getElementById('res-track'), trackTotal,           { suffix: 's', decimals: 1, duration: 700 });
+  animateCount(document.getElementById('res-max'),   finalResult.maxForce, { suffix: '%', duration: 700 });
+  animateCount(document.getElementById('res-avg'),   finalResult.avgForce, { suffix: '%', duration: 700 });
+
+  shell.end();                    // buildResult→저장→overlay→별/버튼/보상 (셸 소유)
+}
+
+// ── Shell wiring ─────────────────────────────────────────────────────────────
+function onVisibility() {
+  if (document.hidden) {
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+  } else if (running && shell && shell.playing && rafId === null) {
+    lastTick = Date.now();        // avoid a dt spike after resume
+    rafId = requestAnimationFrame(gameTick);
+  }
+}
+
+shell = GameShell.create({
+  gameId: 'glide',
+  viewportId: 'game-viewport',
+  howto: [
+    { icon: 'sensors', text: '악력을 세게 → 잠수함 상승, 약하게 → 하강합니다.' },
+    { icon: 'route',   text: '점선 항로를 따라 심도를 맞추세요 (저·중악력 20–70%).' },
+    { icon: 'adjust',  text: '게이트가 도착선에 닿는 순간 민트 개구부 안에 있으면 통과!' },
+  ],
+  onStart() {
+    running = true;
+    ended = false;
+    lastTick = Date.now();
+    document.addEventListener('visibilitychange', onVisibility);
+    rafId = requestAnimationFrame(gameTick);
+  },
+  onPauseChange(paused) {
+    if (paused) {
+      running = false;
+      if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+    } else {
+      running = true;
+      lastTick = Date.now();
+      if (rafId === null) rafId = requestAnimationFrame(gameTick);
+    }
+  },
+  buildResult() {
+    return finalResult || computeResult();
+  },
+  onCleanup() {
+    running = false;
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+    document.removeEventListener('visibilitychange', onVisibility);
+    SensorService.offForceUpdate(onForce);
+  },
+});
+
+// Grip input: Space@document + pointer/touch@viewport (shell가 playing 가드).
+shell.bindPress(() => { pressActive = true; }, () => { pressActive = false; });
+
+// Header 종료 → shell confirm-exit modal.
+document.getElementById('exit-btn').addEventListener('click', () => shell.confirmExit());
+
+// Initial gauge marker paint (before countdown ends).
+currentTarget = targetAt(0);
+renderGauge();
+renderField();
+
+// ── Test hook (self-verification only; harmless dev aid) ─────────────────────
+window.__glide = {
+  get force()    { return gripForce; },
+  get target()   { return currentTarget; },
+  get elapsed()  { return elapsed; },
+  get score()    { return score; },
+  get judged()   { return judged; },
+  get combo()    { return combo; },
+  get tol()      { return TOL; },
+  shorten()      { elapsed = DURATION - 0.4; },
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ReGrip — 리듬 펌프 게임</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=DM+Sans:wght@400;500;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="shared.css"/>
+<script src="tailwind-config.js"></script>
+<style>
+  #game-viewport { background: linear-gradient(180deg, #BAE6FD 0%, #E0F2FE 55%, #F0F9FF 100%); }
+  .tabular { font-variant-numeric: tabular-nums; }
+
+  /* Clouds (decorative) */
+  .cloud { animation: cloudDrift linear infinite; }
+  @keyframes cloudDrift {
+    0%   { transform: translateX(-140px); }
+    100% { transform: translateX(calc(100vw + 140px)); }
+  }
+
+  /* ── Beat track ─────────────────────────────────────────────────────────── */
+  #beat-track {
+    position: absolute; left: 0; right: 0; bottom: 30%;
+    height: 60px;
+    background: rgba(15,23,42,0.06);
+    border-top: 2px solid rgba(15,23,42,0.28);
+    border-bottom: 2px solid rgba(15,23,42,0.28);
+  }
+  /* Arrival line — vertical target where cues are judged (above the pump). */
+  #arrival-line {
+    position: absolute; top: -14px; bottom: -14px; left: 20%;
+    width: 4px; transform: translateX(-50%);
+    background: #0F172A; z-index: 4; border-radius: 2px;
+  }
+  #arrival-glow {
+    position: absolute; top: -14px; bottom: -14px; left: 20%; width: 46px;
+    transform: translateX(-50%);
+    background: rgba(16,185,129,0.16);
+    border-left: 2px dashed rgba(16,185,129,0.7);
+    border-right: 2px dashed rgba(16,185,129,0.7);
+    z-index: 3; pointer-events: none;
+  }
+  /* Cue markers flow right → left toward the arrival line. */
+  .cue {
+    position: absolute; top: 50%; width: 30px; height: 30px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: #FB923C; border: 3px solid #0F172A;
+    box-shadow: 2px 2px 0 #0F172A;
+    z-index: 5; pointer-events: none;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .cue .material-symbols-outlined { font-size: 18px; color: #0F172A; }
+  .cue.cue-active { background: #FBBF24; box-shadow: 0 0 0 4px rgba(251,191,36,0.45), 2px 2px 0 #0F172A; }
+  .cue.cue-valid  { background: #10B981; }
+  .cue.cue-miss   { background: #CBD5E1; }
+  .cue.cue-miss-release { background: #F59E0B; }
+
+  /* Release-state indicator at the arrival line. */
+  #release-ind {
+    position: absolute; left: 20%; top: -40px; transform: translateX(-50%);
+    z-index: 6; white-space: nowrap;
+    font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 12px;
+    letter-spacing: 0.04em; padding: 3px 10px; border-radius: 9999px;
+    border: 2px solid #0F172A; box-shadow: 2px 2px 0 #0F172A;
+  }
+  #release-ind.ready { background: #A7F3D0; color: #065F46; }
+  #release-ind.hold  { background: #FED7AA; color: #9A3412; }
+
+  /* Judgment feedback text (centered over arrival line). */
+  #judge-fb {
+    position: absolute; left: 20%; bottom: calc(30% + 74px);
+    transform: translateX(-50%);
+    font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 26px;
+    text-shadow: 2px 2px 0 #0F172A; z-index: 20; pointer-events: none; opacity: 0;
+    white-space: nowrap;
+  }
+  #judge-fb.judge-success { color: #10B981; }
+  #judge-fb.judge-miss    { color: #94A3B8; }
+  #judge-fb.judge-release { color: #F97316; font-size: 20px; }
+
+  /* ── Air pump ───────────────────────────────────────────────────────────── */
+  #pump-wrap { position: absolute; left: 20%; bottom: 6%; transform: translateX(-50%); z-index: 6; }
+  #pump-piston { transform-origin: bottom center; transition: transform 0.06s linear; }
+
+  /* ── Hot-air balloon ────────────────────────────────────────────────────── */
+  #balloon-wrap {
+    position: absolute; left: 20%; bottom: 120px; transform: translateX(-50%);
+    z-index: 5; transition: bottom 0.25s var(--ease-out);
+  }
+
+  /* Result overlay (not in shared.css — game owns markup + these transitions) */
+  #result-overlay { display: none; }
+  #result-overlay.open { display: flex; }
+  #result-overlay .result-card {
+    transform: translateY(24px); opacity: 0;
+    transition: transform 0.4s var(--ease-out), opacity 0.4s var(--ease-out);
+  }
+  #result-overlay.shown .result-card { transform: translateY(0); opacity: 1; }
+  @keyframes starPop { 0% { transform: scale(0); opacity: 0; } 70% { transform: scale(1.25); } 100% { transform: scale(1); opacity: 1; } }
+  #result-stars .star-pop { display: inline-block; animation: starPop 0.34s var(--ease-out) both; }
+
+  /* Rest screen (game-owned; separate from shell pause). */
+  #rest-overlay {
+    position: absolute; inset: 0; z-index: 30;
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    gap: 18px; text-align: center;
+    background: rgba(224,242,254,0.94);
+  }
+  #rest-overlay.show { display: flex; }
+  #rest-num {
+    font-family: 'Space Grotesk', sans-serif; font-weight: 700;
+    font-size: clamp(80px, 18vw, 150px); line-height: 1; color: #994626;
+    -webkit-text-stroke: 3px #0F172A; text-shadow: 6px 6px 0 #0F172A;
+  }
+
+  /* Gauge */
+  #gauge-fill { transition: height 0.08s linear, background 0.18s ease; }
+  .gauge-line { position: absolute; left: 0; right: 0; z-index: 3; pointer-events: none; }
+  #gauge-sq  { border-top: 2px solid #F97316; }
+  #gauge-rel { border-top: 2px dashed #10B981; }
+  #gauge-peak { transition: bottom 0.25s linear; }
+
+  /* Timer-style warning reused for combo pop only — none needed globally. */
+</style>
+</head>
+<body class="bg-ink-black text-on-surface" style="background:#0b2a3a;">
+
+<!-- ══ GAME SCREEN ══════════════════════════════════════════════════════════ -->
+<div id="game-screen" class="min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="flex items-center justify-between px-6 py-3" style="background:#FFF8F6;border-bottom:4px solid #0F172A;">
+    <div class="font-display text-xl font-bold text-primary italic">ReGrip</div>
+    <div class="flex items-center gap-4">
+      <div class="font-display text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full text-on-surface-variant animate-pulse" style="background:#FFE9E3;border:2px solid #dfc0b6;">
+        SPACE / 클릭 = 쥐기
+      </div>
+      <div id="sensor-badge" class="font-display text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full flex items-center gap-2" style="background:#FFF8F6;border:2px solid #0F172A;"></div>
+      <button id="exit-btn" class="font-display font-bold text-sm uppercase tracking-wider px-4 py-2 rounded" style="background:#FFF8F6;border:2px solid #0F172A;box-shadow:2px 2px 0 #0F172A;">
+        종료
+      </button>
+    </div>
+  </header>
+
+  <!-- Game Layout -->
+  <div class="flex-1 flex gap-0">
+
+    <!-- Left HUD -->
+    <aside class="w-56 p-5 flex flex-col gap-4 flex-shrink-0" style="background:#FFF8F6;border-right:4px solid #0F172A;">
+      <!-- Progress -->
+      <div class="rounded-xl p-4" style="background:#fff;border:4px solid #0F172A;box-shadow:4px 4px 0 #0F172A;border-top:6px solid #994626;">
+        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">남은 큐</div>
+        <div id="set-display" class="font-display text-2xl font-bold text-primary tabular">세트 1/3</div>
+        <div id="cue-display" class="font-display text-sm font-bold text-on-surface-variant tabular">1 / 8</div>
+      </div>
+      <!-- Score (valid pumps) -->
+      <div class="rounded-xl p-4" style="background:#fff;border:4px solid #0F172A;box-shadow:4px 4px 0 #0F172A;border-top:6px solid #10B981;">
+        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">유효 펌핑</div>
+        <div id="score-display" class="font-display text-5xl font-bold tabular" style="color:#10B981;" aria-live="polite">0</div>
+      </div>
+      <!-- Combo -->
+      <div class="rounded-xl p-4" style="background:#fff;border:2px solid #0F172A;">
+        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">콤보</div>
+        <div class="flex items-baseline gap-1">
+          <span id="combo-display" class="font-display text-3xl font-bold text-primary tabular">0</span>
+          <span class="font-display text-sm text-on-surface-variant">연속</span>
+        </div>
+      </div>
+      <!-- Instructions -->
+      <div class="mt-auto rounded-lg p-4 text-sm" style="background:#EFF6FF;border:2px dashed #0F172A;">
+        <strong class="text-primary block mb-1 font-display text-xs uppercase tracking-wider">훈련 방법</strong>
+        박자 큐가 도착선에 닿을 때 <b>꽉 쥐고</b>, 다음 박자 전에 <b>완전히 힘을 푸세요</b>. 쥐기-이완을 반복해 열기구를 띄웁니다.
+      </div>
+    </aside>
+
+    <!-- Center Viewport -->
+    <div id="game-viewport" class="flex-1 relative overflow-hidden select-none">
+      <!-- Clouds -->
+      <div class="cloud absolute" style="top:8%;animation-duration:20s;animation-delay:0s;">
+        <div class="flex items-end gap-0">
+          <div class="w-20 h-10 bg-white rounded-full opacity-80"></div>
+          <div class="w-12 h-7 bg-white rounded-full opacity-80 -ml-3"></div>
+        </div>
+      </div>
+      <div class="cloud absolute" style="top:18%;animation-duration:28s;animation-delay:-10s;">
+        <div class="w-28 h-9 bg-white rounded-full opacity-60"></div>
+      </div>
+
+      <!-- Balloon -->
+      <div id="balloon-wrap">
+        <svg width="96" height="132" viewBox="0 0 96 132" fill="none">
+          <path d="M48 4 C22 4 8 24 8 46 C8 70 30 84 40 96 L56 96 C66 84 88 70 88 46 C88 24 74 4 48 4 Z"
+                id="balloon-body" fill="#F97316" stroke="#0F172A" stroke-width="3.5"/>
+          <path d="M28 20 C24 34 24 62 40 90" stroke="rgba(255,255,255,0.4)" stroke-width="5" fill="none" stroke-linecap="round"/>
+          <path d="M40 96 L36 108 L60 108 L56 96 Z" fill="#FBBF24" stroke="#0F172A" stroke-width="2.5"/>
+          <rect x="36" y="108" width="24" height="16" rx="3" fill="#B45309" stroke="#0F172A" stroke-width="2.5"/>
+        </svg>
+      </div>
+
+      <!-- Beat track -->
+      <div id="beat-track">
+        <div id="arrival-glow"></div>
+        <div id="arrival-line"></div>
+        <div id="release-ind" class="ready">준비 완료</div>
+        <!-- cue markers injected here -->
+      </div>
+
+      <!-- Judgment feedback -->
+      <div id="judge-fb" aria-hidden="true"></div>
+
+      <!-- Air pump -->
+      <div id="pump-wrap" aria-hidden="true">
+        <svg width="90" height="96" viewBox="0 0 90 96" fill="none">
+          <!-- piston (compresses on squeeze) -->
+          <g id="pump-piston">
+            <rect x="38" y="6" width="14" height="40" rx="3" fill="#94A3B8" stroke="#0F172A" stroke-width="3"/>
+            <rect x="28" y="0" width="34" height="12" rx="4" fill="#64748B" stroke="#0F172A" stroke-width="3"/>
+          </g>
+          <!-- cylinder -->
+          <rect x="24" y="44" width="42" height="42" rx="6" fill="#F97316" stroke="#0F172A" stroke-width="3.5"/>
+          <rect x="14" y="82" width="62" height="12" rx="4" fill="#B45309" stroke="#0F172A" stroke-width="3.5"/>
+        </svg>
+      </div>
+
+      <!-- Rest screen -->
+      <div id="rest-overlay" role="dialog" aria-modal="false" aria-label="세트 간 휴식">
+        <div class="font-display text-sm font-bold uppercase tracking-widest text-primary">다음 세트까지 휴식</div>
+        <div id="rest-num" aria-hidden="true">60</div>
+        <div class="font-display text-base font-bold text-on-surface-variant">손과 팔의 긴장을 완전히 풀어주세요</div>
+        <button id="rest-skip" class="btn-retro btn-retro-primary" type="button">
+          <span class="material-symbols-outlined">skip_next</span>바로 시작
+        </button>
+        <span id="rest-live" class="sr-only" aria-live="polite"></span>
+      </div>
+    </div>
+
+    <!-- Right Gauge -->
+    <aside class="w-32 p-4 flex flex-col items-center flex-shrink-0" style="background:#FFF8F6;border-left:4px solid #0F172A;">
+      <div class="font-display text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-3 text-center">악력</div>
+      <div class="relative flex items-center justify-center mb-2">
+        <div class="font-display text-sm text-on-surface-variant">100%</div>
+      </div>
+      <div id="gauge-track" role="meter" aria-label="악력 게이지" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"
+           class="flex-1 w-10 relative rounded-full overflow-hidden" style="background:#F0F9FF;border:2px solid #0F172A;">
+        <!-- squeeze target line (solid) + release line (dashed), positioned by JS -->
+        <div id="gauge-sq"  class="gauge-line"></div>
+        <div id="gauge-rel" class="gauge-line"></div>
+        <!-- peak marker -->
+        <div id="gauge-peak" class="absolute left-0 right-0 pointer-events-none" style="z-index:4;height:2px;background:#0F172A;bottom:0;opacity:0;"></div>
+        <!-- fill -->
+        <div id="gauge-fill" class="absolute bottom-0 left-0 right-0 rounded-full" style="z-index:2;height:0%;background:#994626;"></div>
+      </div>
+      <div class="mt-2 mb-1 font-display text-sm text-on-surface-variant">0%</div>
+      <div id="force-pct" class="font-display text-2xl font-bold text-primary mt-1 tabular">0%</div>
+      <!-- Legend for the two lines -->
+      <div class="mt-3 w-full flex flex-col gap-1 text-center">
+        <div class="font-display text-[11px] font-bold" style="color:#F97316;">쥐기 <span id="lbl-sq">40</span>%↑</div>
+        <div class="font-display text-[11px] font-bold" style="color:#10B981;">풀기 <span id="lbl-rel">15</span>%↓</div>
+      </div>
+      <span id="force-live" class="sr-only" aria-live="polite"></span>
+    </aside>
+
+  </div>
+</div>
+
+<!-- sr-only live region for judgment summary (1s throttle) -->
+<span id="judge-live" class="sr-only" aria-live="polite"></span>
+
+
+<!-- ══ RESULT OVERLAY ══════════════════════════════════════════════════════ -->
+<div id="result-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-6" style="background:rgba(15,23,42,0.75);">
+  <div class="result-card w-full max-w-md overflow-hidden" style="background:#FFF8F6;border:4px solid #0F172A;box-shadow:8px 8px 0 #0F172A;border-radius:16px;">
+    <!-- Banner -->
+    <div class="p-8 flex flex-col items-center gap-3 text-center" style="background:#FBBF24;">
+      <div class="w-16 h-16 rounded-full flex items-center justify-center" style="background:#fff;border:3px solid #0F172A;">
+        <span class="material-symbols-outlined text-3xl text-primary" style="font-variation-settings:'FILL' 1">music_note</span>
+      </div>
+      <h2 class="font-display text-3xl font-bold uppercase tracking-tight text-ink-black">게임 완료</h2>
+      <div id="result-stars" class="flex gap-1"></div>
+    </div>
+    <!-- Stats -->
+    <div class="p-6 grid grid-cols-2 gap-3">
+      <div class="rounded-xl p-4 text-center" style="background:#FFE9E3;border:2px solid #0F172A;">
+        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">유효 펌핑</div>
+        <div id="res-score" class="font-display text-3xl font-bold text-primary tabular">0</div>
+      </div>
+      <div class="rounded-xl p-4 text-center" style="background:#FFE9E3;border:2px solid #0F172A;">
+        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">최대 악력</div>
+        <div id="res-max" class="font-display text-3xl font-bold text-primary tabular">0%</div>
+      </div>
+      <div class="rounded-xl p-4 text-center" style="background:#FFE9E3;border:2px solid #0F172A;">
+        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">평균 악력</div>
+        <div id="res-avg" class="font-display text-3xl font-bold text-primary tabular">0%</div>
+      </div>
+      <div class="rounded-xl p-4 text-center" style="background:#FFE9E3;border:2px solid #0F172A;">
+        <div class="font-display text-xs font-bold tracking-widest text-on-surface-variant uppercase mb-1">최고 콤보</div>
+        <div id="res-combo" class="font-display text-3xl font-bold text-primary tabular">0</div>
+      </div>
+    </div>
+    <!-- Actions (shell renders buttons here) -->
+    <div id="result-actions" class="px-6 pb-6 flex gap-3"></div>
+
+    <!-- Reward confirmation (shell fills; markup copied from game-crane.html:305-318) -->
+    <div id="reward-view" class="px-6 pb-6 pt-2 flex-col items-center gap-4 text-center" style="display:none;">
+      <div class="font-display text-xs font-bold tracking-widest uppercase" style="color:var(--success-text);">서버에 저장 완료</div>
+      <div class="flex items-baseline justify-center gap-1">
+        <span class="font-display text-4xl font-bold text-primary tabular">+</span>
+        <span id="reward-xp" class="font-display text-4xl font-bold text-primary tabular">0</span>
+        <span class="font-display text-xl font-bold text-primary">XP</span>
+      </div>
+      <div id="reward-levelup" class="font-display text-lg font-bold px-4 py-1 rounded-full" style="display:none;background:#FEF9C3;color:#CA8A04;border:2px solid #0F172A;">Lv. — 달성!</div>
+      <div id="reward-achievements" class="flex flex-wrap gap-2 justify-center"></div>
+    </div>
+  </div>
+</div>
+
+
+<script src="shared.js"></script>
+<script>
+// ── Reduced motion (settings absorbed by GameShell; keep the connotative local var) ──
+let reducedMotion = prefersReducedMotion();
+if (window.matchMedia) {
+  const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const upd = () => { reducedMotion = prefersReducedMotion(); };
+  if (mq.addEventListener) mq.addEventListener('change', upd);
+  else if (mq.addListener) mq.addListener(upd);
+}
+
+// ── DOM refs ────────────────────────────────────────────────────────────────
+const viewport   = document.getElementById('game-viewport');
+const track      = document.getElementById('beat-track');
+const releaseInd = document.getElementById('release-ind');
+const judgeFb     = document.getElementById('judge-fb');
+const judgeLive  = document.getElementById('judge-live');
+const pumpPiston = document.getElementById('pump-piston');
+const balloonWrap= document.getElementById('balloon-wrap');
+const balloonBody= document.getElementById('balloon-body');
+const setEl      = document.getElementById('set-display');
+const cueEl      = document.getElementById('cue-display');
+const scoreEl    = document.getElementById('score-display');
+const comboEl    = document.getElementById('combo-display');
+const gaugeFill  = document.getElementById('gauge-fill');
+const gaugeTrack = document.getElementById('gauge-track');
+const gaugePeak  = document.getElementById('gauge-peak');
+const gaugeSq    = document.getElementById('gauge-sq');
+const gaugeRel   = document.getElementById('gauge-rel');
+const forcePctEl = document.getElementById('force-pct');
+const forceLive  = document.getElementById('force-live');
+const restOverlay= document.getElementById('rest-overlay');
+const restNumEl  = document.getElementById('rest-num');
+const restLive   = document.getElementById('rest-live');
+const resScore   = document.getElementById('res-score');
+const resMax     = document.getElementById('res-max');
+const resAvg     = document.getElementById('res-avg');
+const resCombo   = document.getElementById('res-combo');
+
+// ── Shell + config ───────────────────────────────────────────────────────────
+const shell = GameShell.create({
+  gameId: 'rhythm',
+  viewportId: 'game-viewport',
+  howto: [
+    { icon: 'sports_martial_arts', text: '박자 큐가 도착선에 닿는 순간 꽉 쥐세요' },
+    { icon: 'front_hand',          text: '다음 박자 전에 힘을 완전히 풀어야 인정됩니다' },
+    { icon: 'timer',               text: '3세트 × 8회, 세트 사이 휴식이 있습니다' },
+  ],
+  onStart,
+  onPauseChange,
+  buildResult,
+  onCleanup,
+});
+
+const cfg  = shell.cfg;
+const SQ   = cfg.squeezeTh;      // squeeze threshold (%)
+const REL  = cfg.releaseTh;      // full-release threshold (%)
+const BEAT = cfg.beatMs;         // ms between cue arrivals
+const WIN  = cfg.windowMs;       // ± judgment window (ms)
+const SETS = cfg.sets;           // 3
+const REPS = cfg.reps;           // 8
+const REST = cfg.restSeconds;    // rest seconds between sets (real consumption)
+const TOTAL_CUES = SETS * REPS;  // 24
+
+const travelLeadMs = Math.max(1500, Math.round(BEAT * 1.2));  // cue travel time to arrival line
+const arrivalXPct  = 20;
+const spawnPct     = 104;
+
+// ── Runtime state ─────────────────────────────────────────────────────────────
+let gripForce = 0, prevForce = 0, pressActive = false;
+let running = false, resting = false, paused = false;
+let rafId = null, lastTick = 0, sessionStart = 0;
+let setIndex = 0;
+let setClock = 0;                // ms elapsed in current set's active play
+let cues = [];
+let score = 0, combo = 0, maxCombo = 0, judgedCount = 0;
+let releasedSinceValid = true;   // release gate — must dip < REL between valid pumps
+let sqActive = false, sqPeak = 0, sqStart = 0, sqWasValid = false;
+let forceSamples = [], maxForce = 0, peakForce = 0;
+let setValidForces = [], setHoldSecs = [];
+let setDetails = [];
+let restRemaining = 0, restLastAnnounce = -1;
+let balloonLift = 0;
+let ariaAccum = 0;
+let fbTimer = null;
+let _finalResult = null;
+
+// ── Layout: gauge threshold lines ──────────────────────────────────────────
+gaugeSq.style.bottom  = SQ + '%';
+gaugeRel.style.bottom = REL + '%';
+document.getElementById('lbl-sq').textContent  = SQ;
+document.getElementById('lbl-rel').textContent = REL;
+
+// ── Input + sensor ──────────────────────────────────────────────────────────
+shell.bindPress(() => { pressActive = true; }, () => { pressActive = false; });
+const onForce = f => { gripForce = f; };
+SensorService.onForceUpdate(onForce);
+document.getElementById('exit-btn').addEventListener('click', () => shell.confirmExit());
+document.getElementById('rest-skip').addEventListener('click', () => { if (resting) endRest(); });
+
+// ── Set lifecycle ───────────────────────────────────────────────────────────
+function startSet() {
+  setClock = 0;
+  setValidForces = [];
+  setHoldSecs = [];
+  clearCues();
+  cues = [];
+  for (let i = 0; i < REPS; i++) {
+    cues.push({ i, arrival: travelLeadMs + i * BEAT, judged: null, el: null });
+  }
+  releasedSinceValid = true;
+  sqActive = false; sqWasValid = false;
+  balloonLift = 0;
+  balloonWrap.style.bottom = '120px';
+  balloonBody.setAttribute('fill', ['#F97316', '#FBBF24', '#FB923C'][setIndex % 3]);
+  updateSetHud();
+}
+
+function clearCues() {
+  for (const c of cues) { if (c.el) { c.el.remove(); c.el = null; } }
+}
+
+function finishSet() {
+  finalizePendingSqueeze();
+  const reps = setValidForces.length;
+  const force = reps ? Math.round(setValidForces.reduce((a, b) => a + b, 0) / reps) : 0;
+  const hold = reps ? +(setHoldSecs.reduce((a, b) => a + b, 0) / reps).toFixed(1) : 0;
+  setDetails.push({ setNum: setIndex + 1, reps, force, holdSecs: hold });
+
+  balloonTakeoff();
+
+  if (setIndex < SETS - 1) enterRest();
+  else endGame();
+}
+
+function finalizePendingSqueeze() {
+  if (sqActive && sqWasValid) {
+    setValidForces.push(sqPeak);
+    setHoldSecs.push((setClock - sqStart) / 1000);
+  }
+  sqActive = false; sqWasValid = false;
+}
+
+// ── Rest screen (game-owned; independent of shell pause) ────────────────────
+function enterRest() {
+  resting = true;
+  restRemaining = REST;
+  restLastAnnounce = -1;
+  clearCues();
+  restOverlay.classList.add('show');
+  updateRestDisplay();
+}
+
+function updateRest(dt) {
+  restRemaining -= dt;
+  if (restRemaining <= 0) { endRest(); return; }
+  updateRestDisplay();
+}
+
+function updateRestDisplay() {
+  const secs = Math.max(0, Math.ceil(restRemaining));
+  restNumEl.textContent = secs;
+  // aria-live: every 10s and the final 3s
+  if ((secs <= 3 || secs % 10 === 0) && secs !== restLastAnnounce) {
+    restLastAnnounce = secs;
+    restLive.textContent = secs + '초 후 다음 세트';
+  }
+}
+
+function endRest() {
+  resting = false;
+  restOverlay.classList.remove('show');
+  setIndex++;
+  startSet();
+}
+
+// ── Judgment helpers ────────────────────────────────────────────────────────
+function activeCue() {
+  let best = null, bestD = Infinity;
+  for (const c of cues) {
+    if (c.judged) continue;
+    if (setClock >= c.arrival - WIN && setClock <= c.arrival + WIN) {
+      const d = Math.abs(setClock - c.arrival);
+      if (d < bestD) { best = c; bestD = d; }
+    }
+  }
+  return best;
+}
+
+function registerValid(c) {
+  c.judged = 'valid';
+  judgedCount++;
+  score++; combo++;
+  if (combo > maxCombo) maxCombo = combo;
+  scoreEl.textContent = score;
+  comboEl.textContent = combo;
+  releasedSinceValid = false;
+  markCue(c, 'cue-valid');
+  feedback('성공!', 'success');
+  inflateBalloon();
+  if (!reducedMotion && scoreEl.animate) {
+    scoreEl.animate([{ transform: 'scale(1.35)' }, { transform: 'scale(1)' }],
+      { duration: 300, easing: 'cubic-bezier(0.34,1.56,0.64,1)' });
+  }
+}
+
+function registerMiss(c, kind) {
+  c.judged = 'miss';
+  c.missKind = kind;
+  judgedCount++;
+  combo = 0;
+  comboEl.textContent = 0;
+  if (kind === 'release') { markCue(c, 'cue-miss-release'); feedback('먼저 힘을 풀어주세요!', 'release'); }
+  else { markCue(c, 'cue-miss'); feedback('미스', 'miss'); }
+}
+
+function markCue(c, cls) {
+  if (c.el) { c.el.classList.remove('cue-active'); c.el.classList.add(cls); }
+}
+
+function feedback(text, kind) {
+  judgeFb.textContent = text;
+  judgeFb.className = 'judge-' + kind;
+  clearTimeout(fbTimer);
+  judgeFb.style.opacity = '1';
+  if (!reducedMotion && judgeFb.animate) {
+    judgeFb.animate(
+      [{ opacity: 1, transform: 'translateX(-50%) scale(1.12)' },
+       { opacity: 1, transform: 'translateX(-50%) scale(1)' },
+       { opacity: 0, transform: 'translateX(-50%) translateY(-10px) scale(1)' }],
+      { duration: 700, easing: 'ease-out' });
+  }
+  fbTimer = setTimeout(() => { judgeFb.style.opacity = '0'; }, 680);
+}
+
+// ── Balloon juice ───────────────────────────────────────────────────────────
+function inflateBalloon() {
+  balloonLift += 12;
+  balloonWrap.style.bottom = (120 + balloonLift) + 'px';
+  if (!reducedMotion && balloonWrap.animate) {
+    balloonWrap.animate(
+      [{ transform: 'translateX(-50%) scale(1)' }, { transform: 'translateX(-50%) scale(1.12)' }, { transform: 'translateX(-50%) scale(1)' }],
+      { duration: 320, easing: 'cubic-bezier(0.34,1.56,0.64,1)' });
+  }
+}
+
+function balloonTakeoff() {
+  if (reducedMotion || !balloonWrap.animate) return;
+  const a = balloonWrap.animate(
+    [{ transform: 'translateX(-50%) translateY(0)', opacity: 1 },
+     { transform: 'translateX(-50%) translateY(-420px)', opacity: 0 }],
+    { duration: 900, easing: 'cubic-bezier(0.4,0,0.2,1)' });
+  a.onfinish = () => { balloonWrap.style.opacity = ''; };
+}
+
+// ── Cue rendering ───────────────────────────────────────────────────────────
+function renderCues() {
+  for (const c of cues) {
+    const f = (c.arrival - setClock) / travelLeadMs;   // 1 = spawn, 0 = arrival, <0 = past
+    const past = setClock > c.arrival + WIN + 600;
+    if (f > 1.03 || past) { if (c.el) { c.el.remove(); c.el = null; } continue; }
+    if (!c.el) {
+      c.el = document.createElement('div');
+      c.el.className = 'cue';
+      c.el.innerHTML = '<span class="material-symbols-outlined">fitness_center</span>';
+      track.appendChild(c.el);
+      if (c.judged === 'valid') c.el.classList.add('cue-valid');
+      else if (c.judged === 'miss') c.el.classList.add('cue-miss');
+    }
+    c.el.style.left = (arrivalXPct + f * (spawnPct - arrivalXPct)) + '%';
+    const inWin = !c.judged && setClock >= c.arrival - WIN && setClock <= c.arrival + WIN;
+    c.el.classList.toggle('cue-active', inWin);
+  }
+}
+
+function updateSetHud() {
+  setEl.textContent = '세트 ' + (setIndex + 1) + '/' + SETS;
+  const done = cues.filter(c => c.judged).length;
+  cueEl.textContent = Math.min(REPS, done + 1) + ' / ' + REPS;
+}
+
+// ── Main loop ───────────────────────────────────────────────────────────────
+function tick() {
+  const now = Date.now();
+  let dt = (now - lastTick) / 1000;
+  lastTick = now;
+  if (dt > 0.1) dt = 0.1;   // clamp long gaps (tab throttling)
+
+  // Force acquisition (simulation ramp when no sensor).
+  if (SensorService.getMode() === 'simulation') {
+    gripForce = pressActive ? Math.min(100, gripForce + 55 * dt) : Math.max(0, gripForce - 45 * dt);
+    SensorService.setSimulatedForce(gripForce);
+  }
+
+  // Gauge (always — even during rest, though force decays to ~0).
+  gaugeFill.style.height = gripForce + '%';
+  gaugeFill.style.background = gripForce >= SQ ? '#F97316' : (gripForce < REL ? '#10B981' : 'var(--primary)');
+  forcePctEl.textContent = Math.round(gripForce) + '%';
+  if (gripForce >= peakForce) peakForce = gripForce; else peakForce = Math.max(gripForce, peakForce - 8 * dt);
+  gaugePeak.style.bottom = peakForce + '%';
+  gaugePeak.style.opacity = peakForce > 2 ? '1' : '0';
+
+  // Pump piston squash (visual, reduced-motion safe).
+  if (!reducedMotion) {
+    const sc = 1 - Math.min(0.4, (gripForce / 100) * 0.4);
+    pumpPiston.style.transform = `scaleY(${sc.toFixed(3)})`;
+  }
+
+  // Release-state indicator at the arrival line.
+  if (gripForce < REL) { releaseInd.textContent = '준비 완료'; releaseInd.className = 'ready'; }
+  else { releaseInd.textContent = '힘 풀기'; releaseInd.className = 'hold'; }
+
+  if (resting) {
+    updateRest(dt);
+  } else {
+    // Sampling (rest excluded so 0-force rest doesn't skew averages).
+    forceSamples.push(gripForce);
+    if (gripForce > maxForce) maxForce = gripForce;
+
+    setClock += dt * 1000;
+
+    // Release gate.
+    if (gripForce < REL) releasedSinceValid = true;
+
+    // Squeeze edge detection.
+    const crossedUp   = prevForce < SQ && gripForce >= SQ;
+    const crossedDown = prevForce >= SQ && gripForce < SQ;
+
+    if (crossedUp) {
+      sqActive = true; sqPeak = gripForce; sqStart = setClock; sqWasValid = false;
+      const c = activeCue();
+      if (c) {
+        if (releasedSinceValid) { registerValid(c); sqWasValid = true; }
+        else registerMiss(c, 'release');
+      }
+    }
+    if (sqActive && gripForce > sqPeak) sqPeak = gripForce;
+    if (crossedDown && sqActive) {
+      sqActive = false;
+      if (sqWasValid) { setValidForces.push(sqPeak); setHoldSecs.push((setClock - sqStart) / 1000); }
+    }
+
+    // Window-expiry misses.
+    for (const c of cues) {
+      if (!c.judged && setClock > c.arrival + WIN) {
+        registerMiss(c, gripForce >= SQ ? 'release' : 'timing');
+      }
+    }
+
+    updateSetHud();
+
+    // Set complete?
+    if (cues.length && cues.every(c => c.judged)) {
+      finishSet();
+    }
+
+    if (!resting && running) renderCues();
+  }
+
+  // A11y — meter value, throttled live mirrors (1s).
+  ariaAccum += dt;
+  if (ariaAccum >= 1) {
+    ariaAccum = 0;
+    const fv = Math.round(gripForce);
+    gaugeTrack.setAttribute('aria-valuenow', fv);
+    if (forceLive) forceLive.textContent = '악력 ' + fv + '퍼센트';
+    if (judgeLive) judgeLive.textContent = '성공 ' + score + '회';
+  }
+
+  prevForce = gripForce;
+  rafId = running ? requestAnimationFrame(tick) : null;
+}
+
+// ── End ─────────────────────────────────────────────────────────────────────
+function endGame() {
+  running = false;
+  if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+
+  const avgF = forceSamples.length
+    ? Math.round(forceSamples.reduce((a, b) => a + b, 0) / forceSamples.length) : 0;
+  // 서버 제약: avgForce ≤ maxForce ≤ 100.
+  const maxF = Math.min(100, Math.max(Math.round(maxForce), avgF));
+  const stars = starsForScore('rhythm', score);
+  const elapsedSec = Math.round((Date.now() - sessionStart) / 1000);   // includes rest (real elapsed)
+  const durationMin = Math.max(1, Math.round(elapsedSec / 60));
+
+  _finalResult = {
+    date: new Date().toISOString(),
+    gameId: 'rhythm',
+    label: GAME_DEFS.rhythm.label,
+    durationMin,
+    durationSec: elapsedSec,
+    sets: score,              // valid pumps total (= score)
+    attempts: judgedCount,    // 24 at natural completion
+    avgForce: avgF,
+    maxForce: maxF,
+    stars,
+    setDetails,
+    schema: 2,
+  };
+
+  // Fill game-owned stats BEFORE shell.end() (shell renders stars/actions/reward).
+  animateCount(resScore, score,    { duration: 700 });
+  animateCount(resMax,   maxF,     { suffix: '%', duration: 700 });
+  animateCount(resAvg,   avgF,     { suffix: '%', duration: 700 });
+  animateCount(resCombo, maxCombo, { duration: 700 });
+
+  shell.end();
+}
+
+// ── Shell callbacks ─────────────────────────────────────────────────────────
+// buildResult is invoked by shell.end() (after endGame() populates _finalResult).
+function buildResult() {
+  return _finalResult || {
+    date: new Date().toISOString(), gameId: 'rhythm', label: GAME_DEFS.rhythm.label,
+    durationMin: 1, durationSec: 0, sets: 0, attempts: judgedCount, avgForce: 0, maxForce: 0,
+    stars: starsForScore('rhythm', 0), setDetails, schema: 2,
+  };
+}
+
+function onStart() {
+  running = true;
+  sessionStart = Date.now();
+  lastTick = Date.now();
+  setIndex = 0;
+  startSet();
+  rafId = requestAnimationFrame(tick);
+}
+
+function onPauseChange(p) {
+  paused = p;
+  if (p) {
+    pressActive = false;
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+  } else {
+    lastTick = Date.now();   // avoid dt spike after resume
+    if (rafId === null && running) rafId = requestAnimationFrame(tick);
+  }
+}
+
+function onCleanup() {
+  running = false;
+  if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+  SensorService.offForceUpdate(onForce);
+  document.removeEventListener('visibilitychange', onVis);
+}
+
+// ── Visibility gating (coordinate with shell pause) ──────────────────────────
+function onVis() {
+  if (document.hidden) {
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+  } else if (running && !paused && rafId === null) {
+    lastTick = Date.now();
+    rafId = requestAnimationFrame(tick);
+  }
+}
+document.addEventListener('visibilitychange', onVis);
+
+// ── Test/debug hook (read-only; new file only, harmless in production) ───────
+window.__rhythm = {
+  state: () => ({
+    phase: shell.state.phase, running, resting, paused, setIndex, setClock,
+    score, combo, maxCombo, judgedCount, force: gripForce,
+    releaseOK: releasedSinceValid, restRemaining,
+    cues: cues.map(c => ({ arrival: c.arrival, judged: c.judged, missKind: c.missKind || null })),
+  }),
+  cfg: () => cfg,
+};
+</script>
+</body>
+</html>
