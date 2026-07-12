@@ -63,6 +63,9 @@
     transform: translate(-50%, -50%);
   }
 
+  /* In-zone hold label (near target zone) */
+  #target-label.holding { color: #059669; }
+
   /* Hold arc (SVG timer) */
   #hold-arc { stroke-dasharray: 157; stroke-dashoffset: 157; transition: stroke-dashoffset 0.1s linear; }
 
@@ -107,9 +110,9 @@
       <div class="font-display text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full text-on-surface-variant animate-pulse" style="background:#FFE9E3;border:2px solid #dfc0b6;">
         SPACE / 클릭 홀드
       </div>
-      <!-- Sensor status (filled by bindSensorBadge) -->
+      <!-- Sensor status (filled by GameShell) -->
       <div id="sensor-badge" class="font-display text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full flex items-center gap-2" style="background:#FFF8F6;border:2px solid #0F172A;"></div>
-      <button onclick="confirmExit()" class="font-display font-bold text-sm uppercase tracking-wider px-4 py-2 rounded" style="background:#FFF8F6;border:2px solid #0F172A;box-shadow:2px 2px 0 #0F172A;">
+      <button id="exit-btn" class="font-display font-bold text-sm uppercase tracking-wider px-4 py-2 rounded" style="background:#FFF8F6;border:2px solid #0F172A;box-shadow:2px 2px 0 #0F172A;">
         종료
       </button>
     </div>
@@ -246,20 +249,10 @@
         <div id="res-time" class="font-display text-3xl font-bold text-primary tabular">2분</div>
       </div>
     </div>
-    <!-- Actions -->
-    <div id="result-actions" class="px-6 pb-6 flex gap-3">
-      <button onclick="restartGame()" class="flex-1 font-display font-bold uppercase tracking-wider py-3 rounded text-white flex items-center justify-center gap-2" style="background:#994626;border:2px solid #0F172A;box-shadow:3px 3px 0 #0F172A;">
-        <span class="material-symbols-outlined text-base">replay</span> 다시 플레이
-      </button>
-      <button id="save-btn" onclick="saveAndHistory()" class="flex-1 font-display font-bold uppercase tracking-wider py-3 rounded flex items-center justify-center gap-2" style="background:#FFF8F6;border:2px solid #0F172A;box-shadow:3px 3px 0 #0F172A;">
-        <span class="material-symbols-outlined text-base">save</span> 저장
-      </button>
-      <button onclick="window.location.href='index.html'" class="font-display font-bold uppercase tracking-wider py-3 px-4 rounded" style="background:#FFF1ED;border:2px solid #0F172A;">
-        <span class="material-symbols-outlined text-base">home</span>
-      </button>
-    </div>
+    <!-- Actions (filled by GameShell) -->
+    <div id="result-actions" class="px-6 pb-6 flex gap-3"></div>
 
-    <!-- Reward confirmation (rest 모드에서 서버가 확정한 보상 표시) -->
+    <!-- Reward confirmation (GameShell fills xp/levelup/achievements) -->
     <div id="reward-view" class="px-6 pb-6 pt-2 flex-col items-center gap-4 text-center" style="display:none;">
       <div class="font-display text-xs font-bold tracking-widest uppercase" style="color:var(--success-text);">서버에 저장 완료</div>
       <div class="flex items-baseline justify-center gap-1">
@@ -269,9 +262,6 @@
       </div>
       <div id="reward-levelup" class="font-display text-lg font-bold px-4 py-1 rounded-full" style="display:none;background:#FEF9C3;color:#CA8A04;border:2px solid #0F172A;">Lv. — 달성!</div>
       <div id="reward-achievements" class="flex flex-wrap gap-2 justify-center"></div>
-      <button id="reward-go-btn" onclick="goHistory()" class="w-full font-display font-bold uppercase tracking-wider py-3 rounded text-white flex items-center justify-center gap-2" style="background:#994626;border:2px solid #0F172A;box-shadow:3px 3px 0 #0F172A;">
-        <span class="material-symbols-outlined text-base">timeline</span> 기록 보기
-      </button>
     </div>
   </div>
 </div>
@@ -279,18 +269,13 @@
 
 <script src="shared.js"></script>
 <script>
-// ── Constants ──────────────────────────────────────────────────────────────
+// ── Constants (physics/timing — unchanged) ─────────────────────────────────
 const GAME_DURATION  = 120;  // seconds
 const TARGET_LO      = 0.15; // top 15% of viewport
 const TARGET_HI      = 0.30; // top 30%
 const TARGET_HOLD    = 3.0;  // seconds in zone to pop
 const BALLOON_COLORS = ['#F472B6','#FBBF24','#34D399','#60A5FA','#A78BFA'];
-
-// 임상 목표 유지 악력 — 물리·표시 공통 소스 (single source for physics equilibrium AND gauge band)
-const TARGET_HOLD_PCT = 60;                        // 평형 유지 악력 % (이 값에서 velocity=0 → 풍선 정지)
-const TARGET_BAND     = 20;                        // 게이지 목표 밴드 폭(%p)
-const BAND_LO = TARGET_HOLD_PCT - TARGET_BAND / 2; // 50 — 밴드 하단
-const BAND_HI = TARGET_HOLD_PCT + TARGET_BAND / 2; // 70 — 밴드 상단
+const TARGET_LABEL_DEFAULT = '▲ TARGET ZONE ▲';
 
 // ── State ──────────────────────────────────────────────────────────────────
 let balloonPct   = 10;     // 0=bottom, 100=top
@@ -299,7 +284,7 @@ let pressActive  = false;
 let holdTime     = 0;
 let score        = 0;
 let timeLeft     = GAME_DURATION;
-let running      = true;
+let running      = false;   // loop starts only after countdown (shell onStart)
 let colorIndex   = 0;
 let forceSamples = [];
 let maxForce     = 0;
@@ -307,19 +292,13 @@ let peakForce    = 0;      // gauge peak-hold marker
 let setDetails   = [];     // per-pop rows for session v2
 let wasInZone    = false;
 let ariaAccum    = 0;      // 1s throttle accumulator for aria mirror
-let sessionStart = Date.now();
+let sessionStart = 0;      // set at onStart (real play time only)
+let lastTick     = 0;
 let rafId        = null;
-let sensorBadgeUnsub = null;
+let timerId      = null;
+let finalMetrics = null;   // computed once at end; shared by res-* fill and buildResult
 
-// ── Reduced motion (settings toggle + OS preference) ─────────────────────────
-// Game pages don't call initPage(), so apply the saved reducedMotion setting here
-// too — this makes both shared.css's global stop and prefersReducedMotion() honor it.
-try {
-  const st = DataService.getSettingsSync();
-  if (st && st.reducedMotion) document.documentElement.setAttribute('data-reduced-motion', '');
-} catch {}
-// Real-hardware path: apply saved sensor calibration (games skip initPage which normally does this).
-try { SensorService.loadCalibration(); } catch {}
+// ── Reduced motion (OS preference — juice gating only; shell handles the setting) ──
 let reducedMotion = prefersReducedMotion();
 if (window.matchMedia) {
   const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -347,6 +326,34 @@ const forceLive   = document.getElementById('force-live');
 const viewport    = document.getElementById('game-viewport');
 const flashEl     = document.getElementById('pop-flash');
 
+// ── Shell (bootstrap / ready overlay / pause / result-save-reward) ───────────
+const shell = GameShell.create({
+  gameId: 'balloon',
+  viewportId: 'game-viewport',
+  howto: [
+    { icon: 'back_hand',    text: '손을 쥐면 상승 · 풀면 하강' },
+    { icon: 'timer',        text: '초록 구간에서 3초 유지하면 풍선이 팝!' },
+    { icon: 'keyboard',     text: '스페이스바 또는 화면 터치로도 연습할 수 있어요' },
+  ],
+  onStart,
+  onPauseChange,
+  buildResult,
+  onCleanup,
+});
+
+// ── Personalization (difficulty-parameterized; physics equilibrium unchanged) ──
+const TARGET_HOLD_PCT = shell.cfg.targetHoldPct;                 // 60 (평형 유지 악력 %)
+const TARGET_BAND     = shell.cfg.targetBand;                    // easy 28 / medium 20 / hard 12
+const BAND_LO = TARGET_HOLD_PCT - TARGET_BAND / 2;              // 밴드 하단
+const BAND_HI = TARGET_HOLD_PCT + TARGET_BAND / 2;             // 밴드 상단
+
+// ── Input (shell-bound: Space@document + pointer/touch@viewport, playing-gated) ──
+shell.bindPress(() => { pressActive = true; }, () => { pressActive = false; });
+
+// ── Sensor integration ─────────────────────────────────────────────────────
+const onForce = f => { gripForce = f; };
+SensorService.onForceUpdate(onForce);
+
 // ── Target zone + gauge band positioning ─────────────────────────────────────
 function layoutTarget() {
   targetZone.style.top    = (TARGET_LO * 100) + '%';
@@ -360,26 +367,12 @@ function layoutTarget() {
 layoutTarget();
 window.addEventListener('resize', layoutTarget);
 
-// ── Input handling ─────────────────────────────────────────────────────────
-function startPress() { pressActive = true; }
-function stopPress()  { pressActive = false; }
-
-document.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); startPress(); } });
-document.addEventListener('keyup',   e => { if (e.code === 'Space') stopPress(); });
-document.addEventListener('mousedown', startPress);
-document.addEventListener('mouseup',   stopPress);
-document.addEventListener('touchstart', e => { e.preventDefault(); startPress(); }, {passive:false});
-document.addEventListener('touchend',   stopPress);
-
-// ── Sensor integration ─────────────────────────────────────────────────────
-const onForce = f => { gripForce = f; };
-SensorService.onForceUpdate(onForce);
-
 // ── Balloon color ──────────────────────────────────────────────────────────
 function nextColor() {
   colorIndex = (colorIndex + 1) % BALLOON_COLORS.length;
   balloonBody.setAttribute('fill', BALLOON_COLORS[colorIndex]);
 }
+nextColor();   // set initial color
 
 // ── Juice helpers (all no-op under reduced motion) ──────────────────────────
 function popFlash() {
@@ -447,6 +440,8 @@ function popBalloon() {
   balloonPct = 5;
   holdTime   = 0;
   targetZone.classList.remove('holding');
+  targetLabel.classList.remove('holding');
+  targetLabel.textContent = TARGET_LABEL_DEFAULT;
   balloonSvg.classList.remove('balloon-shake');
   wasInZone = false;
 
@@ -456,20 +451,20 @@ function popBalloon() {
     { duration: 420, easing: 'cubic-bezier(0.34,1.56,0.64,1)' });
 }
 
-// ── Timer (counts down every second; paused while tab hidden) ────────────────
-const timerInterval = setInterval(() => {
-  if (!running || document.hidden) return;
-  timeLeft--;
-  const m = Math.floor(timeLeft / 60);
-  const s = timeLeft % 60;
-  timerEl.textContent = `${m}:${String(s).padStart(2,'0')}`;
-  if (timeLeft <= 10) timerEl.classList.add('timer-warning');
-  if (timeLeft <= 0) endGame();
-}, 1000);
+// ── Timer (counts down every second; gated by running + tab visibility) ──────
+function startTimer() {
+  timerId = setInterval(() => {
+    if (!running || document.hidden) return;
+    timeLeft--;
+    const m = Math.floor(timeLeft / 60);
+    const s = timeLeft % 60;
+    timerEl.textContent = `${m}:${String(s).padStart(2,'0')}`;
+    if (timeLeft <= 10) timerEl.classList.add('timer-warning');
+    if (timeLeft <= 0) endGame();
+  }, 1000);
+}
 
 // ── Game loop (rAF) ────────────────────────────────────────────────────────
-let lastTick = Date.now();
-
 function gameTick() {
   if (!running) { rafId = null; return; }
 
@@ -506,6 +501,16 @@ function gameTick() {
     targetZone.classList.remove('holding');
   }
   wasInZone = inZone;
+
+  // In-zone live label — "유지 중! N초" while in the target band, default otherwise.
+  // target-label has no aria-live, so this never double-announces with #force-live.
+  if (inZone) {
+    targetLabel.classList.add('holding');
+    targetLabel.textContent = '유지 중! ' + holdTime.toFixed(1) + '초';
+  } else if (targetLabel.textContent !== TARGET_LABEL_DEFAULT) {
+    targetLabel.classList.remove('holding');
+    targetLabel.textContent = TARGET_LABEL_DEFAULT;
+  }
 
   // Hold vibration once past 2.0s
   if (inZone && holdTime >= 2.0 && !reducedMotion) balloonSvg.classList.add('balloon-shake');
@@ -551,12 +556,8 @@ function gameTick() {
   rafId = requestAnimationFrame(gameTick);
 }
 
-// ── End game ───────────────────────────────────────────────────────────────
-function endGame() {
-  running = false;
-  clearInterval(timerInterval);
-  if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
-
+// ── Final metrics (computed once; shared by res-* fill and buildResult) ───────
+function computeMetrics() {
   const avgF = forceSamples.length
     ? Math.round(forceSamples.reduce((a,b) => a+b, 0) / forceSamples.length)
     : 0;
@@ -565,153 +566,87 @@ function endGame() {
   const stars = starsForScore('balloon', score);
   const elapsedSec  = Math.round((Date.now() - sessionStart) / 1000);
   const durationMin = Math.max(1, Math.round(elapsedSec / 60));
+  return { avgF, maxF, stars, elapsedSec, durationMin };
+}
 
-  // Stars — sequential pop (120ms stagger); no motion under reduced.
-  document.getElementById('result-stars').innerHTML =
-    [1,2,3].map(i => {
-      const on = i <= stars;
-      const cls = reducedMotion ? '' : ' star-pop';
-      const delay = reducedMotion ? '' : `;animation-delay:${(i-1)*120}ms`;
-      return `<span class="material-symbols-outlined text-3xl${cls} ${on?'text-yellow-400':'text-on-surface-variant'}"
-        style="font-variation-settings:'FILL' ${on?1:0}${delay}">star</span>`;
-    }).join('');
+// ── End game (natural time-out) — fills #res-* then hands off to shell.end() ──
+function endGame() {
+  if (!running || shell.state.phase === 'ended') return;
+  running = false;
+  if (timerId) { clearInterval(timerId); timerId = null; }
+  if (rafId)   { cancelAnimationFrame(rafId); rafId = null; }
 
-  // Session v2 (schema 2) — see shared DataService.saveSession
-  window._sessionResult = {
+  finalMetrics = computeMetrics();
+
+  // Game-owned stats (filled before shell.end(), per shell contract).
+  animateCount(document.getElementById('res-score'), score,                     { duration: 700 });
+  animateCount(document.getElementById('res-max'),   finalMetrics.maxF,          { suffix: '%', duration: 700 });
+  animateCount(document.getElementById('res-avg'),   finalMetrics.avgF,          { suffix: '%', duration: 700 });
+  animateCount(document.getElementById('res-time'),  finalMetrics.durationMin,   { suffix: '분', duration: 700 });
+
+  // Shell owns: stars render, overlay open, auto-save, reward view.
+  shell.end();
+}
+
+// ── Session v2 (schema 2) — shell merges difficulty/handUsed/schema ──────────
+function buildResult() {
+  const m = finalMetrics || computeMetrics();
+  return {
     date:        new Date().toISOString(),
     gameId:      'balloon',
     label:       GAME_DEFS.balloon.label,
-    durationMin,
-    durationSec: elapsedSec,
+    durationMin: m.durationMin,
+    durationSec: m.elapsedSec,
     sets:        score,              // 풍선 = 팝 수
     attempts:    score,              // 풍선: attempts === score
-    avgForce:    avgF,
-    maxForce:    maxF,
-    stars,
+    avgForce:    m.avgF,
+    maxForce:    m.maxF,
+    stars:       m.stars,
     setDetails,
     schema:      2,
   };
-
-  const overlay = document.getElementById('result-overlay');
-  overlay.classList.add('open');
-  requestAnimationFrame(() => overlay.classList.add('shown'));   // slideUp entrance
-
-  animateCount(document.getElementById('res-score'), score,              { duration: 700 });
-  animateCount(document.getElementById('res-max'),   maxF,               { suffix: '%', duration: 700 });
-  animateCount(document.getElementById('res-avg'),   avgF,               { suffix: '%', duration: 700 });
-  animateCount(document.getElementById('res-time'),  durationMin,        { suffix: '분', duration: 700 });
 }
 
-function restartGame() {
-  window.location.reload();
+// ── Shell lifecycle callbacks ────────────────────────────────────────────────
+function onStart() {
+  running      = true;
+  sessionStart = Date.now();
+  lastTick     = Date.now();
+  startTimer();
+  rafId = requestAnimationFrame(gameTick);
 }
 
-// ── Save + server-reward flow ────────────────────────────────────────────────
-// shared.js 미반영 상태에서도 안전: isRest()이 없으면 local 모드로 폴백.
-function restMode() { return typeof DataService.isRest === 'function' && DataService.isRest(); }
-
-function goHistory() { window.location.href = 'history.html'; }
-
-function esc(s) {
-  return String(s == null ? '' : s).replace(/[&<>"']/g,
-    c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
-}
-
-// 게임 화면용 간이 에러 토스트 (shared.css의 .retro-toast 재사용).
-function showSaveError(msg) {
-  const t = document.createElement('div');
-  t.className = 'retro-toast';
-  t.setAttribute('role', 'alert');
-  t.style.borderColor = 'var(--error)';
-  t.style.color = 'var(--error)';
-  t.innerHTML = `<span class="material-symbols-outlined" style="color:var(--error)">error</span>${msg}`;
-  document.body.appendChild(t);
-  setTimeout(() => t.remove(), 3500);
-}
-
-// 서버가 확정한 보상을 결과 오버레이에 표시. reduced-motion이면 animateCount가 스냅.
-function showReward(res) {
-  document.getElementById('result-actions').style.display = 'none';
-  const rv = document.getElementById('reward-view');
-  rv.style.display = 'flex';
-
-  animateCount(document.getElementById('reward-xp'), res.xpAwarded || 0, { duration: 700 });
-
-  if (res.levelUp) {
-    const lu = document.getElementById('reward-levelup');
-    lu.textContent = `Lv. ${res.level} 달성!`;
-    lu.style.display = 'inline-block';
-  }
-
-  const chips = Array.isArray(res.unlockedAchievements) ? res.unlockedAchievements : [];
-  document.getElementById('reward-achievements').innerHTML = chips.map(a => {
-    const rs = (typeof RARITY_STYLE !== 'undefined' && RARITY_STYLE[a.rarity]) || { color: '#994626', bg: '#FFE9E3' };
-    return `<span class="font-display text-xs font-bold px-3 py-1 rounded-full" style="background:${rs.bg};color:${rs.color};border:2px solid #0F172A;">`
-      + `${esc(a.title)} +${Number(a.rewardXp) || 0} XP</span>`;
-  }).join('');
-
-  // 추가로 읽을 내용(레벨업/업적)이 없으면 1.5초 후 자동 이동, 있으면 버튼 클릭 대기.
-  if (!res.levelUp && chips.length === 0) setTimeout(goHistory, 1500);
-}
-
-let saving = false;
-async function saveAndHistory() {
-  if (saving) return;                       // 중복 POST 방지
-  saving = true;
-  const btn = document.getElementById('save-btn');
-  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.style.cursor = 'not-allowed'; }
-
-  const res = window._sessionResult ? await DataService.saveSession(window._sessionResult) : undefined;
-
-  if (restMode()) {
-    if (res) {
-      showReward(res);                      // 서버 확정 보상 표시
-    } else {
-      // 서버 저장 실패 — 버튼 재활성화 + 안내(로컬에는 이미 폴백 저장됨).
-      saving = false;
-      if (btn) { btn.disabled = false; btn.style.opacity = ''; btn.style.cursor = ''; }
-      showSaveError('서버 저장 실패, 로컬에 보관됨');
-    }
+function onPauseChange(paused) {
+  if (paused) {
+    running = false;                                     // gates timer + gameTick
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
   } else {
-    // local 모드(반환값 undefined) — 기존 동작 그대로 바로 history로 이동.
-    goHistory();
+    running  = true;
+    lastTick = Date.now();                               // avoid a dt spike after resume
+    if (rafId === null) rafId = requestAnimationFrame(gameTick);
   }
 }
 
-function confirmExit() {
-  openConfirmModal({
-    title: '게임 종료',
-    body: '지금 종료하면 이번 세션은 저장되지 않습니다. 종료할까요?',
-    confirmLabel: '종료',
-    cancelLabel: '계속하기',
-    danger: true,
-    onConfirm: () => { cleanup(); window.location.href = 'training.html'; },
-  });
-}
-
-// ── Cleanup + visibility gating (optimize-web-animations) ────────────────────
-function cleanup() {
+function onCleanup() {
   running = false;
-  clearInterval(timerInterval);
-  if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
-  if (sensorBadgeUnsub) { sensorBadgeUnsub(); sensorBadgeUnsub = null; }
+  if (timerId) { clearInterval(timerId); timerId = null; }
+  if (rafId)   { cancelAnimationFrame(rafId); rafId = null; }
   SensorService.offForceUpdate(onForce);
 }
-window.addEventListener('pagehide', cleanup);
+
+// ── Visibility gating (rAF only; respect shell pause state) ──────────────────
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
-  } else if (running && rafId === null) {
+  } else if (shell.playing && running && rafId === null) {
     lastTick = Date.now();   // avoid a dt spike after resume
     rafId = requestAnimationFrame(gameTick);
   }
 });
 
-// ── Start ──────────────────────────────────────────────────────────────────
-injectFeedbackModal();
-sensorBadgeUnsub = bindSensorBadge(document.getElementById('sensor-badge'));
-nextColor();   // set initial color
-rafId = requestAnimationFrame(gameTick);
+// ── Header exit → shell-owned confirm flow ───────────────────────────────────
+const exitBtn = document.getElementById('exit-btn');
+if (exitBtn) exitBtn.addEventListener('click', () => shell.confirmExit());
 </script>
 </body>
 </html>
