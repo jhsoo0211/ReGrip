@@ -7,12 +7,18 @@ from datetime import datetime, timedelta, timezone
 from tests.conftest import register_and_auth
 
 
+def _recent_started_at() -> str:
+    # 최근 시각(1시간 전). 고정 날짜를 쓰면 72시간 백데이트 하한이 먼저 발동해
+    # 정작 검증하려는 maxForce/duration 규칙이 아니라 '엉뚱한 이유'로 422가 난다.
+    return (datetime.now(timezone.utc) - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def test_max_force_less_than_avg_force_422(client):
     _, headers = register_and_auth(client)
     payload = {
         "clientSessionId": str(uuid.uuid4()),
         "exerciseType": "game_balloon",
-        "startedAt": "2026-07-09T01:30:00Z",
+        "startedAt": _recent_started_at(),
         "durationSec": 600,
         "score": 5,
         "avgForce": 70.0,
@@ -45,7 +51,7 @@ def test_negative_duration_422(client):
     payload = {
         "clientSessionId": str(uuid.uuid4()),
         "exerciseType": "game_balloon",
-        "startedAt": "2026-07-09T01:30:00Z",
+        "startedAt": _recent_started_at(),
         "durationSec": 0,  # gt=0 위반
         "score": 5,
         "avgForce": 40.0,

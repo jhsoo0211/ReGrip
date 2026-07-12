@@ -2,15 +2,22 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timedelta, timezone
 
 from tests.conftest import register_and_auth
+
+
+def _recent_started_at() -> str:
+    # 고정 날짜를 쓰면 서버의 72시간 백데이트 하한(A1) 때문에 시간이 지나며 깨진다.
+    # '1시간 전'을 매번 계산해 미래도 아니고 72시간 이내로 항상 유효하게 만든다.
+    return (datetime.now(timezone.utc) - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _balloon_payload(client_session_id, score=10, avg=60.0, mx=85.0):
     return {
         "clientSessionId": client_session_id,
         "exerciseType": "game_balloon",
-        "startedAt": "2026-07-09T01:30:00Z",
+        "startedAt": _recent_started_at(),
         "durationSec": 720,
         "score": score,
         "avgForce": avg,
