@@ -82,13 +82,24 @@ Regrip/
 
 ---
 
+## 🌳 브랜치 구조
+
+| 브랜치 | 내용 | 실행 |
+|--------|------|------|
+| **`mockup`** | 개선된 프론트엔드 **단독 데모** (localStorage만 사용, 서버 불필요). 데모·시연용. | 정적 파일만 열면 됨 |
+| **`integration`** | 위 프론트 + **FastAPI 백엔드 + ESP32 펌웨어 + REST 연결**(로그인/서버 저장). 실제 연동 개발용. | 아래 dev 스크립트 |
+| `main` | 최초 원본 프로토타입(참고용 보존) | — |
+
+> 목업 브랜치는 서버 없이 그대로 열어 쓰도록 유지되고, 백엔드·ESP32 연결 작업은 `integration`에서만 진행합니다. 지금은 백엔드를 **더미/테스트 값**으로 검증하는 단계입니다.
+
 ## 🚀 시작하기
 
 ### 요구사항
 - 모던 웹 브라우저 (Chrome, Edge, Firefox, Safari)
 - (선택) 악력 센서 + WebSocket 서버
+- (`integration` 백엔드 실행 시) Python 3.11 + `backend/venv`
 
-### 로컬 실행
+### A. 목업 단독 실행 (`mockup` 브랜치 — 서버 불필요)
 
 별도의 빌드 없이 HTML 파일을 직접 열어 사용할 수 있습니다:
 
@@ -101,6 +112,28 @@ npx serve .
 # 또는
 python -m http.server 8000
 ```
+
+### B. 백엔드까지 한 번에 실행 (`integration` 브랜치 — dev 스크립트)
+
+프론트(정적 서버 :3000)와 백엔드(FastAPI :8000)를 한 명령으로 같이 띄우고 종료합니다.
+
+```powershell
+# Windows (PowerShell)
+.\scripts\dev-start.ps1        # 시작 (-Force: 포트 점유 시 종료 후 진행, -LocalOnly: 프론트만)
+.\scripts\dev-stop.ps1         # 종료
+```
+
+```bash
+# macOS/Linux/Git-Bash
+./scripts/dev-start.sh         # 시작 (--force, --local 지원, 로그: scripts/*.log)
+./scripts/dev-stop.sh          # 종료
+```
+
+시작 후 <http://localhost:3000/login.html> 에서 백엔드 주소 `http://localhost:8000` 으로 로그인/회원가입합니다.
+
+> ⚠️ 프론트는 반드시 **`http://localhost:3000`** 으로 접속하세요. 백엔드 refresh 쿠키가
+> `SameSite=Strict` 라 프론트·백엔드의 **호스트명이 같아야**(둘 다 `localhost`) 로그인이 유지됩니다.
+> 백엔드 최초 실행 전 `backend/README.md` 대로 `backend/venv` 를 만들어 두어야 합니다.
 
 > **참고**: Tailwind CSS는 CDN을 통해 로드되므로 인터넷 연결이 필요합니다.
 
