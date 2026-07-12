@@ -994,7 +994,7 @@ const SensorService = {
 // ═══════════════════════════════════════════════════════════════════════════════
 const GAME_DEFS = {
   balloon: { label: '풍선 게임',     icon: 'sports_esports', starThresholds: [5, 10],  page: 'game-balloon.html', durationLabel: '2분',       axis: '정적 유지', baseIntensity: 2, desc: '목표 구간에 악력을 유지해 풍선을 부풀리세요' },
-  crane:   { label: '크레인 게임',   icon: 'sports_esports', starThresholds: [3, 5],   page: 'game-crane.html',   durationLabel: '60초',      axis: '파지·이완', baseIntensity: 3, desc: '꽉 쥐어 캡슐을 집고, 천천히 놓아 배출구에 넣으세요' },
+  crane:   { label: '크레인 게임',   icon: 'precision_manufacturing', starThresholds: [3, 5],   page: 'game-crane.html',   durationLabel: '60초',      axis: '파지·이완', baseIntensity: 3, desc: '꽉 쥐어 캡슐을 집고, 천천히 놓아 배출구에 넣으세요' },
   rhythm:  { label: '리듬 펌프 게임', icon: 'music_note',     starThresholds: [14, 20], page: 'game-rhythm.html',  durationLabel: '3세트×8회', axis: '반복 쥐기', baseIntensity: 2, desc: '박자에 맞춰 쥐었다 완전히 풀며 열기구를 띄우세요' },
   glide:   { label: '잠수함 게임',   icon: 'sailing',        starThresholds: [15, 24], page: 'game-glide.html',   durationLabel: '90초',      axis: '정밀 추적', baseIntensity: 3, desc: '악력으로 잠수함 심도를 조절해 게이트를 통과하세요' },
 };

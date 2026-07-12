@@ -628,7 +628,9 @@ textarea:focus-visible,
   color: var(--ink-secondary);
   margin-bottom: 6px;
 }
-.auth-input {
+/* .auth-card 한정자: Tailwind forms 플러그인이 런타임 주입하는 [type=...] 규칙(1px #6B7280)이
+   동일 특이도로 뒤에 와서 이기므로, 특이도를 올려 레트로 보더를 보장한다. */
+.auth-card .auth-input {
   width: 100%;
   min-height: 48px;
   border: 2px solid var(--ink);
@@ -641,7 +643,7 @@ textarea:focus-visible,
   outline: none;
   transition: box-shadow 0.15s, border-color 0.15s;
 }
-.auth-input:focus { box-shadow: 3px 3px 0px var(--primary); border-color: var(--primary); }
+.auth-card .auth-input:focus { box-shadow: 3px 3px 0px var(--primary); border-color: var(--primary); }
 
 /* ── Consent rows ── */
 .auth-consent {
@@ -713,6 +715,12 @@ textarea:focus-visible,
 /* ═══════════════════════════════════════════════════════════════════════════
    GAME SHELL — ready / countdown / pause overlays (retro neo-vernacular)
    ═══════════════════════════════════════════════════════════════════════════ */
+
+/* 좁은 화면에서 게임 헤더의 조작법 힌트 칩을 숨긴다 — 준비 오버레이가 같은 정보를
+   전달하므로 중복이고, 390px급에서 시뮬레이션 배지가 어색하게 줄바꿈되는 원인. */
+@media (max-width: 520px) {
+  .game-hud-hint { display: none; }
+}
 
 /* Shared overlay scaffold (ready + pause). Sits below the confirm modal (z 250). */
 .game-ready-overlay,
