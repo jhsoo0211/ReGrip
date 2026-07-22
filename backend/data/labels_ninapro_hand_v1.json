@@ -1,0 +1,302 @@
+[
+  {
+    "scheme": "ninapro_db2",
+    "code": 0,
+    "protocol_block": null,
+    "name": "rest"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 1,
+    "protocol_block": "B",
+    "name": "B_01"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 2,
+    "protocol_block": "B",
+    "name": "B_02"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 3,
+    "protocol_block": "B",
+    "name": "B_03"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 4,
+    "protocol_block": "B",
+    "name": "B_04"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 5,
+    "protocol_block": "B",
+    "name": "B_05"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 6,
+    "protocol_block": "B",
+    "name": "B_06"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 7,
+    "protocol_block": "B",
+    "name": "B_07"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 8,
+    "protocol_block": "B",
+    "name": "B_08"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 9,
+    "protocol_block": "B",
+    "name": "B_09"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 10,
+    "protocol_block": "B",
+    "name": "B_10"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 11,
+    "protocol_block": "B",
+    "name": "B_11"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 12,
+    "protocol_block": "B",
+    "name": "B_12"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 13,
+    "protocol_block": "B",
+    "name": "B_13"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 14,
+    "protocol_block": "B",
+    "name": "B_14"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 15,
+    "protocol_block": "B",
+    "name": "B_15"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 16,
+    "protocol_block": "B",
+    "name": "B_16"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 17,
+    "protocol_block": "B",
+    "name": "B_17"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 18,
+    "protocol_block": "C",
+    "name": "C_01"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 19,
+    "protocol_block": "C",
+    "name": "C_02"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 20,
+    "protocol_block": "C",
+    "name": "C_03"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 21,
+    "protocol_block": "C",
+    "name": "C_04"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 22,
+    "protocol_block": "C",
+    "name": "C_05"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 23,
+    "protocol_block": "C",
+    "name": "C_06"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 24,
+    "protocol_block": "C",
+    "name": "C_07"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 25,
+    "protocol_block": "C",
+    "name": "C_08"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 26,
+    "protocol_block": "C",
+    "name": "C_09"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 27,
+    "protocol_block": "C",
+    "name": "C_10"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 28,
+    "protocol_block": "C",
+    "name": "C_11"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 29,
+    "protocol_block": "C",
+    "name": "C_12"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 30,
+    "protocol_block": "C",
+    "name": "C_13"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 31,
+    "protocol_block": "C",
+    "name": "C_14"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 32,
+    "protocol_block": "C",
+    "name": "C_15"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 33,
+    "protocol_block": "C",
+    "name": "C_16"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 34,
+    "protocol_block": "C",
+    "name": "C_17"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 35,
+    "protocol_block": "C",
+    "name": "C_18"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 36,
+    "protocol_block": "C",
+    "name": "C_19"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 37,
+    "protocol_block": "C",
+    "name": "C_20"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 38,
+    "protocol_block": "C",
+    "name": "C_21"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 39,
+    "protocol_block": "C",
+    "name": "C_22"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 40,
+    "protocol_block": "C",
+    "name": "C_23"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 41,
+    "protocol_block": "D",
+    "name": "D_01"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 42,
+    "protocol_block": "D",
+    "name": "D_02"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 43,
+    "protocol_block": "D",
+    "name": "D_03"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 44,
+    "protocol_block": "D",
+    "name": "D_04"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 45,
+    "protocol_block": "D",
+    "name": "D_05"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 46,
+    "protocol_block": "D",
+    "name": "D_06"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 47,
+    "protocol_block": "D",
+    "name": "D_07"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 48,
+    "protocol_block": "D",
+    "name": "D_08"
+  },
+  {
+    "scheme": "ninapro_db2",
+    "code": 49,
+    "protocol_block": "D",
+    "name": "D_09"
+  }
+]
