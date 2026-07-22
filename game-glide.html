@@ -108,10 +108,10 @@
   </header>
 
   <!-- Game Layout -->
-  <div class="flex-1 flex gap-0">
+  <div class="game-layout flex-1 flex gap-0">
 
     <!-- Left HUD -->
-    <aside class="w-56 p-5 flex flex-col gap-4 flex-shrink-0" style="background:rgba(255,255,255,0.4);backdrop-filter:blur(20px) saturate(1.5);-webkit-backdrop-filter:blur(20px) saturate(1.5);border-right:1px solid rgba(255,255,255,0.65);">
+    <aside class="game-hud-left w-56 p-5 flex flex-col gap-4 flex-shrink-0" style="background:rgba(255,255,255,0.4);backdrop-filter:blur(20px) saturate(1.5);-webkit-backdrop-filter:blur(20px) saturate(1.5);border-right:1px solid rgba(255,255,255,0.65);">
       <!-- Timer -->
       <div class="rounded-xl p-4" style="background:rgba(255,255,255,0.55);backdrop-filter:blur(20px) saturate(1.5);-webkit-backdrop-filter:blur(20px) saturate(1.5);border:1px solid rgba(255,255,255,0.65);box-shadow:0 8px 32px rgba(42,74,111,0.2);border-top:4px solid var(--primary);">
         <div class="font-display text-xs font-bold text-on-surface-variant mb-1">남은 시간</div>
@@ -137,14 +137,14 @@
         </div>
       </div>
       <!-- Instructions -->
-      <div class="mt-auto rounded-lg p-4 text-sm" style="background:rgba(255,255,255,0.4);border:1px dashed rgba(42,74,111,0.35);">
+      <div class="game-hud-verbose mt-auto rounded-lg p-4 text-sm" style="background:rgba(255,255,255,0.4);border:1px dashed rgba(42,74,111,0.35);">
         <strong class="text-primary block mb-1 font-display text-xs">훈련 방법</strong>
         악력으로 잠수함 심도를 조절해 점선 항로를 따라가세요. 게이트가 도착선에 닿을 때 민트 개구부 안에 있으면 통과!
       </div>
     </aside>
 
     <!-- Center Viewport -->
-    <div id="game-viewport" class="flex-1 relative overflow-hidden select-none">
+    <div id="game-viewport" class="game-stage flex-1 relative overflow-hidden select-none">
       <div id="surface-glow" aria-hidden="true"></div>
 
       <!-- Parallax cave silhouettes -->
@@ -194,9 +194,9 @@
     </div>
 
     <!-- Right Gauge -->
-    <aside class="w-28 p-4 flex flex-col items-center flex-shrink-0" style="background:rgba(255,255,255,0.4);backdrop-filter:blur(20px) saturate(1.5);-webkit-backdrop-filter:blur(20px) saturate(1.5);border-left:1px solid rgba(255,255,255,0.65);">
+    <aside class="game-hud-right w-28 p-4 flex flex-col items-center flex-shrink-0" style="background:rgba(255,255,255,0.4);backdrop-filter:blur(20px) saturate(1.5);-webkit-backdrop-filter:blur(20px) saturate(1.5);border-left:1px solid rgba(255,255,255,0.65);">
       <div class="font-display text-xs font-bold text-on-surface-variant mb-3 text-center">악력 / 심도</div>
-      <div class="font-display text-sm text-on-surface-variant mb-1">100%</div>
+      <div class="game-hud-verbose font-display text-sm text-on-surface-variant mb-1">100%</div>
       <div id="gauge-track" role="meter" aria-label="악력 게이지" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"
            class="flex-1 w-10 relative rounded-full overflow-hidden" style="background:rgba(255,255,255,0.4);border:1px solid rgba(255,255,255,0.65);">
         <!-- Target tolerance band (moves with target depth) -->
@@ -210,7 +210,7 @@
         <!-- Fill (current force) -->
         <div id="gauge-fill" class="absolute bottom-0 left-0 right-0 rounded-full" style="z-index:2;height:0%;background:var(--primary);"></div>
       </div>
-      <div class="mt-2 mb-1 font-display text-sm text-on-surface-variant">0%</div>
+      <div class="game-hud-verbose mt-2 mb-1 font-display text-sm text-on-surface-variant">0%</div>
       <div id="force-pct" class="font-display text-2xl font-bold text-primary mt-2 tabular">0%</div>
       <span id="force-live" class="sr-only" aria-live="polite"></span>
     </aside>

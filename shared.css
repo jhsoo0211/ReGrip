@@ -771,9 +771,10 @@ textarea:focus-visible,
   .game-hud-hint { display: none; }
 }
 
-/* Shared overlay scaffold (ready + pause). Sits below the confirm modal (z 250). */
+/* Shared overlay scaffold (ready + pause + rotate). Sits below the confirm modal (z 250). */
 .game-ready-overlay,
-.game-pause-overlay {
+.game-pause-overlay,
+.game-rotate-overlay {
   position: fixed;
   inset: 0;
   z-index: 240;
@@ -784,9 +785,14 @@ textarea:focus-visible,
   background: rgba(18,38,58,0.4);
 }
 .game-pause-overlay { z-index: 245; }
+/* 회전 안내는 일시정지 오버레이(245) 위에 온다 — 가로로 돌리면 둘이 함께 뜨는데,
+   사용자가 먼저 읽어야 하는 쪽은 "왜 멈췄는가"이기 때문이다.
+   확인 모달(250)보다는 아래로 둬서 기존 레이어 계약을 그대로 지킨다. */
+.game-rotate-overlay { z-index: 248; }
 
 .game-ready-card,
-.game-pause-card {
+.game-pause-card,
+.game-rotate-card {
   width: 100%;
   max-width: 460px;
   background: var(--glass-bg);
@@ -893,8 +899,30 @@ textarea:focus-visible,
 .game-pause-actions .btn-retro,
 .game-pause-actions .btn-retro-primary { flex: 1 1 auto; }
 
-.game-pause-card { max-width: 380px; text-align: center; }
-.game-pause-card h2 { font-size: 22px; font-weight: 700; color: var(--ink); }
+.game-pause-card,
+.game-rotate-card { max-width: 380px; text-align: center; }
+.game-pause-card h2,
+.game-rotate-card h2 { font-size: 22px; font-weight: 700; color: var(--ink); }
+
+/* ── 회전 안내 오버레이 (세로 전용) ──
+   스캐폴드·유리 카드·제목은 위 규칙을 선택자에 얹어 그대로 공유한다. 새 색/그림자/radius 없음.
+   아래 두 규칙만 회전 카드 고유이고, 값은 전부 기존 것을 그대로 가져왔다:
+   아이콘 색은 .game-ready-line 아이콘과 같은 var(--primary),
+   본문은 .game-ready-line 과 같은 14px / var(--ink-secondary) / 1.5. */
+.game-rotate-icon {
+  font-size: 44px;
+  color: var(--primary);
+  animation: gameRotateHint 2.6s var(--ease-out) infinite;
+}
+.game-rotate-desc {
+  font-size: 14px;
+  color: var(--ink-secondary);
+  line-height: 1.5;
+}
+@keyframes gameRotateHint {
+  0%, 55%, 100% { transform: rotate(0deg); }
+  25%, 40%      { transform: rotate(-22deg); }
+}
 
 /* Countdown 3-2-1 — large numeral, brand color, hard-edged pop. */
 .game-countdown-num {
@@ -919,8 +947,213 @@ textarea:focus-visible,
 @media (prefers-reduced-motion: reduce) {
   .game-ready-card,
   .game-pause-card,
+  .game-rotate-card,
+  .game-rotate-icon,
   .game-countdown-num.countdown-pop { animation: none !important; }
 }
 [data-reduced-motion] .game-ready-card,
 [data-reduced-motion] .game-pause-card,
+[data-reduced-motion] .game-rotate-card,
+[data-reduced-motion] .game-rotate-icon,
 [data-reduced-motion] .game-countdown-num.countdown-pop { animation: none !important; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILE — 게임 셸 반응형 (≤767px) + 하단탭 6칸 대응
+   앱 셸과 동일한 767px 경계를 쓴다(위 "Responsive layout" 구역 참조).
+   여기 있는 규칙은 전부 max-width 미디어 쿼리 안에 있거나(=데스크톱 미적용),
+   기존 값과 동일한 결과를 내는 순수 추가다. 색/그림자/블러/radius/폰트는 건드리지 않는다.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* 게임 화면 높이 — 모바일 브라우저 주소창 때문에 100vh는 화면 밖으로 넘친다.
+   dvh 미지원 브라우저를 위해 100vh 폴백을 먼저 선언한다.
+   데스크톱에는 동적으로 접히는 UA 툴바가 없어 100dvh == 100vh 이므로 렌더링이 같다.
+   (#game-screen 은 게임 4종에만 존재하고, Tailwind .min-h-screen 과 같은 100vh 를 준다) */
+#game-screen {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+@media (max-width: 767px) {
+  /* 헤더 — 게임 시작 후 GameShell 이 일시정지 버튼을 끼워 넣어 요소가 4개가 되면서
+     390px 이하에서 센서 배지가 두 줄로 접히고 로고와 겹친다. 여백·글자 크기만 줄여
+     한 줄을 유지한다(색·그림자·블러는 그대로). */
+  #game-screen > header { padding-left: 12px; padding-right: 12px; gap: 8px; }
+  #game-screen > header > div:first-child { flex-shrink: 0; }
+  #game-screen > header > div:last-child  { gap: 8px; min-width: 0; }
+  #game-screen > header #sensor-badge {
+    flex-shrink: 0;
+    white-space: nowrap;
+    font-size: 10px;
+    padding: 4px 8px;
+  }
+  /* 일시정지·종료는 게임 중 유일한 이탈 컨트롤이다. 글자·좌우 여백은 줄여 헤더 한 줄을
+     유지하되, 터치 타깃은 48×48 이상을 보장한다(WCAG 2.5.5 44×44 상회).
+     min-height/width 를 여기서 책임지므로 shared.js 는 인라인으로 크기를 주지 않는다.
+     이 블록은 max-width:767px 안이라 데스크톱 렌더링은 그대로다. */
+  #game-screen > header #game-pause-btn,
+  #game-screen > header #exit-btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+    font-size: 12px;
+    padding: 6px 10px;
+    min-width: 48px;
+    min-height: 48px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* 3열(좌 HUD · 스테이지 · 우 게이지) → 세로 3단 */
+  .game-layout { flex-direction: column; }
+
+  /* 좌측 세로 패널 → 상단 가로 스트립. 넘치면 가로 스크롤. */
+  .game-layout > .game-hud-left {
+    flex: 0 0 auto;
+    width: auto;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 8px;
+    padding: 8px 10px;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  .game-hud-left > div {
+    flex: 0 0 auto;
+    min-width: 0;
+    margin-top: 0;   /* .mt-auto 무력화 (가로 스트립에서는 의미 없음) */
+  }
+  .game-hud-left > .rounded-xl,
+  .game-hud-left > .rounded-lg { padding: 8px 10px; }
+  /* 수치 글자 축소 — 스트립 높이를 낮춰 플레이 영역을 확보하기 위한 것 */
+  .game-hud-left .text-5xl { font-size: 26px; line-height: 1.1; }
+  .game-hud-left .text-3xl { font-size: 22px; line-height: 1.1; }
+  .game-hud-left .text-2xl { font-size: 18px; line-height: 1.1; }
+  .game-hud-left .text-lg  { font-size: 15px; line-height: 1.1; }
+  .game-hud-left .mb-1 { margin-bottom: 0; }
+  .game-hud-left .mb-2 { margin-bottom: 2px; }
+
+  /* 긴 설명·정적 눈금 라벨은 숨긴다 — 준비 오버레이(.game-ready-howto)가 같은 내용을
+     보여주고, 타이머·점수·콤보 같은 실시간 지표는 그대로 남는다. */
+  .game-hud-left .game-hud-verbose,
+  .game-hud-right .game-hud-verbose { display: none; }
+
+  /* 플레이 영역 — 남는 공간 전부 + 화면 절반 이상 확보 */
+  .game-layout > .game-stage {
+    flex: 1 1 auto;
+    min-height: 55vh;
+    min-height: 55dvh;
+  }
+
+  /* 우측 세로 게이지 → 하단 가로 바.
+     게이지 자체는 세로축을 유지한 채 축소한다 — 각 게임 JS가 #gauge-fill / 타깃 밴드를
+     height·bottom 퍼센트로 제어하므로 세로축을 뒤집으면 값이 어긋난다. */
+  .game-layout > .game-hud-right {
+    flex: 0 0 auto;
+    width: auto;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 8px 12px;
+  }
+  .game-hud-right > div {
+    flex: 0 0 auto;
+    margin: 0;
+    width: auto;
+    flex-direction: row;   /* 리듬 게임 범례(쥐기/풀기)를 한 줄로 */
+  }
+  /* 게이지는 이 제품의 핵심 피드백 채널이다. 너무 낮추면 1%당 1px 미만이 되어
+     '목표 구간 유지' 메커니즘이 판독 불가능해진다. 76px = 1%당 0.76px,
+     목표 밴드(±8%)가 12px 이상으로 눈에 잡힌다. */
+  .game-hud-right #gauge-track {
+    flex: 0 0 auto;
+    width: 32px;
+    height: 76px;
+  }
+  /* 채움의 상단선이 사용자가 맞춰야 할 판독선이다. 데스크톱의 rounded-full(9999px)은
+     짧은 트랙에서 채움 박스 전체를 원으로 만들어 상단선을 곡선으로 만든다 → 평평하게.
+     아래쪽만 트랙 곡률에 맞춰 남긴다(트랙이 overflow:hidden 이라 실제로는 클리핑됨). */
+  .game-hud-right #gauge-fill { border-radius: 0 0 10px 10px; }
+  .game-hud-right .text-2xl { font-size: 20px; }
+  /* 크레인 목표선 라벨은 게이지 왼쪽 바깥(right:100%)에 절대배치돼 가로 바에서 겹친다.
+     목표선(#target-line) 자체는 게이지에 그대로 남는다. */
+  .game-hud-right #target-line-label { display: none; }
+}
+
+/* 320px급 초소형 화면 — 헤더에 4개가 다 들어가지 않으므로 게임 중 기능이 없는
+   ReGrip 로고만 감춘다(센서 배지·일시정지·종료는 유지). */
+@media (max-width: 359px) {
+  #game-screen > header { justify-content: flex-end; }
+  #game-screen > header > div:first-child { display: none; }
+}
+
+/* 320×568 세로 — 게이지 하단이 화면 밖(fold 아래)으로 나가던 문제.
+   실측 박스 합계: 헤더 73 + 상단 HUD 스트립 120 + 스테이지 312.39(=55dvh 하한이 구속)
+   + 하단 게이지 바 92 = 597 → 뷰포트 568 대비 29px 오버플로, #gauge-track 하단이 589.4.
+   잘리는 구간이 하필 저출력(반복 시작) 구간이라 판독이 안 되면 곤란하다.
+
+   게이지(76px)는 이 제품의 핵심 해상도라 줄이지 않고, 스테이지 min-height:55dvh 도 유지한다.
+   따라서 회수 대상은 상단 HUD 스트립뿐이다. 예산: 568 − 73(헤더) − 92(게이지 바)
+   − 312.4(55dvh) = 90.6px 가 스트립 상한 → 120px 에서 ~30px 를 줄여야 한다.
+   패딩·여백·도넛 아이콘 지름만 건드리고, 타이머·점수·콤보 수치는 22px 이상으로 남겨
+   읽을 수 있게 한다(라벨 12px 도 그대로). 색·그림자·radius·폰트는 손대지 않는다.
+   경계는 359px — 360px 은 국내 안드로이드 최다 실기기 폭이라 영향을 주면 안 된다. */
+@media (max-width: 359px) {
+  .game-layout > .game-hud-left { padding: 4px 8px; }
+  .game-hud-left > .rounded-xl,
+  .game-hud-left > .rounded-lg { padding: 4px 8px; }
+  /* 수치는 여전히 크게 읽힌다(26px → 22px). */
+  .game-hud-left .text-5xl { font-size: 22px; }
+  /* 크레인 44px / 열기구 40px 유지 도넛 — 옆의 숫자 블록(≈32.5px)이 행 높이를 결정하는
+     지점까지만 줄인다. 더 줄여도 행은 낮아지지 않는다. */
+  .game-hud-left svg { width: 28px; height: 28px; }
+  /* 크레인 '집게 열림/닫힘' 상태줄의 mt-2(8px) — 카드 안 마지막 줄이라 여백이 그대로 높이다. */
+  .game-hud-left .mt-2 { margin-top: 2px; }
+}
+
+/* 가로 모드 휴대폰 — 세로 전용 제품이므로 여기서 게임을 하지는 않는다(GameShell 이
+   (orientation: landscape) and (max-height: 500px) 에서 회전 안내를 띄우고 일시정지한다).
+   남은 규칙은 안내 뒤에 비치는 레이아웃이 스크롤을 만들지 않게 하는 방어선이다.
+
+   .game-stage { min-height: 30dvh } 클램프는 제거했다: 가로에서는 스테이지가
+   flex:1 1 auto 로 남는 공간을 어차피 다 가져가는데, 30dvh 하한이 남는 공간보다 크면
+   스테이지를 억지로 늘려 세로 스크롤을 만들었다(568×320 실측 +27px). 가로에서 플레이하지
+   않게 된 지금은 얻는 것 없이 잘라내는 부작용만 남는다.
+
+   게이지 42px 규칙은 남긴다 — min-height 와 달리 콘텐츠를 잘라내지 않고(#gauge-fill 은
+   퍼센트 기반이라 짧아져도 값은 그대로 읽힌다), 회전 안내가 뜨지 못한 상황에서 세로 스크롤을
+   줄여 주는 안전망이기 때문이다.
+
+   min-height:0 은 위 세로 블록의 .game-stage { min-height: 55dvh } 를 가로에서 무효화한다.
+   30dvh 클램프만 지웠을 때는 이 55dvh 가 그대로 남아 스테이지를 뷰포트의 55% 로 강제해
+   세로 스크롤이 계속 생겼다(실측 740×360 +61px / 568×320 +107px / 667×375 +55px).
+   가로에서는 플레이하지 않으므로 스테이지에 하한을 둘 이유가 없다 — flex:1 1 auto 로
+   남는 공간만 차지하게 두면 안내 뒤 레이아웃이 스크롤을 만들지 않는다.
+   선택자 특이도는 세로 규칙과 같은 (0,2,0) 이고 파일에서 뒤에 오므로 이긴다. */
+@media (max-width: 767px) and (orientation: landscape) {
+  .game-layout > .game-stage { min-height: 0; }
+  .game-hud-right #gauge-track { height: 42px; }
+}
+
+/* ── 하단 탭바 — 항목 6개(홈·훈련·기록·업적·설정·프로필) 대응 ──
+   고정 min-width:56px 6칸은 360px 폭에서 넘친다. 오버플로를 실제로 푸는 건
+   균등 분배(flex:1 1 0 + min-width:0)와 좌우 패딩 축소이지 글자 축소가 아니다.
+   주 사용자가 고령자·저시력자이므로 라벨 11px / 아이콘 22px 기본값을 그대로 쓴다.
+   터치 타깃 최소 높이 56px(≥48px)도 그대로 유지한다.
+   #nav-bottom 은 ≥768px 에서 display:none 이므로 데스크톱에는 영향이 없다. */
+@media (max-width: 767px) {
+  #nav-bottom { padding: 0 4px; }
+  #nav-bottom .nav-bottom-item {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 6px 2px;
+    white-space: nowrap;
+    justify-content: center;
+  }
+}
+/* 320px급 초소형 화면 — 4px 좌우 패딩까지 있으면 한 칸이 47.7px 로 48px 에 미달한다.
+   패딩을 없애 칸 폭을 확보한다(글자는 줄이지 않는다). 경계는 게임 헤더 로고 숨김과
+   동일한 359px 로 맞춘다 — 360px 은 국내 안드로이드 최다 실기기 폭이라 "초소형"이 아니다. */
+@media (max-width: 359px) {
+  #nav-bottom { padding: 0; }
+}

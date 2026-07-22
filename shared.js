@@ -22,6 +22,12 @@ const NAV_ITEMS = [
   { key: 'settings',     label: '설정', icon: 'settings',          href: 'settings.html' },
 ];
 
+// 하단 내비 전용 항목. 사이드바에는 이미 `nav-user`(→ profile.html)가 있으므로 NAV_ITEMS 에는 넣지 않는다.
+// 모바일에서는 사이드바가 숨겨져 프로필(부상 유형·목표 악력·치료 시작일·담당 의사) 진입점이 사라지는 문제를 막는다.
+const NAV_BOTTOM_EXTRA_ITEMS = [
+  { key: 'profile', label: '프로필', icon: 'person', href: 'profile.html' },
+];
+
 // Inline SVG default avatar (retro person glyph) — no external hotlink, works offline.
 const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' fill='%23D6E6F2'/%3E%3Ccircle cx='48' cy='36' r='16' fill='%235E86B8'/%3E%3Cpath d='M16 90c4-20 17-28 32-28s28 8 32 28z' fill='%235E86B8'/%3E%3C/svg%3E";
 
@@ -64,9 +70,18 @@ function injectNav(activeKey) {
     </div>
   `;
 
-  const bottomLinksHtml = NAV_ITEMS.map(item => {
-    const active = item.key === activeKey ? 'active' : '';
-    const fill   = item.key === activeKey ? "style=\"font-variation-settings:'FILL' 1\"" : '';
+  // 하단 바 활성 키: profile.html 은 initPage(null) 로 호출하므로(프로필 페이지는 사이드바 기준으로
+  // 어떤 탭도 활성이 아니다) 현재 파일명으로 'profile' 을 보정한다. 사이드바는 activeKey 를 그대로 쓴다.
+  let bottomActiveKey = activeKey;
+  try {
+    const file = ((location.pathname.split('/').pop() || '')).toLowerCase();
+    const hit = NAV_BOTTOM_EXTRA_ITEMS.find(it => it.href.toLowerCase() === file);
+    if (hit) bottomActiveKey = hit.key;
+  } catch {}
+
+  const bottomLinksHtml = NAV_ITEMS.concat(NAV_BOTTOM_EXTRA_ITEMS).map(item => {
+    const active = item.key === bottomActiveKey ? 'active' : '';
+    const fill   = item.key === bottomActiveKey ? "style=\"font-variation-settings:'FILL' 1\"" : '';
     return `<a class="nav-bottom-item ${active}" href="${item.href}">
       <span class="material-symbols-outlined" ${fill}>${item.icon}</span>
       ${item.label}
@@ -1860,9 +1875,15 @@ const GameShell = {
     let sensorBadgeUnsub = null;
     let readyOverlay = null;
     let pauseOverlay = null;
+    let rotateOverlay = null;   // 가로 모드 안내 (아래 "화면 방향" 구역 참조)
+    let rotateMql = null;
+    let rotateMqlHandler = null;
+    let rotateTrapKey = null;
     let countdownTimer = null;
     let pressBound = null;
     let saving = false;
+    let pauseBtn = null;        // 런타임 주입한 헤더 일시정지 버튼 (게임 HTML 은 수정하지 않는다)
+    let pauseBtnClick = null;
     const reduced = () => prefersReducedMotion();
     const escHtml = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
       c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1966,7 +1987,12 @@ const GameShell = {
     function finishCountdown() {
       removeReadyOverlay();
       state.phase = 'playing';
+      syncPauseBtn();
       try { onStart(); } catch (e) { console.warn('[GameShell] onStart 오류:', e && e.message); }
+      // 카운트다운(≈2.1s) 중에 화면을 가로로 돌린 경우: 그때는 phase 가 'playing' 이 아니라
+      // pause() 가 먹지 않았다. playing 에 들어온 지금 곧바로 멈춰 세운다 —
+      // 그러지 않으면 회전 안내 뒤에서 보이지 않는 채로 타이머가 흘러간다.
+      if (rotateOverlay) pause();
     }
 
     // ── Input (bindPress) ──
@@ -2027,6 +2053,7 @@ const GameShell = {
       state.phase = 'paused';
       try { onPauseChange(true); } catch (e) { console.warn('[GameShell] onPauseChange 오류:', e && e.message); }
       showPauseOverlay();
+      syncPauseBtn();
     }
 
     function resume() {
@@ -2034,6 +2061,68 @@ const GameShell = {
       removePauseOverlay();
       state.phase = 'playing';
       try { onPauseChange(false); } catch (e) { console.warn('[GameShell] onPauseChange 오류:', e && e.message); }
+      syncPauseBtn();
+      // 오버레이의 '계속하기'로 재개하면 포커스를 잃은 자리가 <body> 로 떨어진다.
+      // 방금 다시 보이게 된 헤더 일시정지 버튼으로 옮겨 준다(없거나 숨겨져 있으면 아무것도 하지 않는다).
+      if (pauseBtn && pauseBtn.style.display !== 'none' && !pauseBtn.disabled) {
+        try { pauseBtn.focus(); } catch {}
+      }
+    }
+
+    // ── 헤더 일시정지 버튼 (터치 사용자용) ──
+    // 지금까지 일시정지는 Escape 키 전용이라 터치 사용자는 '종료 → 확인 모달 → 취소' 우회밖에 없었다.
+    // 게임 HTML 은 이 트랙의 소유가 아니므로, 헤더의 안정적인 훅(#exit-btn / #sensor-badge) 옆에
+    // 런타임으로 버튼을 끼워 넣는다. 스타일은 #exit-btn 의 인라인 style 을 그대로 복사해 톤을 맞춘다.
+    function buildPauseBtn() {
+      const anchor = document.getElementById('exit-btn');
+      const fallback = anchor ? null : document.getElementById('sensor-badge');
+      const host = (anchor && anchor.parentNode) || (fallback && fallback.parentNode);
+      if (!host) return;
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.id = 'game-pause-btn';
+      const styleSrc = anchor || fallback;
+      btn.className = styleSrc.className;
+      // 복사한 색/그림자/블러는 그대로 두고, 아이콘+라벨 정렬용 속성만 덧붙인다.
+      // 크기는 절대 강제하지 않는다 → 데스크톱에서 #exit-btn 과 같은 자연 높이를 유지해 헤더 높이가 불변이다.
+      // 모바일 터치 타깃(48×48) 은 shared.css 의 @media (max-width:767px) 규칙이 담당한다.
+      btn.setAttribute('style', (styleSrc.getAttribute('style') || '')
+        + ';display:inline-flex;align-items:center;justify-content:center;gap:4px;');
+
+      pauseBtnClick = () => {
+        // paused 에서는 이 버튼이 숨겨져 있다(아래 syncPauseBtn 참조). 재개는 오버레이의 '계속하기' 담당.
+        if (state.phase === 'playing') pause();
+      };
+      btn.addEventListener('click', pauseBtnClick);
+
+      if (anchor) host.insertBefore(btn, anchor);   // 종료 버튼 바로 앞 형제
+      else host.appendChild(btn);
+      pauseBtn = btn;
+      syncPauseBtn();
+    }
+
+    // playing 에서만 노출한다. ready(준비 오버레이) / countdown / paused / ended 에서는 숨긴다.
+    // paused 를 숨김에 포함하는 이유: 일시정지 오버레이(.game-pause-overlay, position:fixed; inset:0; z-index:245)가
+    // 전면을 덮어 이 버튼은 포인터로 누를 수 없는데, 노출된 채로 두면 aria-modal 다이얼로그 바깥에서
+    // Tab 으로 도달 가능한 유령 컨트롤이 된다. 재개는 오버레이가 소유한 '계속하기' 버튼이 담당하므로 기능 손실은 없다.
+    function syncPauseBtn() {
+      if (!pauseBtn) return;
+      const usable = state.phase === 'playing';
+      pauseBtn.style.display = usable ? 'inline-flex' : 'none';
+      pauseBtn.disabled = !usable;
+      pauseBtn.setAttribute('aria-hidden', usable ? 'false' : 'true');
+      pauseBtn.setAttribute('aria-label', '일시정지');
+      pauseBtn.innerHTML =
+        `<span class="material-symbols-outlined" style="font-size:18px;">pause</span>일시정지`;
+    }
+
+    function removePauseBtn() {
+      if (!pauseBtn) return;
+      if (pauseBtnClick) { try { pauseBtn.removeEventListener('click', pauseBtnClick); } catch {} }
+      try { pauseBtn.remove(); } catch {}
+      pauseBtn = null;
+      pauseBtnClick = null;
     }
 
     function showPauseOverlay() {
@@ -2067,10 +2156,104 @@ const GameShell = {
       if (pauseOverlay) { pauseOverlay.remove(); pauseOverlay = null; }
     }
 
+    // ── 화면 방향 — 세로 전용 (가로 모드는 지원하지 않는다) ──
+    // 가로 740×360 실측: 헤더 73 + 상단 HUD 120 + 하단 게이지 92 = 285px 가 먼저 소비돼
+    // 스테이지에 75px 밖에 안 남고, 크레인 집게(고정 160px)와 리듬 열기구(132px)가 스테이지
+    // 밖으로 완전히 나간다. 악력 유지·정밀 추적은 원래 세로 자세 과제이기도 하다.
+    // → 가로에서는 안내를 띄우고 게임을 멈춘다.
+    //
+    // 감지 조건에 (max-height: 500px) 를 반드시 함께 건다. **데스크톱도 landscape 다** —
+    // (orientation: landscape) 만 쓰면 모든 데스크톱 사용자에게 회전 안내가 뜬다.
+    // 구별 기준은 폭이 아니라 뷰포트 '높이'다. 실측 폰 가로 568×320 / 640×360 / 740×360 /
+    // 667×375 / 736×414 → 높이 320~414px, 데스크톱 1280×800 / 1440×900 / 1920×1080 → 800px 이상.
+    // 500px 은 그 사이에서 양쪽 모두와 충분히 떨어진 값이다(폰 최대 414 대비 +86, 데스크톱 최소
+    // 800 대비 -300). window.innerWidth 로는 구별할 수 없다 — 폰 가로 폭이 740px 까지 나와
+    // 데스크톱과 겹친다.
+    const ROTATE_MQ = '(orientation: landscape) and (max-height: 500px)';
+
+    function showRotateOverlay() {
+      if (rotateOverlay) return;
+      const ov = document.createElement('div');
+      ov.className = 'game-rotate-overlay';
+      ov.setAttribute('role', 'dialog');
+      ov.setAttribute('aria-modal', 'true');
+      ov.setAttribute('aria-label', '화면 방향 안내');
+      ov.innerHTML = `
+        <div class="game-rotate-card" tabindex="-1">
+          <span class="material-symbols-outlined game-rotate-icon" aria-hidden="true">screen_rotation</span>
+          <h2 class="font-display">화면을 세로로 돌려 주세요</h2>
+          <p class="game-rotate-desc">이 훈련은 세로 화면에 맞춰 만들어졌어요. 가로에서는 악력 게이지와 놀이 화면이 다 보이지 않아 잠시 멈춰 둘게요.</p>
+        </div>
+      `;
+      document.body.appendChild(ov);
+      rotateOverlay = ov;
+
+      // 오버레이 안에 포커스 가능한 컨트롤이 없다(사용자가 할 일은 기기를 돌리는 것뿐).
+      // 컨테이너로 포커스를 옮겨 스크린리더가 제목·본문을 읽게 하고, Tab 이 뒤의 배경 요소로
+      // 새지 않도록 캡처 단계에서 가둔다.
+      const card = ov.querySelector('.game-rotate-card');
+      if (card) requestAnimationFrame(() => { try { card.focus(); } catch {} });
+      rotateTrapKey = (e) => {
+        if (e.key !== 'Tab' || !rotateOverlay) return;
+        e.preventDefault();
+        const c = rotateOverlay.querySelector('.game-rotate-card');
+        if (c) { try { c.focus(); } catch {} }
+      };
+      document.addEventListener('keydown', rotateTrapKey, true);
+    }
+
+    function removeRotateOverlay() {
+      if (rotateTrapKey) {
+        try { document.removeEventListener('keydown', rotateTrapKey, true); } catch {}
+        rotateTrapKey = null;
+      }
+      if (rotateOverlay) { rotateOverlay.remove(); rotateOverlay = null; }
+    }
+
+    function applyRotateState(isLandscapePhone) {
+      if (isLandscapePhone) {
+        // pause() 를 먼저 부른다: 일시정지 오버레이가 rAF 로 '계속하기'에 포커스를 주므로,
+        // 그 뒤에 회전 카드 포커스를 예약해야 포커스가 안내 쪽에 남는다.
+        if (state.phase === 'playing') pause();
+        showRotateOverlay();
+      } else {
+        // 세로로 돌아오면 안내만 걷는다. **자동 재개하지 않는다** — 아래에 일시정지 오버레이의
+        // '계속하기'가 남아 있으므로 사용자가 준비됐을 때 직접 재개한다.
+        removeRotateOverlay();
+        // 포커스가 방금 제거된 회전 카드에 있었으면 <body> 로 떨어진다. 아래에 떠 있는
+        // 오버레이의 기본 버튼으로 되돌려 준다.
+        const back = (pauseOverlay && pauseOverlay.querySelector('.game-pause-resume'))
+                  || (readyOverlay && readyOverlay.querySelector('.game-ready-start'));
+        if (back) { try { back.focus(); } catch {} }
+      }
+    }
+
+    function watchRotate() {
+      if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+      rotateMql = window.matchMedia(ROTATE_MQ);
+      rotateMqlHandler = (e) => applyRotateState(!!e.matches);
+      if (typeof rotateMql.addEventListener === 'function') rotateMql.addEventListener('change', rotateMqlHandler);
+      else if (typeof rotateMql.addListener === 'function') rotateMql.addListener(rotateMqlHandler);   // 구형 Safari
+      applyRotateState(!!rotateMql.matches);   // 가로로 든 채 페이지에 들어온 경우
+    }
+
+    function unwatchRotate() {
+      if (rotateMql && rotateMqlHandler) {
+        if (typeof rotateMql.removeEventListener === 'function') rotateMql.removeEventListener('change', rotateMqlHandler);
+        else if (typeof rotateMql.removeListener === 'function') rotateMql.removeListener(rotateMqlHandler);
+      }
+      rotateMql = null;
+      rotateMqlHandler = null;
+      removeRotateOverlay();
+    }
+
     const onKey = (e) => {
       if (e.key !== 'Escape') return;
       // Let an open confirm modal own Escape (so cancel keeps the pause overlay).
       if (document.querySelector('.confirm-modal-overlay')) return;
+      // 회전 안내가 떠 있는 동안은 Escape 로 재개할 수 없다 — 보이지 않는 화면에서
+      // 게임이 다시 굴러가는 것을 막는다.
+      if (rotateOverlay) return;
       if (state.phase === 'playing') { e.preventDefault(); pause(); }
       else if (state.phase === 'paused') { e.preventDefault(); resume(); }
     };
@@ -2095,6 +2278,8 @@ const GameShell = {
       unbindPress();
       removeReadyOverlay();
       removePauseOverlay();
+      unwatchRotate();          // matchMedia change 리스너 + Tab 트랩 + 오버레이 DOM 정리
+      removePauseBtn();
       document.removeEventListener('keydown', onKey);
       if (typeof window !== 'undefined') window.removeEventListener('pagehide', onPageHide);
       if (sensorBadgeUnsub) { try { sensorBadgeUnsub(); } catch {} sensorBadgeUnsub = null; }
@@ -2189,6 +2374,7 @@ const GameShell = {
       try { prevSessions = DataService._readLocal('regrip_sessions', []) || []; } catch {}
 
       state.phase = 'ended';
+      syncPauseBtn();
 
       let result = {};
       try { result = buildResult() || {}; } catch (e) { console.warn('[GameShell] buildResult 오류:', e && e.message); result = {}; }
@@ -2213,8 +2399,13 @@ const GameShell = {
       });
     }
 
-    // ── Kick off: show the ready overlay ──
+    // ── Kick off: 헤더 일시정지 버튼 주입(ready 단계에서는 숨김) 후 준비 오버레이 ──
+    try { buildPauseBtn(); } catch (e) { console.warn('[GameShell] 일시정지 버튼 주입 실패:', e && e.message); }
     showReadyOverlay();
+    // 화면 방향 감시는 준비 오버레이 **뒤에** 건다. watchRotate() 는 현재 상태를 즉시 반영하는데,
+    // 가로로 든 채 들어온 경우 showRotateOverlay() 가 rAF 로 회전 카드에 포커스를 예약한다.
+    // 준비 오버레이도 같은 방식으로 '시작하기'에 포커스를 주므로, 뒤에 걸어야 포커스가 안내 쪽에 남는다.
+    try { watchRotate(); } catch (e) { console.warn('[GameShell] 화면 방향 감시 실패:', e && e.message); }
 
     return {
       cfg,
