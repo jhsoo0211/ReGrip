@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     # 정적 파일(아바타) 저장 경로
     storage_dir: str = "./storage"
 
+    # 로깅 레벨 (DEBUG | INFO | WARNING | ERROR | CRITICAL). main.py 의 basicConfig 가 사용.
+    log_level: str = "INFO"
+
     @property
     def is_prod(self) -> bool:
         return self.env.lower() == "prod"

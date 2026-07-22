@@ -28,6 +28,13 @@ def client():
     db = SessionLocal()
     try:
         seed_achievements(db)
+        # sig 는 선택적 서브시스템. 어휘 모듈이 없으면 지연 import 가 실패하므로 건너뛴다.
+        try:
+            from src.services.signal_vocab import seed_sig_labels
+
+            seed_sig_labels(db)
+        except ImportError:
+            pass
     finally:
         db.close()
     with TestClient(app) as c:
