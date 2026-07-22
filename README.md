@@ -50,14 +50,22 @@ ReGrip은 악력 센서와 연동하여 손 재활 훈련을 게임처럼 즐겁
 
 ## 🛠 기술 스택
 
+> 전체 계층별 상세 정리와 향후 도입 예정 기술은 **[docs/01-기술스택.md](docs/01-기술스택.md)** 참조.
+
 | 구분 | 기술 |
 |------|------|
-| **프론트엔드** | HTML5, Vanilla JavaScript, CSS3 |
+| **프론트엔드** | HTML5, Vanilla JavaScript, CSS3 — 빌드 도구 없음 |
 | **스타일링** | Tailwind CSS (CDN), Vanilla CSS (`shared.css`) |
-| **폰트** | Google Fonts — Space Grotesk (제목), DM Sans (본문) |
+| **게임 렌더링** | Canvas 2D + requestAnimationFrame (미니게임 4종) |
+| **폰트** | Pretendard, Google Fonts — Space Grotesk (제목), DM Sans (본문) |
 | **아이콘** | Material Symbols Outlined |
+| **백엔드** | Python 3.11, FastAPI + Uvicorn, SQLAlchemy 2.0, Pydantic v2 (`integration` 브랜치) |
+| **DB** | SQLite (개발) → PostgreSQL (운영 설계, `DATABASE_URL`로 전환) |
+| **인증/보안** | PyJWT (access + refresh 쿠키), argon2-cffi, AES-GCM 필드 암호화 |
+| **펌웨어** | ESP32 + Arduino (PlatformIO), links2004/WebSockets |
 | **데이터 저장** | localStorage (기본) / REST API (전환 가능) |
-| **센서 통신** | WebSocket (기본) / Web Serial API (확장 가능) |
+| **센서 통신** | WebSocket (기본) / BLE·Web Serial API (확장 옵션) |
+| **테스트** | pytest + httpx (백엔드) |
 
 ---
 
