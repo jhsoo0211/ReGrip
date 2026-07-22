@@ -30,3 +30,15 @@ class TimestampMixin:
         onupdate=_utcnow,
         server_default=func.now(),
     )
+
+
+class CreatedAtMixin:
+    """insert-only 테이블용: created_at 만 둔다(updated_at 없음).
+
+    신호 카탈로그(sig_*) 테이블은 append/insert-only 라 갱신 트리거가 필요 없다.
+    TimestampMixin 의 created_at 절반을 복제한 것으로, updated_at 컬럼을 만들지 않는다.
+    """
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_utcnow, server_default=func.now()
+    )

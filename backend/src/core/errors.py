@@ -7,10 +7,14 @@
 """
 from __future__ import annotations
 
+import logging
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
+
+logger = logging.getLogger(__name__)
 
 
 class AppError(Exception):
@@ -70,10 +74,25 @@ def register_error_handlers(app: FastAPI) -> None:
     async def _http_error(request: Request, exc: StarletteHTTPException):  # noqa: ANN001
         code = _STATUS_CODE.get(exc.status_code, "ERROR")
         message = exc.detail if isinstance(exc.detail, str) else "요청을 처리할 수 없습니다."
+        # 4xx 는 정상적인 클라이언트 오류라 로그를 남기지 않는다. 5xx 만 경고로 기록.
+        if exc.status_code >= 500:
+            logger.warning(
+                "HTTP %s: %s %s — %s",
+                exc.status_code,
+                request.method,
+                request.url.path,
+                message,
+            )
         return JSONResponse(status_code=exc.status_code, content=_envelope(code, message))
 
     @app.exception_handler(Exception)
     async def _unhandled(request: Request, exc: Exception):  # noqa: ANN001
+        # 스택트레이스는 서버 로그에만 남긴다. 응답 본문은 내부 정보를 노출하지 않도록 그대로 둔다.
+        logger.exception(
+            "처리되지 않은 예외: %s %s",
+            request.method,
+            request.url.path,
+        )
         return JSONResponse(
             status_code=500,
             content=_envelope("INTERNAL_ERROR", "서버 내부 오류가 발생했습니다."),

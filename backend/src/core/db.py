@@ -5,7 +5,7 @@ in-memory SQLite 는 StaticPool 로 단일 연결을 공유해 테스트에서 �
 """
 from __future__ import annotations
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -27,6 +27,22 @@ engine = create_engine(
     future=True,
     **_engine_kwargs,
 )
+
+# ── SQLite 외래키 강제 ──────────────────────────────────────────
+# SQLite 는 외래키 제약 검사가 커넥션 단위로 기본 OFF 다. 켜지 않으면 스키마에 선언한
+# ON DELETE CASCADE / FK 제약이 개발·테스트에서 전부 무시되어, 운영(PostgreSQL)에서만
+# 터지는 고아 레코드·삭제 실패를 미리 잡을 수 없다. 커넥션마다 PRAGMA 를 걸어 맞춘다.
+# PostgreSQL 커넥션에 이 PRAGMA 를 보내면 문법 오류이므로 SQLite 일 때만 등록한다.
+if engine.dialect.name == "sqlite":
+
+    @event.listens_for(engine, "connect")
+    def _sqlite_enable_foreign_keys(dbapi_connection, connection_record):  # noqa: ANN001
+        cursor = dbapi_connection.cursor()
+        try:
+            cursor.execute("PRAGMA foreign_keys=ON")
+        finally:
+            cursor.close()
+
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, class_=Session)
 
