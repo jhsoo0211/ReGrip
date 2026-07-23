@@ -97,9 +97,19 @@ def _verify_prod_settings() -> None:
 
     if problems:
         lines = "\n".join(f"  {i}. {p}" for i, p in enumerate(problems, start=1))
+        # 로컬 개발을 실수로 ENV=prod 로 띄운 경우가 흔하다(특히 DATABASE_URL 이 sqlite 인데 prod).
+        # 그 신호가 있으면 "ENV=dev 로 실행" 힌트를 앞세운다 — 이 가드는 운영 배포에서만 동작한다.
+        local_hint = ""
+        if settings.database_url.startswith("sqlite"):
+            local_hint = (
+                "  ※ 로컬 개발 실행으로 보입니다(DATABASE_URL 이 sqlite). 그렇다면 ENV=prod 가 아니라 "
+                "ENV=dev 로 실행하세요 — 이 가드는 운영(prod) 배포에서만 동작합니다.\n"
+                "     PowerShell: $env:ENV='dev'; uvicorn src.main:app --reload   (또는 $env:ENV 삭제)\n"
+            )
         raise RuntimeError(
-            f"운영 환경(ENV=prod) 설정 검증에 실패했습니다. 아래 {len(problems)}건을 "
-            "backend/.env 에서 모두 고친 뒤 다시 기동하세요.\n"
+            "운영 환경(ENV=prod) 설정 검증에 실패했습니다.\n"
+            f"{local_hint}"
+            f"  진짜 운영 배포라면 아래 {len(problems)}건을 backend/.env 에서 모두 고친 뒤 다시 기동하세요.\n"
             f"{lines}\n"
             "  (설정 항목 전체 목록은 backend/.env.example 참고)"
         )

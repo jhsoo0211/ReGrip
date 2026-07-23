@@ -94,8 +94,8 @@ def parse_args(argv=None) -> argparse.Namespace:
         description="NinaPro DB2 EMG 제스처 분류 학습 (피험자별 intra-subject, RandomForest).",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    p.add_argument("--db", default="backend/storage/sig_ingest.db", help="SQLite 카탈로그 DB 경로")
-    p.add_argument("--blob-root", default="backend/storage/sig-blobs", help="신호 blob(.npy) 루트")
+    p.add_argument("--db", default=str(_BACKEND / "storage" / "sig_ingest.db"), help="SQLite 카탈로그 DB 경로")
+    p.add_argument("--blob-root", default=str(_BACKEND / "storage" / "sig-blobs"), help="신호 blob(.npy) 루트")
     p.add_argument("--win", type=int, default=400, help="창 길이(샘플 @2000Hz)")
     p.add_argument("--step", type=int, default=200, help="보폭(샘플 @2000Hz)")
     p.add_argument(
@@ -105,7 +105,7 @@ def parse_args(argv=None) -> argparse.Namespace:
     )
     p.add_argument(
         "--out",
-        default="backend/storage/train_results.json",
+        default=str(_BACKEND / "storage" / "train_results.json"),
         help="요약 결과 JSON 경로(예측 npz 는 같은 디렉터리의 train_preds.npz)",
     )
     return p.parse_args(argv)
