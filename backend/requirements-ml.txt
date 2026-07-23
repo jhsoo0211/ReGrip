@@ -1,0 +1,6 @@
+# ML 학습(scripts/ml/) 전용 의존성.
+# requirements-ingest.txt (numpy/scipy) 위에 설치한다:
+#   pip install -r requirements-ingest.txt -r requirements-ml.txt
+# numpy/scipy 는 requirements-ingest.txt 에 이미 있으므로 여기서 중복 명시하지 않는다.
+scikit-learn==1.9.0
+matplotlib==3.11.1

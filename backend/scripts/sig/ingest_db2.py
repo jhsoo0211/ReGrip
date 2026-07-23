@@ -48,9 +48,12 @@ _MODALITY_SPEC = {
 _ACC_AXES = ("x", "y", "z")
 
 # 신호 vs 라벨(restimulus/rerepetition) 길이 어긋남 허용치(샘플).
-# 실 E3 는 신호 877073 vs 라벨 877072 로 1 어긋난다(경계 off-by-one). 공통 최소 길이로 정렬해 자른다.
-# 어긋남이 이 값을 넘으면 데이터 손상 신호로 보고 막는다(수백 샘플 이상은 조용히 자르면 안 됨).
-_MAX_LENGTH_MISMATCH = 256
+# 신호 vs 라벨 길이가 경계 트림으로 조금 어긋난다(실측: s1_E3=1, s12_E3=272 샘플). 공통 최소 길이로
+# 정렬해 자른다. 허용치는 "같은 녹화에서 온 배열인가"를 보는 sanity check다 — 트림 아티팩트(신호의
+# 극히 일부)까지만 허용하고 그 이상(다른 녹화/손상 의심)은 막는다. 고정값 256은 s12(272, 전체의
+# 0.031%)를 잘못 막았으므로, 신호 길이 비례(+짧은 녹화용 절대 바닥)로 바꾼다.
+_LENGTH_MISMATCH_FRAC = 0.01   # 신호 길이의 1% 까지 허용 (예: 875707 → 8757; 실측 최대 272)
+_MIN_LENGTH_MISMATCH = 512     # 짧은 녹화용 절대 바닥
 
 
 def _scalar_int(mat: dict, key: str) -> int:
@@ -212,10 +215,11 @@ def ingest_db2_file(db, blob_root, mat_path, *, dataset_meta: dict):
     n_aligned = min(_lengths.values())
     n_max = max(_lengths.values())
     length_mismatch = n_max - n_aligned
-    if length_mismatch > _MAX_LENGTH_MISMATCH:
+    tolerance = max(_MIN_LENGTH_MISMATCH, int(_LENGTH_MISMATCH_FRAC * n_max))
+    if length_mismatch > tolerance:
         raise ValueError(
             f"{mat_path.name}: signal/label length mismatch {length_mismatch} "
-            f"exceeds tolerance {_MAX_LENGTH_MISMATCH} (lengths={_lengths})"
+            f"exceeds tolerance {tolerance} (lengths={_lengths})"
         )
 
     lo, hi = block_code_range(block)
