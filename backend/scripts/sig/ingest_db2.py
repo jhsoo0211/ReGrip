@@ -22,7 +22,7 @@ from src.models import (
     SigSignalBlob,
     SigSubject,
 )
-from src.services.signal_offsets import NATIVE_RATES_DB2, STORED_RATE_DB2, label_offset
+from src.services.signal_offsets import NATIVE_RATES_DB2, STORED_RATE_DB2, block_code_range
 
 from .blobstore import write_blob
 from .mat_loader import load_db2_mat, probe
@@ -46,6 +46,11 @@ _MODALITY_SPEC = {
 }
 
 _ACC_AXES = ("x", "y", "z")
+
+# 신호 vs 라벨(restimulus/rerepetition) 길이 어긋남 허용치(샘플).
+# 실 E3 는 신호 877073 vs 라벨 877072 로 1 어긋난다(경계 off-by-one). 공통 최소 길이로 정렬해 자른다.
+# 어긋남이 이 값을 넘으면 데이터 손상 신호로 보고 막는다(수백 샘플 이상은 조용히 자르면 안 됨).
+_MAX_LENGTH_MISMATCH = 256
 
 
 def _scalar_int(mat: dict, key: str) -> int:
@@ -115,13 +120,22 @@ def _build_channels(group: str, n_channels: int, forcecal) -> list[dict]:
             name = f"CG_{i + 1:02d}"
         else:  # force
             name = f"FORCE_{i + 1}"
+            if forcecal is None:
+                # force 가 있는데 forcecal 이 없으면(실 DB2 엔 없지만 방어적으로) TypeError 대신 명확한 에러.
+                raise ValueError(
+                    "force channel requires forcecal (row0=min, row1=max) but forcecal is missing"
+                )
             mn = float(forcecal[0, i])
             mx = float(forcecal[1, i])
+            if mx <= mn:
+                # forcecal 방향 검증: row0=min < row1=max 여야 한다(뒤집힘/상수 채널은 잘못된 정규화).
+                raise ValueError(
+                    f"forcecal channel {i}: expected max>min (row0=min,row1=max), got min={mn} max={mx}"
+                )
+            # pct = (raw-min)/(max-min) = raw*gain + offset
             span = mx - mn
-            if span != 0:
-                # pct = (raw-min)/(max-min) = raw*gain + offset
-                gain = 1.0 / span
-                offset = -mn / span
+            gain = 1.0 / span
+            offset = -mn / span
         rows.append(
             {
                 "col_index": i,
@@ -175,7 +189,36 @@ def ingest_db2_file(db, blob_root, mat_path, *, dataset_meta: dict):
         db.delete(existing)  # cascade → blob/channel/segment 행 제거(고아 blob 파일은 dedup 로 재사용)
         db.flush()
 
-    offset = label_offset(block)
+    # (B3) 그룹은 실제 존재하는 모달리티로 구성한다. emg·acc 는 항상, glove 는 E1/E2 만,
+    # force 는 E3 만. inclin/activation 은 제스처/힘 학습에 불필요해 blob 그룹에 넣지 않는다.
+    groups = ["emg", "acc"]
+    if "glove" in mat:
+        groups.append("glove")
+    if "force" in mat:
+        # force 가 있으면 forcecal 이 반드시 필요하다(정규화 gain/offset 산출). 없으면 명확히 막는다.
+        if "forcecal" not in mat:
+            raise ValueError(
+                f"{mat_path.name}: force present but forcecal missing "
+                "(need row0=min, row1=max for normalization)"
+            )
+        groups.append("force")
+    forcecal = np.asarray(mat["forcecal"]) if "forcecal" in mat else None
+
+    # (B4) 신호와 라벨 길이 정렬. 실 E3 는 신호 877073 vs 라벨 877072 로 1 어긋난다.
+    # 존재하는 신호 그룹 + restimulus/rerepetition 의 공통 최소 길이 n 으로 모두 자른다.
+    _lengths = {g: int(np.asarray(mat[g]).shape[0]) for g in groups}
+    _lengths["restimulus"] = int(np.asarray(mat["restimulus"]).ravel().shape[0])
+    _lengths["rerepetition"] = int(np.asarray(mat["rerepetition"]).ravel().shape[0])
+    n_aligned = min(_lengths.values())
+    n_max = max(_lengths.values())
+    length_mismatch = n_max - n_aligned
+    if length_mismatch > _MAX_LENGTH_MISMATCH:
+        raise ValueError(
+            f"{mat_path.name}: signal/label length mismatch {length_mismatch} "
+            f"exceeds tolerance {_MAX_LENGTH_MISMATCH} (lengths={_lengths})"
+        )
+
+    lo, hi = block_code_range(block)
     recording = SigRecording(
         dataset_id=dataset.id,
         subject_id=subject.id,
@@ -186,21 +229,25 @@ def ingest_db2_file(db, blob_root, mat_path, *, dataset_meta: dict):
         status="ingesting",
         probe_findings={
             **findings,
-            "label_offset_mode": "per_file_restart_by_block",
-            "label_offset_applied": {block: offset},
+            # ★ restimulus 는 이미 전역 코드다(오프셋 가산 안 함). block 별 허용 범위만 기록.
+            "label_code_mode": "restimulus_is_global_code",
+            "protocol_block": block,
+            "block_code_range": [lo, hi],
+            # (B4) 신호/라벨 공통 최소 길이로 잘라 정렬한 사실(가역성).
+            "length_alignment": {
+                "n_aligned": n_aligned,
+                "n_max": n_max,
+                "truncated": length_mismatch,
+                "lengths": _lengths,
+            },
         },
     )
     db.add(recording)
     db.flush()
 
     # 6) 모달리티별 blob + channel
-    groups = ["emg", "acc", "glove"]
-    if findings["has_force"]:
-        groups.append("force")
-    forcecal = np.asarray(mat["forcecal"]) if "forcecal" in mat else None
-
     for group in groups:
-        arr = np.asarray(mat[group])
+        arr = np.asarray(mat[group])[:n_aligned]  # (B4) 공통 길이로 정렬
         native = NATIVE_RATES_DB2[group]
         out, spec = resample_modality(arr, native, STORED_RATE_DB2)  # 네이티브로 리샘플
         rel_path, sha, n_bytes = write_blob(blob_root, out)  # 파일 먼저(원자적)
@@ -226,9 +273,9 @@ def ingest_db2_file(db, blob_root, mat_path, *, dataset_meta: dict):
         for ch in _build_channels(group, int(out.shape[1]), forcecal):
             db.add(SigChannel(blob_id=blob.id, **ch))
 
-    # 7) restimulus run-length → segment
-    restim = np.asarray(mat["restimulus"]).ravel().astype(int)
-    rerep = np.asarray(mat["rerepetition"]).ravel().astype(int)
+    # 7) restimulus run-length → segment (B4: 신호와 동일한 공통 길이로 정렬)
+    restim = np.asarray(mat["restimulus"]).ravel().astype(int)[:n_aligned]
+    rerep = np.asarray(mat["rerepetition"]).ravel().astype(int)[:n_aligned]
     runs = run_length(restim)
     assert_no_overlap(runs)
 

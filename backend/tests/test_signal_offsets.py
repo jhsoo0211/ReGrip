@@ -10,8 +10,9 @@ import pytest
 from src.services.signal_offsets import (
     NATIVE_RATES_DB2,
     STORED_RATE_DB2,
-    label_offset,
+    block_code_range,
     resample_ratio,
+    validate_label_code,
 )
 
 
@@ -40,12 +41,42 @@ def test_resample_ratio_rejects_nonpositive():
         resample_ratio(2000, -1)
 
 
-@pytest.mark.parametrize("block,expected", [("B", 0), ("C", 17), ("D", 40)])
-def test_label_offset(block, expected):
-    assert label_offset(block) == expected
+@pytest.mark.parametrize("block,expected", [("B", (1, 17)), ("C", (18, 40)), ("D", (41, 49))])
+def test_block_code_range(block, expected):
+    assert block_code_range(block) == expected
 
 
-def test_label_offset_A_raises():
+def test_block_code_range_A_raises():
     # A 는 DB2 프로토콜에 없다 → 사용 시 ValueError.
     with pytest.raises(ValueError):
-        label_offset("A")
+        block_code_range("A")
+
+
+@pytest.mark.parametrize(
+    "block,code",
+    [("B", 1), ("B", 17), ("C", 18), ("C", 40), ("D", 41), ("D", 49)],
+)
+def test_validate_label_code_returns_value_unchanged(block, code):
+    # ★ restimulus 는 이미 전역 코드다 → 오프셋 없이 그대로 반환.
+    assert validate_label_code(code, block) == code
+
+
+def test_validate_label_code_rest_is_zero_for_all_blocks():
+    for block in ("B", "C", "D"):
+        assert validate_label_code(0, block) == 0
+
+
+def test_validate_label_code_no_offset_added():
+    # 예전 오프셋 버그 재발 방지: C 18 은 35(=18+17) 가 아니라 18, D 41 은 81(=41+40) 이 아니라 41.
+    assert validate_label_code(18, "C") == 18
+    assert validate_label_code(41, "D") == 41
+
+
+@pytest.mark.parametrize(
+    "block,code",
+    [("B", 18), ("C", 17), ("C", 41), ("D", 40), ("B", 50), ("D", 18)],
+)
+def test_validate_label_code_rejects_out_of_range(block, code):
+    # block 범위를 벗어난 코드는 조용한 오라벨 대신 ValueError 로 막는다.
+    with pytest.raises(ValueError):
+        validate_label_code(code, block)

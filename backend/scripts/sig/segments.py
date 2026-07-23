@@ -1,13 +1,15 @@
 """restimulus run-length 압축 + 겹침 가드 + 전역 라벨 코드 해소 (numpy 사용).
 
 restimulus 는 per-sample 라벨이다. 이를 run-length 로 압축해 sig_segment 구간으로 만든다.
-code_in_file 은 파일내 verbatim 값, label_id 조인용 전역 코드는 signal_offsets 오프셋으로 해소한다.
+★ 실데이터 사실: DB2 restimulus 는 이미 전역 코드다. code_in_file(파일내 verbatim 값)이 곧
+전역 라벨 코드이므로 오프셋을 더하지 않고 그대로 쓰되, block 허용 범위를 벗어나면 막는다
+(조용한 오라벨/크래시 방지). 검증 산술은 signal_offsets.validate_label_code 가 단일 출처.
 """
 from __future__ import annotations
 
 import numpy as np
 
-from src.services.signal_offsets import label_offset
+from src.services.signal_offsets import validate_label_code
 
 
 def run_length(labels_1d) -> list[tuple[int, int, int]]:
@@ -39,8 +41,9 @@ def assert_no_overlap(segs) -> None:
 
 
 def resolve_label_code(code_in_file, protocol_block: str) -> int:
-    """파일내 restimulus 값 → 전역 sig_label 코드. 0(rest)은 0, 그 외는 block 오프셋 + 값."""
-    code = int(code_in_file)
-    if code == 0:
-        return 0
-    return label_offset(protocol_block) + code
+    """파일내 restimulus 값 → 전역 sig_label 코드.
+
+    DB2 restimulus 는 이미 전역 코드이므로 오프셋 없이 값을 그대로 반환한다(0=rest, 예: C 18→18,
+    D 41→41). block 인자는 허용 범위 검증(provenance)에 쓰며, 범위를 벗어나면 ValueError.
+    """
+    return validate_label_code(code_in_file, protocol_block)
