@@ -2,16 +2,19 @@
 
 > 이 문서는 `backend/src/models/signal.py`, `backend/src/services/signal_*.py`,
 > `backend/scripts/sig/`, `backend/migrations/003_signal_catalog.sql` 로 구성된
-> **신호 카탈로그(sig_\*)** 서브시스템을 설명한다. 이 코드 전체는 아직 커밋되지 않았고(untracked),
-> 실데이터도 들어오지 않은 **골격(scaffold) 단계**다. 배경 결정은 04(센서 데이터 정책)와 이어진다.
+> **신호 카탈로그(sig_\*)** 서브시스템의 설계를 설명한다. 배경 결정은 04(센서 데이터 정책)와 이어진다.
+>
+> **2026-07-23 갱신**: 이 코드는 커밋됐고(main·develop), **DB2 40명 실데이터 인제스트 + EMG 제스처 분류
+> 학습까지 완료**됐다(→ [09-ml-training.md](09-ml-training.md), 변수별 처리 상세는 09 §1.2). 아래 §1의
+> '골격/미완'과 §3.2의 'S 지뢰' 중 다수는 그 이전 시점 기록이며, 실데이터로 해결된 항목은 각 자리에 표시했다.
 
 ---
 
 ## 0. 한 줄 요약 — "지금 이건 뭐냐"
 
 공개 재활/근전도 데이터셋(**NinaPro**)을 ReGrip DB 스키마에 정렬해 **제스처·힘 추정 ML 학습**에 쓰기
-위한 **데이터 수신 골격**이다. **아직 실데이터는 없다.** 스키마·인제스트 파이프라인·합성 데이터
-테스트만 완성돼 있고, 실제 NinaPro 신호는 등록 게이트 뒤에 있어 **직접 내려받아야** 채워진다.
+위한 데이터 카탈로그다. 스키마·인제스트 파이프라인이 완성됐고, **DB2 40명(120기록)을 실제로 인제스트해
+EMG 제스처 분류 모델까지 학습**했다(결과·변수처리는 09). 원본 신호는 등록 게이트 뒤라 각자 내려받아야 한다.
 
 - **왜 필요한가**: ReGrip 기기는 FSR 악력 센서(0~100% force) 하나를 쓴다. 이 한 채널만으로
   "지금 어떤 동작을 하는지(제스처)"·"얼마나 힘을 주는지(force)"를 추정하려면 학습 데이터가 필요한데,
@@ -29,14 +32,14 @@
 | 인제스트 파이프라인 (.mat 로드 → 리샘플 → blob 저장 → 구간 라벨) | ✅ 코드 완성 |
 | 라벨 어휘 (`data/labels_ninapro_hand_v1.json`, 50개 동작 코드) | ✅ 있음 — **단, 이건 "동작 이름 사전"이지 신호가 아니다** |
 | 합성 데이터 테스트 (`make_synthetic_db2.py` + pytest) | ✅ 통과 |
-| **실제 NinaPro 신호 데이터 (.mat)** | ❌ **없음** — 등록 게이트 뒤, 사용자가 받아야 함 |
-| 인제스트된 blob(`.npy`) / blob 저장소 | ❌ 없음 |
-| DB9(관절각) 정상범위 `norms_db9_v1.json` | ❌ 없음 |
+| **실제 NinaPro 신호 데이터 (.mat)** | ✅ **DB2 40명 인제스트 완료** (원본은 저작권상 미커밋, citation-only) |
+| 인제스트된 blob(`.npy`) / blob 저장소 | ✅ 360 blob·11.56GB (gitignore `backend/storage/sig-blobs/`) |
+| 인제스트/학습 CLI | ✅ `scripts/sig/ingest_batch.py`, `scripts/ml/train_gesture.py` |
+| DB9(관절각) 정상범위 `norms_db9_v1.json` | ❌ 없음 (선택) |
 | HTTP API / 스키마 (`src/api/signals.py` 등) | ❌ 없음 — 카탈로그가 아직 외부로 노출 안 됨 |
-| 인제스트 CLI(`__main__`) / `blob_root` 설정 키 | ❌ 없음 — 배치 실행 진입점 미비 |
 
-**결론**: "전에 준 방향(NinaPro로 학습)"에 맞춰 **받을 그릇**을 만든 상태다.
-실데이터로 세팅하는 단계는 **아직 시작 전**이며, 아래 §4 순서를 따른다.
+**결론**: NinaPro DB2 40명을 실제로 인제스트해 EMG 제스처 분류 학습까지 마쳤다(→09).
+남은 것은 DB9(선택)·API 노출·ReGrip 기기 데이터 수집이다(§4·09 §7).
 
 ---
 
@@ -67,7 +70,9 @@ DB2의 레이트·라벨 오프셋을 **stdlib(`Fraction`)만으로** 계산. `s
 `scripts/`·`tests/`만 소비한다. (원래 `scripts/sig/`에 있었어야 할 모듈 — §3 caveat 참조.)
 
 - 네이티브 레이트: EMG 2000Hz / ACC 148Hz / glove 25Hz / force 100Hz (DB2는 전부 2kHz로 저장됨)
-- 라벨 오프셋: 블록 B=0, C=17, D=40 (파일별 restimulus 재시작을 전역 0~49 코드로 승격)
+- 라벨 코드: **오프셋 가산 없음.** 실 DB2의 restimulus는 이미 전역 코드(0=rest, 1~17 B, 18~40 C, 41~49 D)라
+  값을 그대로 쓰되 `_BLOCK_CODE_RANGES`+`validate_label_code`로 블록 허용범위만 검증한다.
+  (S2에서 확정: "파일별 재시작→오프셋 가산"은 합성 데이터가 인코딩한 틀린 가정이었다.)
 
 ### 2.3 어휘 seed (`src/services/signal_vocab.py` + `data/labels_ninapro_hand_v1.json`)
 
@@ -114,15 +119,16 @@ sig는 **선택적 서브시스템**이다. `models/__init__.py`·`main.py`·`co
 
 ### 3.2 실데이터 인제스트 **전에** 반드시 고쳐야 할 결함 (코드 리뷰 산출 · 상세는 계획 파일 참조)
 
-지금은 합성 데이터라 안 터지지만, 실 NinaPro를 넣는 순간 터지거나 **조용히 오염**시키는 지뢰들:
+아래는 20명 시점의 코드 리뷰가 지목한 지뢰들이다. **40명 실데이터 인제스트를 거치며 B1~B5(= S1·S2·S5)가
+해결**됐다(커밋 `470bc73`, 상세 09 §2.2). 남은 S3·S4는 이번 사용 경로에선 문제되지 않았으나 잠복 상태다.
 
-| # | 위치 | 문제 | 심각도 |
+| # | 위치 | 문제 | 상태 |
 |---|---|---|---|
-| S1 | `003.sql` + `main.py` | 운영 PG에서 `sig_label`이 영구 0행(seed가 SQLite에만 연결, 003엔 INSERT 없음) → 인제스트 전량 실패 | 치명 |
-| S2 | `segments.py`+`mat_loader.py` | restimulus 블록 재시작 가정이 **검증 안 됨** → 조용한 오라벨(부분 오염) | 치명 |
-| S3 | `signal_offsets.py` | segment(2kHz)↔blob(native) **샘플 인덱스 변환기 없음** → 정렬 어긋남 | 높음 |
-| S4 | `signal.py`/`003.sql` | `UNIQUE(rel_path)`가 content-addressed dedup과 **정면 모순**(동일 내용 두 레코딩 공존 불가) | 높음 |
-| S5 | `ingest_db2.py` | forcecal 방향 가정의 **자기충족 검증** + forcecal 부재 시 TypeError | 중간 |
+| S1 | `main.py`/`003.sql` | 운영 PG에서 `sig_label`이 영구 0행(seed가 SQLite에만 연결) | **✅ SQLite 인제스트는 해결**(seed 동작). PG 배포 시 003에 INSERT 필요 |
+| S2 | `segments.py`+`signal_offsets.py` | ~~restimulus 블록 재시작 가정 미검증 → 오라벨~~ | **✅ 해결**: 오프셋 제거·전역코드 범위검증. 실 40명에서 라벨 정확 확인 |
+| S3 | `signal_offsets.py` | segment(2kHz)↔blob(native) 샘플 인덱스 변환기 없음 | ⚠️ 잠복. **EMG는 native=2kHz라 1:1**(학습이 이것만 씀), acc/glove/force 소비 시 필요 |
+| S4 | `signal.py`/`003.sql` | `UNIQUE(rel_path)`가 content-addressed dedup과 모순 | ⚠️ 잠복. 40명에서 바이트동일 충돌 미발생 |
+| S5 | `ingest_db2.py` | ~~forcecal 방향 자기충족 검증 + 부재 시 TypeError~~ | **✅ 해결**: 방향(max>min) 검증·명확한 에러 |
 | S6 | `ingest_db2.py`/`003.sql` | `unit`이 "저장값 단위"와 "보정 후 단위"로 **혼용** | 중간 |
 | S7 | `preproc.py` | 제로패딩 엣지 트랜지언트 + spec 불완전(window/padtype 누락) + 비정수 레이트(148.148Hz) 절단 | 중간 |
 | S8 | 여러 곳 | 도달불가 복구분기·모달리티 길이검증 부재·blob 무결성 미검증·읽기 함수 부재 등 | 낮음~중간 |

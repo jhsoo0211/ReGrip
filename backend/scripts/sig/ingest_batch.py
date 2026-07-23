@@ -61,12 +61,12 @@ def parse_args(argv=None) -> argparse.Namespace:
     )
     p.add_argument(
         "--db",
-        default="backend/storage/sig_ingest.db",
+        default=str(_BACKEND / "storage" / "sig_ingest.db"),
         help="SQLite 카탈로그 DB 경로",
     )
     p.add_argument(
         "--blob-root",
-        default="backend/storage/sig-blobs",
+        default=str(_BACKEND / "storage" / "sig-blobs"),
         help="신호 blob(.npy) 저장 루트",
     )
     p.add_argument(

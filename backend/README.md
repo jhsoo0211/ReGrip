@@ -31,7 +31,7 @@ Copy-Item .env.example .env
 ## 2. 실행
 
 ```powershell
-# 개발 서버 (자동 리로드). 기본 DB 는 sqlite:///./regrip_dev.db
+# 개발 서버 (자동 리로드). 기본 DB 는 sqlite:///./regrip_dev.db, 기본 ENV 는 dev
 uvicorn src.main:app --reload
 
 # 헬스체크
@@ -39,6 +39,18 @@ curl http://127.0.0.1:8000/health          # {"status":"ok"}
 # Swagger UI
 start http://127.0.0.1:8000/docs
 ```
+
+> ⚠️ **`RuntimeError: 운영 환경(ENV=prod) 설정 검증에 실패…` 로 기동이 막히면** 쉘/환경변수에
+> `ENV=prod` 가 설정돼 있는 것이다. 이 fail-fast 가드는 **운영 배포에서만** 동작하며, 기본 시크릿·SQLite
+> 로는 뜨지 않게 막는다(의도된 안전장치). **로컬 개발은 `ENV=dev`(기본값)로 실행**하면 된다:
+> ```powershell
+> echo $env:ENV                    # prod 로 남아 있으면
+> $env:ENV = "dev"                 # dev 로 바꾸거나
+> Remove-Item Env:\ENV             # 아예 제거(기본 dev)
+> uvicorn src.main:app --reload
+> ```
+> 진짜 운영이라면 가드 메시지대로 `JWT_SECRET`(32자+)·`PHONE_ENC_KEY`(32B base64url)·PostgreSQL
+> `DATABASE_URL` 을 `.env` 에 설정한다(§4).
 
 앱 startup 시 SQLite 테이블 자동 생성 + 업적 8종 자동 upsert 된다. 수동 시딩이 필요하면:
 
