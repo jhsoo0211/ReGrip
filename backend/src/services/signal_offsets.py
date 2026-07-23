@@ -18,10 +18,13 @@ from fractions import Fraction
 NATIVE_RATES_DB2: dict[str, int] = {"emg": 2000, "acc": 148, "glove": 25, "force": 100}
 STORED_RATE_DB2: int = 2000
 
-# block 별 전역 라벨 코드 오프셋. B 는 파일 restimulus 1-17 → 전역 1-17(오프셋 0),
-# C 는 1-23 → 18-40(오프셋 17), D 는 1-9 → 41-49(오프셋 40).
-# A 는 DB2 에 없으므로 매핑을 두지 않는다(사용 시 ValueError).
-_LABEL_OFFSETS: dict[str, int] = {"B": 0, "C": 17, "D": 40}
+# block 별 비-rest 전역 라벨 코드 허용 범위 [lo, hi] (양끝 포함).
+# ★ 실데이터 사실: DB2 restimulus 는 이미 전역 코드다(파일별 1부터 재시작이 아니다).
+#   B: restimulus 1-17, C: 18-40, D: 41-49, rest=0(모든 block 공통).
+#   따라서 오프셋을 더하면 안 되고(예전 버그: C 18→35 오라벨, D 41→81 크래시),
+#   값을 그대로 쓰되 이 범위를 벗어나면 조용한 오라벨 대신 명확한 에러로 막는다.
+#   A 는 DB2 에 없으므로 매핑을 두지 않는다(사용 시 ValueError).
+_BLOCK_CODE_RANGES: dict[str, tuple[int, int]] = {"B": (1, 17), "C": (18, 40), "D": (41, 49)}
 
 
 def resample_ratio(source_hz, target_hz) -> tuple[int, int]:
@@ -38,14 +41,32 @@ def resample_ratio(source_hz, target_hz) -> tuple[int, int]:
     return frac.numerator, frac.denominator
 
 
-def label_offset(protocol_block: str) -> int:
-    """protocol_block(B/C/D) → 전역 라벨 코드 오프셋. rest(code 0)는 호출측이 별도 처리.
+def block_code_range(protocol_block: str) -> tuple[int, int]:
+    """protocol_block(B/C/D) → 해당 block 의 비-rest 전역 라벨 코드 범위 (lo, hi) (양끝 포함).
 
     A 는 DB2 프로토콜에 없으므로 ValueError. (스키마 CHECK 는 A 를 허용하지만 DB2 는 안 쓴다.)
     """
     try:
-        return _LABEL_OFFSETS[protocol_block]
+        return _BLOCK_CODE_RANGES[protocol_block]
     except KeyError:
         raise ValueError(
-            f"no label offset for protocol_block {protocol_block!r} (DB2 uses B/C/D only)"
+            f"no code range for protocol_block {protocol_block!r} (DB2 uses B/C/D only)"
         ) from None
+
+
+def validate_label_code(code, protocol_block: str) -> int:
+    """restimulus 값(이미 전역 코드)을 block 허용 범위로 검증하고 **그대로** 반환(오프셋 없음).
+
+    rest(0)은 모든 block 공통으로 허용. 그 외 값이 block 범위를 벗어나면 ValueError 로 막는다
+    (예전 오프셋 가산이 유발하던 조용한 오라벨/크래시 방지). code_in_file→전역코드 매핑의 단일 출처.
+    """
+    code = int(code)
+    if code == 0:
+        return 0
+    lo, hi = block_code_range(protocol_block)
+    if not (lo <= code <= hi):
+        raise ValueError(
+            f"restimulus {code} out of range for protocol_block {protocol_block!r} "
+            f"(expected 0 or {lo}-{hi}); DB2 restimulus is already a global code"
+        )
+    return code

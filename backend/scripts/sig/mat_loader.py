@@ -9,13 +9,17 @@ from __future__ import annotations
 import numpy as np
 import scipy.io
 
-# DB2 .mat 의 알려진 변수(설계서 §검증된 데이터셋 사실). force/forcecal 는 E3 만.
+# DB2 .mat 의 알려진 변수(실 probe 로 확정). force/forcecal 는 E3 만, glove 는 E1/E2 만.
+# inclin(E1/E2 경사계)·activation(E3)은 제스처/힘 학습에 불필요해 blob 으로 적재하진 않지만,
+# 실파일에 존재하므로 로드는 허용해야 한다(없으면 "unexpected keys" 로 3파일 다 거부됨).
 DB2_KNOWN_KEYS = {
     "subject",
     "exercise",
     "emg",
     "acc",
     "glove",
+    "inclin",
+    "activation",
     "stimulus",
     "restimulus",
     "repetition",
