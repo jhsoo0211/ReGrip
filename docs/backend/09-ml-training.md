@@ -12,7 +12,7 @@
 - **모델**: 12채널 EMG 시간영역 특징 → RandomForest로 **49개 손동작 분류**(피험자별).
 - **결과**: 테스트 정확도 **평균 73.5% ± 7.0%** (피험자 범위 54.9~87.3%). NinaPro DB2 문헌 수준과 일치.
 - **ReGrip 관점**: 지금 모델의 입력은 **12채널 EMG**다. 현재 ReGrip은 FSR 악력 1채널이라 그대로는 못 올리지만,
-  **EMG 하드웨어 확장을 고려 중이라면 이 학습이 곧 기기 제스처 인식의 기반이 된다**(§5).
+  **EMG 하드웨어 확장을 고려 중이라면 이 학습이 곧 기기 제스처 인식의 기반이 된다**(§6).
 
 ---
 
@@ -147,7 +147,94 @@ D가 가장 쉽다 — 동작이 9종으로 적고 힘 패턴이 뚜렷하다.
 
 ---
 
-## 5. ReGrip 적용 관점 — 현재 한계와 **EMG 확장 시 직접 활용**
+## 5. 가시화 자료 & 확인 경로 (추후 데이터 검증용)
+
+새 데이터(더 많은 subject·다른 데이터셋·기기 EMG)를 넣었을 때도 **눈으로 검증**할 수 있도록,
+카탈로그에서 히트맵을 생성하는 재현 스크립트 `scripts/ml/visualize.py`를 둔다. 아래 4종은 이번 40명 산출물이며,
+같은 명령으로 언제든 다시 그린다. 히트맵을 읽는 법과 **무엇을 확인해야 하는지**를 함께 적었다.
+
+### 5.1 EMG 활성 지도 — 제스처별 (`ml_emg_gesture.png`)
+
+![EMG 활성 지도](assets/ml_emg_gesture.png)
+
+49동작(행) × 12 EMG채널(열). 각 셀 = 그 동작 구간들의 **평균 RMS**(전 피험자·전 반복 집계), **행별 정규화**해서
+각 동작의 "채널 프로파일"이 보이게 했다. 오른쪽 컬러바가 0→1(그 행에서의 상대 활성).
+- **읽는 법**: 밝을수록 그 동작에서 그 채널(근육 부위) 활성이 크다. ch1·7·8·10이 여러 동작에서 두드러지고,
+  일부 동작은 특정 채널을 집중 활성화한다(예: 동작 13 → ch4). B/C/D 블록 경계는 빨간 선.
+- **검증 포인트**: 분류가 되려면 동작마다 채널 패턴이 **서로 달라야** 한다. 새 데이터에서 한 채널만 전부 밝으면
+  전극 포화, 전부 어두우면 연결 불량 — 이 그림에서 바로 드러난다.
+
+### 5.2 변수별 활성 — 4모달리티 (`ml_modality_gesture.png`)
+
+![변수별 활성](assets/ml_modality_gesture.png)
+
+emg·acc·glove·force 각각의 동작별 채널 활성(§1.2의 "각 변수가 실제로 무엇을 담는지"를 눈으로 확인).
+- **force(D블록 41~49)** — 뚜렷한 **준대각 구조**. 힘 동작 D1~D6이 force 채널 1~6에 1:1로 대응하고 D7~D9는 조합.
+  라벨·forcecal 정규화가 올바르다는 **강한 증거**다.
+- **glove(B/C 1~40)** — 대부분 어둡고 **한 채널만 상시 포화**(밝은 세로줄). 실 CyberGlove의 특정 센서 특성이며,
+  D블록(41~49)엔 glove가 없어 그 행이 비어 있다(E3 구성과 일치).
+- **acc** — 센서별 줄무늬(중력·자세 성분이 축마다 다름).
+- **검증 포인트**: 존재해야 할 블록에만 데이터가 있는지(glove=B/C, force=D), 각 패널 제목의 채널수·레이트가 맞는지.
+  (비-EMG는 segment 인덱스가 2kHz라 blob native 레이트로 `round(idx×native/2000)` 변환해 그린다.)
+
+### 5.3 특징 중요도 — 모델이 무엇에 의존하나 (`ml_feature_importance.png`)
+
+![특징 중요도](assets/ml_feature_importance.png)
+
+RandomForest가 학습한 60특징(5종 × 12채널)의 평균 중요도(합=1). 셀에 값 표기.
+- **WL(파형길이)이 최상위**, MAV·RMS가 그다음, **ZC·SSC는 거의 0**. 진폭·복잡도 특징이 교차 기반 특징보다
+  훨씬 유용하다는 sEMG 문헌과 일치한다.
+- **활용**: 경량화 시 ZC/SSC를 먼저 빼도 된다는 신호. 새 데이터에서 이 분포가 크게 흔들리면 스케일·품질 문제를 의심.
+
+### 5.4 피험자×제스처 정확도 — 어디가 약한가 (`ml_subject_gesture.png`)
+
+![피험자×제스처 정확도](assets/ml_subject_gesture.png)
+
+40피험자(행) × 49동작(열)의 test 정확도(0~1). **취약 지점을 찾는 지도.**
+- D블록(41~49)이 일관되게 밝다(≈100%, 힘 동작이 뚜렷). **C블록(18~40)이 가장 어둡다**(유사 파지 혼동, §4의 66%와 일치).
+- 특정 피험자(예: s24·s28)가 전반적으로 어두우면 그 피험자의 데이터 품질(전극 접촉 등)을 의심할 지점.
+- **활용**: 새 데이터 추가 시 이 그림으로 **이상 피험자·이상 동작을 즉시 격리**할 수 있다.
+
+### 5.5 재현 & 직접 확인 경로
+
+```powershell
+cd backend
+.\venv\Scripts\python.exe scripts/ml/visualize.py      # 위 4개 PNG를 docs/backend/assets/ 에 재생성
+```
+
+카탈로그를 직접 들여다보는 방법(추후 데이터 점검용). 모두 `backend/`에서 실행하며, `DATABASE_URL`을 카탈로그
+DB로 먼저 지정한다:
+
+```python
+import os
+os.environ["DATABASE_URL"] = "sqlite:///" + r"C:/Users/jhsoo/Desktop/Projects/ReGrip/backend/storage/sig_ingest.db"
+os.environ["ENV"] = "dev"
+from sqlalchemy import func
+from src.core.db import SessionLocal
+from src.models import SigRecording, SigSignalBlob, SigSegment, SigChannel, SigSubject, SigLabel
+db = SessionLocal()
+
+# ① 동작별 세그먼트 분포 (라벨이 고르게 들어왔는지)
+rows = db.query(SigSegment.code_in_file, func.count()).group_by(SigSegment.code_in_file).all()
+
+# ② 특정 기록의 EMG 원신호 로드 (blob 왕복 확인)
+import numpy as np
+b = db.query(SigSignalBlob).join(SigRecording).filter(
+        SigRecording.protocol_block == "B", SigSignalBlob.modality_group == "emg").first()
+emg = np.load(r"C:/Users/jhsoo/Desktop/Projects/ReGrip/backend/storage/sig-blobs/" + b.rel_path)
+print(emg.shape, b.native_rate_hz)   # (n, 12), 2000
+
+# ③ 모달리티별 blob 수·채널 (구성이 맞는지: emg/acc 항상, glove=B/C, force=D)
+db.query(SigSignalBlob.modality_group, func.count()).group_by(SigSignalBlob.modality_group).all()
+```
+
+- 학습 산출물: `backend/storage/train_results.json`(피험자별 정확도·특징중요도), `train_preds.npz`
+  (`y_true`/`y_pred`/`y_subject`) — 5.3·5.4가 이걸 읽는다.
+- 데이터·blob·DB·그림 원본은 전부 `backend/storage/`(gitignore). 커밋되는 건 `docs/backend/assets/`의 요약 PNG뿐.
+
+---
+
+## 6. ReGrip 적용 관점 — 현재 한계와 **EMG 확장 시 직접 활용**
 
 **지금 이 모델의 입력은 12채널 EMG다.** 현재 양산 ReGrip은 FSR 악력 1채널뿐이라 이 모델을 기기에
 그대로 올릴 수는 없다. 하지만 **EMG 하드웨어 확장을 고려 중이라면 상황이 달라진다** — 이 작업은
@@ -171,11 +258,11 @@ D가 가장 쉽다 — 동작이 9종으로 적고 힘 패턴이 뚜렷하다.
 ### FSR 전용으로 남는 경우
 EMG 확장을 안 한다면, ReGrip에 직접 유용한 건 **E3의 force 채널**(악력에 가장 가까움)과
 "악력 세기 추정·목표 유지 판정" 같은 **회귀 과제**다. 이번 분류는 파이프라인 실증용이며, 그 경우엔
-force 회귀(§7)로 방향을 튼다.
+force 회귀(§8)로 방향을 튼다.
 
 ---
 
-## 6. 재현 방법
+## 7. 재현 방법
 
 ```powershell
 cd backend
@@ -195,8 +282,8 @@ cd backend
 - 원본 데이터셋은 라이선스상 재배포하지 않는다(citation-only). 각자 ninapro.hevs.ch에서 내려받는다.
 - 그림(`assets/ml_accuracy.png`, `ml_confusion.png`)은 학습 산출물로 문서와 함께 커밋한다.
 
-## 7. 다음 단계
-- **EMG 확장 로드맵**(§5) — 하드웨어 사양 확정 시 채널 부분집합 재학습 → 기기 수집 → 미세조정.
+## 8. 다음 단계
+- **EMG 확장 로드맵**(§6) — 하드웨어 사양 확정 시 채널 부분집합 재학습 → 기기 수집 → 미세조정.
 - **force 회귀** — E3 force로 악력 추정 모델(FSR 전용 ReGrip에 더 직접적).
 - **ReGrip FSR 데이터 파이프라인** — 기기→WebSocket→카탈로그(`modality='fsr'`) 수집 경로.
 - **DB9(관절각)** — `s_1_angles.zip` 보유. 손가락 각도까지 추정할 경우에만 필요(선택).
