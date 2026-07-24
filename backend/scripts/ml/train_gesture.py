@@ -155,7 +155,8 @@ def main(argv=None) -> int:
         f"train reps {sorted(TRAIN_REPS)} / test {sorted(TEST_REPS)}\n"
     )
 
-    results, all_true, all_pred = [], [], []
+    results, all_true, all_pred, all_subj = [], [], [], []
+    importances = []  # 피험자별 clf.feature_importances_ (길이 60) 수집 → 나중에 평균.
     t0 = time.perf_counter()
     for subj in subjects:
         sid = subj.source_subject_id
@@ -176,6 +177,8 @@ def main(argv=None) -> int:
         te = np.isin(r, list(TEST_REPS))
         clf = RandomForestClassifier(n_estimators=150, n_jobs=-1, random_state=0)
         clf.fit(X[tr], y[tr])
+        # RF 특징 중요도(길이 60 = MAV12·RMS12·WL12·ZC12·SSC12 순) 수집.
+        importances.append(np.asarray(clf.feature_importances_, dtype=np.float64))
         pred = clf.predict(X[te])
         acc = accuracy_score(y[te], pred)
         bacc = balanced_accuracy_score(y[te], pred)
@@ -191,6 +194,8 @@ def main(argv=None) -> int:
         )
         all_true.append(y[te])
         all_pred.append(pred)
+        # 각 test 창의 source_subject_id (y_true/y_pred 와 정렬).
+        all_subj.append(np.full(int(te.sum()), sid, dtype=int))
         print(
             f"  s{sid:2d}: acc={acc*100:5.2f}%  bal={bacc*100:5.2f}%  "
             f"train={tr.sum():6d} test={te.sum():6d} cls={len(np.unique(y))}  "
@@ -217,6 +222,10 @@ def main(argv=None) -> int:
             "model": "RandomForest(150)",
             "rest_excluded": True,
         },
+        # RF 특징 중요도 피험자 평균(길이 60). 순서: MAV[0:12]·RMS[12:24]·WL[24:36]·ZC[36:48]·SSC[48:60],
+        # 각 12칸은 EMG 채널 0..11 순. (JSON 에 주석을 못 넣어 order 키로 명시.)
+        "feature_importance": [float(v) for v in np.mean(np.stack(importances), axis=0)],
+        "feature_importance_order": "MAV[0:12], RMS[12:24], WL[24:36], ZC[36:48], SSC[48:60]; each block = EMG channel 0..11",
         "per_subject": results,
         "summary": {
             "acc_mean": float(accs.mean()),
@@ -232,7 +241,12 @@ def main(argv=None) -> int:
     print(f"  결과 저장: {out_path}")
 
     preds_path = out_path.parent / "train_preds.npz"
-    np.savez(preds_path, y_true=np.concatenate(all_true), y_pred=np.concatenate(all_pred))
+    np.savez(
+        preds_path,
+        y_true=np.concatenate(all_true),
+        y_pred=np.concatenate(all_pred),
+        y_subject=np.concatenate(all_subj),
+    )
     print(f"  예측 저장: {preds_path}")
 
     db.close()
