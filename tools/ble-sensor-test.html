@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ReGrip BLE 센서 수신 시험</title>
+<style>
+  /* 독립 시험 도구 — shared.css 미의존(어떤 브랜치에서도 단독 동작). 토큰만 본편과 일치시킨다. */
+  :root {
+    --primary: #994626; --primary-light: #e8825e; --bg-app: #F0F9FF;
+    --surface: #FFF8F6; --ink: #0F172A; --success: #16A34A; --error: #DC2626;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg-app); color: var(--ink);
+    font-family: "DM Sans", "Pretendard", -apple-system, "Malgun Gothic", sans-serif; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 24px 16px 60px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: #475569; font-size: 13.5px; margin: 0 0 16px; }
+  .card { background: var(--surface); border: 2px solid var(--ink); border-radius: 12px;
+    box-shadow: 4px 4px 0 var(--ink); padding: 16px; margin-bottom: 16px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  button { font: inherit; font-weight: 700; padding: 10px 16px; border-radius: 10px;
+    border: 2px solid var(--ink); background: #fff; cursor: pointer; box-shadow: 2px 2px 0 var(--ink); }
+  button:active { transform: translate(2px, 2px); box-shadow: none; }
+  button.pri { background: var(--primary); color: #fff; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px;
+    border: 2px solid var(--ink); border-radius: 999px; font-size: 13px; font-weight: 700; background: #fff; }
+  .pill .dot { width: 9px; height: 9px; border-radius: 50%; background: #94A3B8; }
+  .pill.on .dot { background: var(--success); }
+  .pill.err .dot { background: var(--error); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-top: 12px; }
+  .stat { background: #fff; border: 2px solid var(--ink); border-radius: 10px; padding: 10px 12px; }
+  .stat .k { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #64748B; }
+  .stat .v { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .stat .v small { font-size: 12px; font-weight: 500; color: #64748B; }
+  canvas { width: 100%; height: 180px; background: #fff; border: 2px solid var(--ink); border-radius: 10px; display: block; }
+  .legend { font-size: 12px; margin-top: 6px; color: #475569; }
+  .legend b.flex { color: #2563EB; } .legend b.fsr { color: var(--primary); }
+  .big { font-size: 44px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .cap { font-size: 12.5px; color: #64748B; }
+  .log { background: #0F172A; color: #CBD5E1; border-radius: 10px; padding: 10px 12px;
+    font: 12px/1.6 ui-monospace, Consolas, monospace; height: 130px; overflow-y: auto; white-space: pre-wrap; }
+  h2 { font-size: 15px; margin: 0 0 10px; }
+  .warn { background: #FEF3C7; border: 2px solid var(--ink); border-radius: 10px; padding: 10px 12px; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>ReGrip BLE 센서 수신 시험 🔧</h1>
+  <p class="sub">펌웨어 계약: 장치명 <code>ReGrip-Sensor</code> · NUS 서비스 <code>6e400001-…</code> · TX notify <code>6e400003-…</code> · 페이로드 ASCII CSV <code>timestamp_ms,flex_raw,fsr_raw</code> (raw 0~4095, 20Hz)</p>
+
+  <div id="support" class="warn" hidden></div>
+
+  <div class="card">
+    <div class="row">
+      <button id="btnConnect" class="pri">🔗 센서 연결 (최초 1회 선택)</button>
+      <button id="btnDisconnect" disabled>연결 해제</button>
+      <span id="status" class="pill"><span class="dot"></span><span id="statusText">대기</span></span>
+      <span id="rate" class="pill" hidden><span class="dot"></span><span id="rateText">0 Hz</span></span>
+      <span id="rssi" class="pill" hidden><span class="dot"></span><span id="rssiText">– dBm</span></span>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <label class="pill" style="cursor:pointer"><input type="checkbox" id="autoChk" checked style="accent-color:var(--primary)"> 같은 기기 자동 재연결</label>
+      <span class="cap" id="savedInfo">저장된 기기 확인 중…</span>
+    </div>
+    <div class="grid">
+      <div class="stat"><div class="k">FLEX raw</div><div class="v" id="flexVal">–</div></div>
+      <div class="stat"><div class="k">FSR raw</div><div class="v" id="fsrVal">–</div></div>
+      <div class="stat"><div class="k">수신 패킷</div><div class="v" id="pktCount">0</div></div>
+      <div class="stat"><div class="k">간격 이상(&gt;75ms)</div><div class="v" id="gapCount">0</div></div>
+      <div class="stat"><div class="k">끊김 횟수</div><div class="v" id="dropCount">0</div></div>
+      <div class="stat"><div class="k">FSR min~max</div><div class="v" id="fsrRange"><small>–</small></div></div>
+    </div>
+    <div class="warn" style="margin-top:10px; font-size:12.5px">
+      📏 <b>거리 진단</b>: 신호(RSSI)가 −70dBm 이상이면 양호, −70~−85는 불안정(끊김 잦음), −85 이하면 연결 곤란입니다.
+      ESP32와 <b>2~3m 이내·장애물 없이</b> 시험하세요. 몸·벽이 가로막으면 크게 감쇠합니다.
+      연결이 끊겨도 펌웨어가 0.5초 뒤 재광고하므로, 자동 재연결이 켜져 있으면 범위에 다시 들어오는 즉시 수신이 재개됩니다.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>실시간 파형 (최근 10초)</h2>
+    <canvas id="chart" width="820" height="180"></canvas>
+    <div class="legend"><b class="flex">■ FLEX(GPIO35)</b> · <b class="fsr">■ FSR(GPIO34)</b> — 세로축 raw 0~4095</div>
+  </div>
+
+  <div class="card">
+    <h2>FSR 정규화 미리보기 (min-max — sensor-protocol.js의 normalizeRawForce와 동일 수식)</h2>
+    <div class="row">
+      <button id="btnCal0">손 편 상태로 0% 기준 잡기</button>
+      <button id="btnCal100">최대 악력으로 100% 기준 잡기</button>
+      <span class="cap" id="calInfo">기준 미설정 — ADC 전체 범위(0~4095) 사용</span>
+    </div>
+    <div class="row" style="margin-top:10px; align-items: baseline;">
+      <div class="big" id="forcePct">0.0<small style="font-size:20px">%</small></div>
+      <div class="cap">← 게임이 소비하게 될 값 (SensorService.onForceUpdate 상당)</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>캡처 &amp; 내보내기</h2>
+    <div class="row">
+      <button id="btnRec">● 기록 시작</button>
+      <button id="btnCsv" disabled>CSV 다운로드</button>
+      <span class="cap" id="recInfo">기록 0행</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>로그</h2>
+    <div class="log" id="log"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+// ── 펌웨어 계약 상수 (팀원 BLE 스케치와 문자 단위 일치 — Web Bluetooth는 소문자 UUID 요구) ──
+const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+const TX_UUID      = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
+const DEVICE_NAME  = "ReGrip-Sensor";
+const ADC_MAX = 4095;
+const EXPECTED_INTERVAL_MS = 50; // 20Hz
+
+const $ = (id) => document.getElementById(id);
+const logEl = $("log");
+function log(msg, isErr) {
+  const t = new Date().toLocaleTimeString("ko-KR", { hour12: false });
+  logEl.textContent += `[${t}] ${msg}\n`;
+  logEl.scrollTop = logEl.scrollHeight;
+  if (isErr) console.error(msg);
+}
+
+// 지원 여부 — Web Bluetooth는 Chrome/Edge + 보안 컨텍스트(https 또는 localhost)에서만 동작
+(function checkSupport() {
+  const box = $("support");
+  if (!("bluetooth" in navigator)) {
+    box.hidden = false;
+    box.textContent = "⚠️ 이 브라우저는 Web Bluetooth를 지원하지 않습니다. Chrome 또는 Edge에서 여세요. (Safari·Firefox 미지원)";
+    $("btnConnect").disabled = true;
+  } else if (!window.isSecureContext) {
+    box.hidden = false;
+    box.textContent = "⚠️ 보안 컨텍스트가 아닙니다. http://localhost 로 서빙해서 여세요 (file:// 불가). 예: npx serve . 후 localhost:3000/tools/ble-sensor-test.html";
+    $("btnConnect").disabled = true;
+  }
+})();
+
+// ── 상태 ──
+let device = null, server = null, txChar = null;
+let pktCount = 0, gapCount = 0, dropCount = 0, lastRecvMs = 0, lastDeviceTs = 0;
+let flexMin = Infinity, flexMax = -Infinity, fsrMin = Infinity, fsrMax = -Infinity;
+let retryTimer = null, adWatchAbort = null;
+// 캘리브레이션 영속화 — 같은 기기를 다시 만나면 저장된 기준으로 즉시 % 적용
+const CAL_KEY = "regrip_ble_cal", DEV_KEY = "regrip_ble_device";
+let { cal0 = null, cal100 = null } = JSON.parse(localStorage.getItem(CAL_KEY) || "{}");
+let recording = false;
+const recorded = []; // [recvIso, deviceTs, flex, fsr]
+const ring = [];     // 차트용 {t, flex, fsr} — 최근 10초
+const rateWin = [];  // 수신 시각 창(1초) → Hz
+
+function setStatus(text, cls) {
+  $("statusText").textContent = text;
+  $("status").className = "pill" + (cls ? " " + cls : "");
+}
+
+async function connect() {
+  try {
+    log("장치 선택 대화상자 여는 중… (한 번 허용하면 이후엔 자동 재연결)");
+    const dev = await navigator.bluetooth.requestDevice({
+      filters: [{ name: DEVICE_NAME }, { services: [SERVICE_UUID] }],
+      optionalServices: [SERVICE_UUID],
+    });
+    await attachAndSubscribe(dev);
+  } catch (e) {
+    setStatus("실패", "err");
+    log("연결 실패: " + explainError(e), true);
+  }
+}
+
+// 공통 연결 경로 — 수동 선택·자동 재연결 모두 여기로
+async function attachAndSubscribe(dev) {
+  stopRetry();
+  device = dev;
+  device.removeEventListener("gattserverdisconnected", onDisconnected);
+  device.addEventListener("gattserverdisconnected", onDisconnected);
+  setStatus("연결 중…");
+  server = await device.gatt.connect();
+  const service = await server.getPrimaryService(SERVICE_UUID);
+  txChar = await service.getCharacteristic(TX_UUID);
+  await txChar.startNotifications();
+  txChar.addEventListener("characteristicvaluechanged", onPacket);
+  setStatus("연결됨 · " + (device.name || "이름 없음"), "on");
+  $("rate").hidden = false;
+  $("btnConnect").disabled = true;
+  $("btnDisconnect").disabled = false;
+  // 기기 기억 — 다음 방문 때 getDevices()로 선택창 없이 재연결
+  localStorage.setItem(DEV_KEY, JSON.stringify({ id: device.id, name: device.name || DEVICE_NAME }));
+  $("savedInfo").textContent = `저장된 기기: ${device.name} — 다음부터 자동 연결됩니다`;
+  if (cal0 !== null && cal100 !== null) log(`저장된 캘리브레이션 즉시 적용 (0%=${cal0}, 100%=${cal100})`);
+  log(`연결 성공: ${device.name} — notify 구독 시작`);
+}
+
+function disconnect() {
+  $("autoChk").checked = false; // 사용자가 직접 끊으면 자동 재연결도 중단
+  stopRetry();
+  if (device?.gatt?.connected) device.gatt.disconnect();
+  else onDisconnected();
+}
+
+function onDisconnected() {
+  dropCount++;
+  $("dropCount").textContent = dropCount;
+  setStatus("연결 끊김", "err");
+  $("btnConnect").disabled = false;
+  $("btnDisconnect").disabled = true;
+  if ($("autoChk").checked && device) {
+    log("연결 끊김 — 거리·장애물 가능성. 3초 간격 자동 재연결 시도 (펌웨어는 0.5초 뒤 재광고)");
+    startRetry();
+  } else {
+    log("연결이 끊어졌습니다.");
+  }
+}
+
+// ── 자동 재연결 ──────────────────────────────────────────────
+function startRetry() {
+  stopRetry();
+  let attempt = 0;
+  retryTimer = setInterval(async () => {
+    if (!device || device.gatt.connected) { stopRetry(); return; }
+    attempt++;
+    try {
+      await attachAndSubscribe(device);
+      log(`자동 재연결 성공 (${attempt}번째 시도)`);
+    } catch (e) {
+      if (attempt % 5 === 1) log(`재연결 시도 ${attempt}회 — ${explainError(e)}`);
+    }
+  }, 3000);
+}
+function stopRetry() { if (retryTimer) { clearInterval(retryTimer); retryTimer = null; } }
+
+// 페이지 진입 시: 이전에 허용한 기기가 있으면 선택창 없이 자동 연결 준비
+async function bootSavedDevice() {
+  const saved = JSON.parse(localStorage.getItem(DEV_KEY) || "null");
+  if (!navigator.bluetooth?.getDevices) {
+    $("savedInfo").textContent = saved
+      ? "저장된 기기 있음 — 이 브라우저는 자동 재연결(getDevices) 미지원, [센서 연결]로 다시 선택하세요"
+      : "저장된 기기 없음 — 최초 1회 [센서 연결]로 허용하세요";
+    return;
+  }
+  const granted = await navigator.bluetooth.getDevices();
+  const dev = granted.find(d => d.name === DEVICE_NAME || (saved && d.id === saved.id));
+  if (!dev) {
+    $("savedInfo").textContent = "저장된 기기 없음 — 최초 1회 [센서 연결]로 허용하세요";
+    return;
+  }
+  $("savedInfo").textContent = `저장된 기기: ${dev.name} — 광고 감지 대기 중`;
+  log(`이전 허용 기기 발견: ${dev.name}. 전원이 켜져 범위에 들어오면 자동 연결합니다.`);
+  device = dev;
+  // 광고 감지(지원 시): RSSI로 거리 진단 + 잡히는 즉시 연결
+  if (typeof dev.watchAdvertisements === "function") {
+    try {
+      adWatchAbort = new AbortController();
+      dev.addEventListener("advertisementreceived", async (ev) => {
+        $("rssi").hidden = false;
+        const r = ev.rssi;
+        $("rssiText").textContent = `${r} dBm ${r > -70 ? "양호" : r > -85 ? "불안정" : "곤란"}`;
+        $("rssi").className = "pill " + (r > -70 ? "on" : "err");
+        if ($("autoChk").checked && !dev.gatt.connected && !retryTimer) {
+          try { await attachAndSubscribe(dev); adWatchAbort?.abort(); } catch (e) { log("자동 연결 실패: " + explainError(e), true); }
+        }
+      });
+      await dev.watchAdvertisements({ signal: adWatchAbort.signal });
+    } catch (e) {
+      log("광고 감지 미지원 — 3초 간격 직접 연결 시도로 전환");
+      if ($("autoChk").checked) startRetry();
+    }
+  } else if ($("autoChk").checked) {
+    startRetry(); // watchAdvertisements 미지원 브라우저 폴백
+  }
+}
+
+function explainError(e) {
+  const m = e?.message || String(e);
+  if (e?.name === "NotFoundError") return m + " → 광고가 안 잡힙니다: 전원·거리(2~3m 이내)·다른 앱이 이미 연결 중인지 확인";
+  if (e?.name === "NetworkError") return m + " → 연결 중 끊김: 거리를 좁히고 장애물을 치워보세요";
+  return m;
+}
+
+const decoder = new TextDecoder();
+function onPacket(e) {
+  const text = decoder.decode(e.target.value);
+  // 계약: "timestamp_ms,flex_raw,fsr_raw" — 공백·개행 허용, 3필드 정수
+  const parts = text.trim().split(",");
+  if (parts.length !== 3) { log(`형식 불일치 패킷: "${text}"`, true); return; }
+  const ts = Number(parts[0]), flex = Number(parts[1]), fsr = Number(parts[2]);
+  if (![ts, flex, fsr].every(Number.isFinite)) { log(`숫자 파싱 실패: "${text}"`, true); return; }
+
+  const now = performance.now();
+  pktCount++;
+  if (lastRecvMs && now - lastRecvMs > EXPECTED_INTERVAL_MS * 1.5) gapCount++;
+  lastRecvMs = now; lastDeviceTs = ts;
+
+  flexMin = Math.min(flexMin, flex); flexMax = Math.max(flexMax, flex);
+  fsrMin = Math.min(fsrMin, fsr);   fsrMax = Math.max(fsrMax, fsr);
+
+  ring.push({ t: now, flex, fsr });
+  while (ring.length && now - ring[0].t > 10000) ring.shift();
+  rateWin.push(now);
+  while (rateWin.length && now - rateWin[0] > 1000) rateWin.shift();
+
+  if (recording) recorded.push([new Date().toISOString(), ts, flex, fsr]);
+
+  // 표시
+  $("flexVal").textContent = flex;
+  $("fsrVal").textContent = fsr;
+  $("pktCount").textContent = pktCount;
+  $("gapCount").textContent = gapCount;
+  $("fsrRange").innerHTML = `<small>${fsrMin}~${fsrMax}</small>`;
+  $("rateText").textContent = rateWin.length + " Hz";
+  $("rate").className = "pill " + (rateWin.length >= 15 ? "on" : "err");
+  if (recording) $("recInfo").textContent = `기록 ${recorded.length}행`;
+
+  // 정규화 미리보기 — sensor-protocol.js normalizeRawForce와 동일한 min-max 수식
+  let low = 0, high = ADC_MAX;
+  if (cal0 !== null && cal100 !== null && cal100 > cal0) { low = cal0; high = cal100; }
+  const pct = Math.max(0, Math.min(100, (fsr - low) / (high - low) * 100));
+  $("forcePct").innerHTML = pct.toFixed(1) + '<small style="font-size:20px">%</small>';
+}
+
+// ── 차트 ──
+const ctx = $("chart").getContext("2d");
+function drawChart() {
+  const w = $("chart").width, h = $("chart").height;
+  ctx.clearRect(0, 0, w, h);
+  ctx.strokeStyle = "#E2E8F0";
+  for (let i = 1; i < 4; i++) { ctx.beginPath(); ctx.moveTo(0, h * i / 4); ctx.lineTo(w, h * i / 4); ctx.stroke(); }
+  if (ring.length > 1) {
+    const now = performance.now();
+    const x = (t) => w - (now - t) / 10000 * w;
+    const y = (v) => h - (v / ADC_MAX) * (h - 8) - 4;
+    for (const [key, color] of [["flex", "#2563EB"], ["fsr", "#994626"]]) {
+      ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 2;
+      ring.forEach((p, i) => { const px = x(p.t), py = y(p[key]); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); });
+      ctx.stroke();
+    }
+  }
+  requestAnimationFrame(drawChart);
+}
+requestAnimationFrame(drawChart);
+
+// ── 칼리브레이션(FSR) ──
+$("btnCal0").onclick = () => {
+  if (!ring.length) return log("데이터 수신 전입니다.", true);
+  cal0 = Math.round(ring.slice(-20).reduce((s, p) => s + p.fsr, 0) / Math.min(20, ring.length));
+  updateCalInfo();
+};
+$("btnCal100").onclick = () => {
+  if (!ring.length) return log("데이터 수신 전입니다.", true);
+  cal100 = Math.round(ring.slice(-20).reduce((s, p) => s + Math.max(p.fsr, 0), 0) / Math.min(20, ring.length));
+  updateCalInfo();
+};
+function updateCalInfo(silent) {
+  $("calInfo").textContent = `기준: 0% = ${cal0 ?? "미설정"} · 100% = ${cal100 ?? "미설정"}` +
+    (cal0 !== null && cal100 !== null && cal100 <= cal0 ? " ⚠️ 100% 기준이 0%보다 커야 적용됩니다" : " (저장됨 — 재연결 시 즉시 적용)");
+  localStorage.setItem(CAL_KEY, JSON.stringify({ cal0, cal100 }));
+  if (!silent) log(`칼리브레이션 갱신·저장 — 0%: ${cal0}, 100%: ${cal100}`);
+}
+
+// ── 캡처 ──
+$("btnRec").onclick = () => {
+  recording = !recording;
+  $("btnRec").textContent = recording ? "■ 기록 중지" : "● 기록 시작";
+  if (recording) { recorded.length = 0; log("기록 시작"); }
+  else { $("btnCsv").disabled = recorded.length === 0; log(`기록 중지 — ${recorded.length}행`); }
+};
+$("btnCsv").onclick = () => {
+  const csv = "recv_iso,timestamp_ms,flex_raw,fsr_raw\n" + recorded.map(r => r.join(",")).join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+  a.download = `regrip-ble-capture-${Date.now()}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+
+$("btnConnect").onclick = connect;
+$("btnDisconnect").onclick = disconnect;
+$("autoChk").onchange = () => {
+  if (!$("autoChk").checked) { stopRetry(); log("자동 재연결 꺼짐"); }
+  else if (device && !device.gatt?.connected) { startRetry(); log("자동 재연결 켜짐 — 시도 재개"); }
+};
+if (cal0 !== null || cal100 !== null) updateCalInfo(true);
+log("준비 완료. 최초 1회 [센서 연결]로 허용하면, 이후엔 같은 기기를 만나는 즉시 자동 수신됩니다.");
+if ("bluetooth" in navigator && window.isSecureContext) bootSavedDevice();
+</script>
+</body>
+</html>
