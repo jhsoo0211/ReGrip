@@ -4,7 +4,7 @@
 
 ReGrip은 반복적인 손 재활 훈련을 Canvas 게임으로 바꾸고, 훈련 결과를 세션·XP·업적으로 기록합니다. 서버 없이도 전체 흐름을 실행할 수 있으며, 로그인 시 같은 화면이 FastAPI 백엔드로 전환됩니다.
 
-> 현재 단계: 소프트웨어·시뮬레이션 검증 중. 저장소의 ESP32 WebSocket 경로는 실기기 검증과 연결 UI가 남아 있으며, 의료기기나 임상 성능을 주장하지 않습니다.
+> 현재 단계: 소프트웨어·시뮬레이션 검증 중. 저장소의 ESP32 WebSocket 경로는 아직 실기기에서 검증하지 않았고, 연결 UI도 남아 있습니다. 의료기기나 임상 성능을 주장하지 않습니다.
 
 ## What I Worked On
 
@@ -43,7 +43,7 @@ flowchart LR
 | Sensor track | ESP32 + FSR, WebSocket `{force, timestamp}` 20Hz 계약 |
 | Verification | pytest + httpx 기반 API 테스트, 시뮬레이션 입력 |
 
-전체 시스템, 트랜잭션, 데이터 모델과 남은 단절점은 [ARCHITECTURE.md](ARCHITECTURE.md)에 정리했습니다.
+전체 시스템과 트랜잭션, 데이터 모델, 아직 연결하지 못한 부분은 [ARCHITECTURE.md](ARCHITECTURE.md)에 정리했습니다.
 
 ## Run Locally
 
@@ -83,7 +83,7 @@ python -m pytest
 | FastAPI 인증·프로필·세션·통계·보상 API | 공개 운영 배포와 실제 재활 사용자 사용성 |
 | 백엔드 테스트와 아키텍처 문서 | 의료·임상 효과 |
 
-별도 NinaPro DB2 EMG 분류 실험은 **오프라인 연구 트랙**입니다. 현행 1채널 FSR 제품 흐름과 연결되지 않았으며 제품 성능으로 사용하지 않습니다.
+별도 NinaPro DB2 EMG 분류 실험은 **오프라인 연구 트랙**입니다. 현행 1채널 FSR 제품 흐름과 연결되지 않았으며 제품 성능의 근거로 제시하지 않습니다.
 
 ## Documentation
 
@@ -95,4 +95,3 @@ python -m pytest
 ## License
 
 교육·연구 목적의 프로토타입입니다. 외부 사용 전 저장소의 라이선스와 데이터 라이선스를 별도로 확인해 주세요.
-
