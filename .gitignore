@@ -13,3 +13,5 @@ __pycache__/
 scripts/.dev-pids
 scripts/.dev-pids.json
 scripts/*.log
+
+graphify-out/
