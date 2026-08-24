@@ -1,338 +1,97 @@
-# ReGrip 🤜
+﻿# ReGrip
 
-**손 재활을 위한 게이미피케이션 웹 애플리케이션**
+**센서 입력을 4개의 재활 게임과 기록·보상 흐름으로 연결하는 오프라인 우선 손 재활 프로토타입**
 
-ReGrip은 악력 센서와 연동하여 손 재활 훈련을 게임처럼 즐겁게 수행할 수 있도록 설계된 웹 기반 프로토타입입니다. 환자가 지루한 반복 운동 대신 인터랙티브한 미니게임을 통해 재활에 참여하도록 동기를 부여합니다.
+ReGrip은 반복적인 손 재활 훈련을 Canvas 게임으로 바꾸고, 훈련 결과를 세션·XP·업적으로 기록합니다. 서버 없이도 전체 흐름을 실행할 수 있으며, 로그인 시 같은 화면이 FastAPI 백엔드로 전환됩니다.
 
----
+> 현재 단계: 소프트웨어·시뮬레이션 검증 중. 저장소의 ESP32 WebSocket 경로는 아직 실기기에서 검증하지 않았고, 연결 UI도 남아 있습니다. 의료기기나 임상 성능을 주장하지 않습니다.
 
-## 📋 목차
+## What I Worked On
 
-- [주요 기능](#-주요-기능)
-- [기술 스택](#-기술-스택)
-- [프로젝트 구조](#-프로젝트-구조)
-- [시작하기](#-시작하기)
-- [센서 연결](#-센서-연결)
-- [디자인 시스템](#-디자인-시스템)
-- [데이터 저장](#-데이터-저장)
+`2026.06–현재` · 3인 팀
 
----
+- 앱 구조, 점수·세션 기록, 차트와 게이미피케이션 UI
+- localStorage와 REST API를 교체할 수 있는 데이터 계층
+- FastAPI API, 인증·세션 저장 경계, 테스트와 실행 문서
+- ESP32 1채널 FSR 데이터 계약과 브라우저 시뮬레이션
 
-## ✨ 주요 기능
+## Product Flow
 
-### 🎮 재활 미니게임
-- **풍선 게임** (`game-balloon.html`): 악력으로 풍선 높이를 조절하여 목표 구간에 유지하는 지속 악력 훈련
-- **크레인 게임** (`game-crane.html`): 크레인을 조작하여 캡슐을 수집하는 최대 악력 도달 훈련
-
-### 📊 기록 및 통계
-- 훈련 세션 기록 조회 (날짜, 소요 시간, 세트 수, 악력 데이터)
-- 세션 클릭 시 세트별 상세 정보 모달
-- 주간 평균 악력 차트
-- 개인 최고 기록 대시보드
-
-### 🏆 업적 시스템
-- 게임 목표 달성 시 배지 획득
-- 업적별 상세 정보 모달 (희귀도, 카테고리, 보상 XP)
-- 잠긴 업적의 진행률 표시
-
-### 📈 레벨 시스템
-- XP 기반 레벨링 (Lv.1 ~ Lv.100)
-- 6단계 등급 체계 (입문자 → 마스터)
-- 레벨별 보상 미리보기
-- XP 획득 내역 조회
-
-### ⚙️ 기타
-- **캘리브레이션** (`calibration.html`): 악력 센서 0%~100% 기준 설정
-- **프로필 편집** (`profile.html`): 개인 정보, 재활 정보, 훈련 목표 설정
-- **설정** (`settings.html`): 기기 연결, 난이도, 알림 관리
-
----
-
-## 🛠 기술 스택
-
-> 전체 계층별 상세 정리와 향후 도입 예정 기술은 **[docs/01-기술스택.md](docs/01-기술스택.md)** 참조.
-
-| 구분 | 기술 |
-|------|------|
-| **프론트엔드** | HTML5, Vanilla JavaScript, CSS3 — 빌드 도구 없음 |
-| **스타일링** | Tailwind CSS (CDN), Vanilla CSS (`shared.css`) |
-| **게임 렌더링** | Canvas 2D + requestAnimationFrame (미니게임 4종) |
-| **폰트** | Pretendard, Google Fonts — Space Grotesk (제목), DM Sans (본문) |
-| **아이콘** | Material Symbols Outlined |
-| **백엔드** | Python 3.11, FastAPI + Uvicorn, SQLAlchemy 2.0, Pydantic v2 (`integration` 브랜치) |
-| **DB** | SQLite (개발) → PostgreSQL (운영 설계, `DATABASE_URL`로 전환) |
-| **인증/보안** | PyJWT (access + refresh 쿠키), argon2-cffi, AES-GCM 필드 암호화 |
-| **펌웨어** | ESP32 + Arduino (PlatformIO), links2004/WebSockets |
-| **데이터 저장** | localStorage (기본) / REST API (전환 가능) |
-| **센서 통신** | WebSocket (기본) / BLE·Web Serial API (확장 옵션) |
-| **테스트** | pytest + httpx (백엔드) |
-
----
-
-## 📁 프로젝트 구조
-
-```
-Regrip/
-├── index.html            # 홈 대시보드 — 인사말, 오늘의 훈련, 주간 목표, 최근 세션
-├── training.html         # 훈련 모드 선택 — 풍선/크레인 게임 카드
-├── game-balloon.html     # 풍선 게임 — 지속 악력 유지 훈련
-├── game-crane.html       # 크레인 게임 — 최대 악력 도달 훈련
-├── calibration.html      # 캘리브레이션 — 센서 기준값 설정
-├── history.html          # 기록 및 통계 — 세션 로그, 차트, 상세 모달
-├── achievements.html     # 업적 — 배지 목록, 상세 모달
-├── level.html            # 레벨 상세 — XP 진행, 등급 시스템, 보상
-├── profile.html          # 프로필 편집 — 개인/재활 정보, 아바타
-├── settings.html         # 설정 — 기기, 훈련, 알림 설정
-├── shared.css            # 공유 스타일 — 레트로 디자인 시스템, 네비게이션, 모달
-├── shared.js             # 공유 로직 — 네비게이션, DataService, SensorService
-└── README.md             # 이 파일
+```mermaid
+flowchart LR
+    S["FSR / 키보드·마우스 시뮬레이션"] --> G["Canvas 게임 4종"]
+    G --> D["DataService"]
+    D --> L["localStorage"]
+    D --> A["FastAPI /api/v1"]
+    A --> P[("SQLite / PostgreSQL")]
 ```
 
----
+- **게임 4종** — 풍선, 크레인, 리듬, 잠수함
+- **기록** — 세션, 세트 상세, 평균·최대 악력, 주간 통계
+- **게이미피케이션** — 서버 권위 XP 원장, 레벨, 업적, streak
+- **오프라인 우선** — localStorage 미러와 멱등 아웃박스로 실패 시 기록 보존
+- **인증** — JWT access token과 회전·재사용 탐지를 둔 refresh cookie
 
-## 🌳 브랜치 구조
+## Architecture
 
-| 브랜치 | 내용 | 실행 |
-|--------|------|------|
-| **`mockup`** | 개선된 프론트엔드 **단독 데모** (localStorage만 사용, 서버 불필요). 데모·시연용. | 정적 파일만 열면 됨 |
-| **`integration`** | 위 프론트 + **FastAPI 백엔드 + ESP32 펌웨어 + REST 연결**(로그인/서버 저장). 실제 연동 개발용. | 아래 dev 스크립트 |
-| `main` | 최초 원본 프로토타입(참고용 보존) | — |
+| Layer | Current implementation |
+|---|---|
+| Frontend | 정적 HTML, Vanilla JavaScript, Tailwind CDN, Canvas 2D |
+| Data | localStorage ↔ REST 교체형 `DataService` |
+| Backend | Python 3.11, FastAPI, SQLAlchemy, Pydantic |
+| Database | SQLite(dev) / PostgreSQL(prod 설계) |
+| Sensor track | ESP32 + FSR, WebSocket `{force, timestamp}` 20Hz 계약 |
+| Verification | pytest + httpx 기반 API 테스트, 시뮬레이션 입력 |
 
-> 목업 브랜치는 서버 없이 그대로 열어 쓰도록 유지되고, 백엔드·ESP32 연결 작업은 `integration`에서만 진행합니다. 지금은 백엔드를 **더미/테스트 값**으로 검증하는 단계입니다.
+전체 시스템과 트랜잭션, 데이터 모델, 아직 연결하지 못한 부분은 [ARCHITECTURE.md](ARCHITECTURE.md)에 정리했습니다.
 
-## 🚀 시작하기
+## Run Locally
 
-### 요구사항
-- 모던 웹 브라우저 (Chrome, Edge, Firefox, Safari)
-- (선택) 악력 센서 + WebSocket 서버
-- (`integration` 백엔드 실행 시) Python 3.11 + `backend/venv`
-
-### A. 목업 단독 실행 (`mockup` 브랜치 — 서버 불필요)
-
-별도의 빌드 없이 HTML 파일을 직접 열어 사용할 수 있습니다:
+### Frontend only
 
 ```bash
-# 방법 1: 파일을 직접 브라우저에서 열기
-open index.html
-
-# 방법 2: 간단한 로컬 서버 실행 (권장)
-npx serve .
-# 또는
-python -m http.server 8000
+python -m http.server 3000
 ```
 
-### B. 백엔드까지 한 번에 실행 (`integration` 브랜치 — dev 스크립트)
+브라우저에서 <http://localhost:3000>을 열고 `SPACE` 또는 마우스 입력으로 센서를 시뮬레이션할 수 있습니다.
 
-프론트(정적 서버 :3000)와 백엔드(FastAPI :8000)를 한 명령으로 같이 띄우고 종료합니다.
+### Frontend + backend
 
 ```powershell
-# Windows (PowerShell)
-.\scripts\dev-start.ps1        # 시작 (-Force: 포트 점유 시 종료 후 진행, -LocalOnly: 프론트만)
-.\scripts\dev-stop.ps1         # 종료
+.\scripts\dev-start.ps1
 ```
 
 ```bash
-# macOS/Linux/Git-Bash
-./scripts/dev-start.sh         # 시작 (--force, --local 지원, 로그: scripts/*.log)
-./scripts/dev-stop.sh          # 종료
+./scripts/dev-start.sh
 ```
 
-시작 후 <http://localhost:3000/login.html> 에서 백엔드 주소 `http://localhost:8000` 으로 로그인/회원가입합니다.
+백엔드 환경 구성과 운영 경계는 [backend/README.md](backend/README.md)를 먼저 확인해 주세요.
 
-> ⚠️ 프론트는 반드시 **`http://localhost:3000`** 으로 접속하세요. 백엔드 refresh 쿠키가
-> `SameSite=Strict` 라 프론트·백엔드의 **호스트명이 같아야**(둘 다 `localhost`) 로그인이 유지됩니다.
-> 백엔드 최초 실행 전 `backend/README.md` 대로 `backend/venv` 를 만들어 두어야 합니다.
+### Backend tests
 
-> **참고**: Tailwind CSS는 CDN을 통해 로드되므로 인터넷 연결이 필요합니다.
-
-### 시뮬레이션 모드
-
-실제 센서 없이도 게임을 테스트할 수 있습니다:
-- **키보드**: `SPACE` 키를 눌러 악력 시뮬레이션
-- **마우스**: 클릭 홀드로 악력 시뮬레이션
-
----
-
-## 🔌 센서 연결
-
-### 하드웨어 요구사항
-- **ESP32** (WiFi 내장 — 무선 연결 우선)
-- FSR (Force Sensitive Resistor) 센서
-- WebSocket 서버 (포트 8080 권장)
-
-### 연결 방법
-
-무선(WiFi)이 기본입니다. ESP32가 같은 공유기(또는 SoftAP)에서 WebSocket 서버를 실행하고,
-브라우저가 `ws://<esp32-ip>:8080`으로 접속해 JSON 데이터를 수신합니다.
-(BLE·USB 유선(Web Serial)은 확장 전송 옵션 — `docs/backend/04-sensor-data-policy.md` ADR-04-0 참조)
-
-```javascript
-// 센서 데이터 형식
-{
-  "force": 73.5,        // 악력 값 (0~100)
-  "timestamp": 1717648200000  // Unix 타임스탬프
-}
+```bash
+cd backend
+python -m pytest
 ```
 
-앱에서 연결:
+## Verified vs. Not Yet Verified
 
-```javascript
-// 센서 연결 (ESP32의 로컬 IP)
-SensorService.connect('ws://192.168.0.42:8080');
-
-// 악력 데이터 수신
-SensorService.onForceUpdate(force => {
-  console.log('현재 악력:', force, '%');
-});
-
-// 연결 해제
-SensorService.disconnect();
-```
-
-### ESP32 예시 코드 (Arduino 프레임워크)
-
-```cpp
-#include <WiFi.h>
-#include <WebSocketsServer.h>
-
-WebSocketsServer ws(8080);
-
-void setup() {
-  WiFi.begin("YOUR_SSID", "YOUR_PASSWORD");
-  while (WiFi.status() != WL_CONNECTED) delay(200);
-  // Serial.println(WiFi.localIP());  // 이 IP로 SensorService.connect()
-  ws.begin();
-}
-
-void loop() {
-  ws.loop();
-  int raw = analogRead(34);                    // FSR on GPIO34 (ADC1)
-  float force = raw / 4095.0f * 100.0f;        // ESP32 ADC는 12bit(0~4095)
-  String json = "{\"force\":" + String(force) +
-                ",\"timestamp\":" + String(millis()) + "}";
-  ws.broadcastTXT(json);
-  delay(50);  // 20Hz
-}
-```
-
----
-
-## 🎨 디자인 시스템
-
-ReGrip은 **네오 레트로 (Neo-Retro)** 디자인 스타일을 사용합니다.
-
-### 컬러 팔레트
-
-| 토큰 | 색상 | 용도 |
-|------|------|------|
-| `--primary` | `#994626` | 메인 브랜드 색상 |
-| `--primary-light` | `#e8825e` | 강조 영역 |
-| `--bg-app` | `#F0F9FF` | 앱 배경 |
-| `--surface` | `#FFF8F6` | 카드/패널 배경 |
-| `--ink` | `#0F172A` | 텍스트, 테두리 |
-| `--success` | `#16A34A` | 성공/연결 상태 |
-| `--error` | `#DC2626` | 오류/경고 |
-
-### 타이포그래피
-
-- **제목**: Space Grotesk (Bold 700)
-- **본문**: DM Sans (Regular 400 / Medium 500)
-- **라벨**: Space Grotesk (Bold 700, UPPERCASE, letter-spacing: 0.1em+)
-
-### 레트로 유틸리티 클래스
-
-```css
-.retro-shadow       /* 4px 4px 0px 오프셋 그림자 */
-.retro-shadow-sm    /* 2px 2px 0px 오프셋 그림자 */
-.retro-border       /* 2px solid 테두리 */
-.retro-border-thick /* 4px solid 테두리 */
-```
-
-### 반응형 레이아웃
-
-- **데스크톱** (≥768px): 240px 사이드바 내비게이션
-- **모바일** (<768px): 하단 고정 탭 바 내비게이션
-
----
-
-## 💾 데이터 저장
-
-### 기본: localStorage
-
-모든 데이터는 브라우저의 `localStorage`에 저장됩니다:
-
-| 키 | 내용 |
-|----|------|
-| `regrip_profile` | 프로필 정보 (이름, 나이, 재활 정보, 아바타 등) |
-| `regrip_sessions` | 훈련 세션 배열 (최신순, `schema:2` — `gameId`, `sets`, `avgForce`, `maxForce`, `stars`, `attempts`, `durationSec`, `setDetails`) |
-| `regrip_settings` | 앱 설정 (`hand`, `difficulty`, `restSeconds`, `reducedMotion`) |
-| `regrip_calibration` | 센서 캘리브레이션 기준값 (`baseline0`, `baseline100`) |
-
-### DataService API
-
-`DataService`는 localStorage와 REST 백엔드를 동일한 인터페이스로 다룹니다.
-
-| 메서드 | 로컬 키 | REST 경로 |
-|--------|---------|-----------|
-| `getProfile()` / `getProfileSync()` / `saveProfile(data)` | `regrip_profile` | `GET` / `PUT /api/profile` |
-| `getSessions()` / `saveSession(data)` | `regrip_sessions` | `GET` / `POST /api/sessions` |
-| `getSettings()` / `getSettingsSync()` / `saveSettings(data)` | `regrip_settings` | `GET` / `PUT /api/settings` |
-| `getCalibration()` / `saveCalibration(data)` | `regrip_calibration` | `GET` / `PUT /api/calibration` |
-
-- **동기 미러**: `getProfileSync()` · `getSettingsSync()`는 localStorage 미러를 즉시 반환합니다. REST 모드에서도 `getX()` 성공 시 응답을 미러에 캐시하므로 동기 조회가 계속 동작합니다.
-- **폴백**: REST 요청 실패 시 조회는 로컬 미러를, 저장은 경고 후 로컬 저장으로 폴백하여 데이터 유실을 방지합니다.
-- 레거시 전역 `loadSessions()` / `saveSession()` 함수와 `EXERCISE_SETS` 상수는 제거되었습니다. 세션 조회는 `await DataService.getSessions()`, 저장은 `await DataService.saveSession(data)`를 사용하세요.
-
-### REST API로 전환
-
-```javascript
-// REST 모드로 전환 (선택적으로 공통 헤더 병합)
-DataService.setBackend('rest', 'https://api.yourserver.com', { Authorization: 'Bearer …' });
-
-// 이후 모든 데이터 호출이 API를 통해 이루어짐
-const profile = await DataService.getProfile();
-await DataService.saveProfile({ name: '홍길동', /* … */ });
-```
-
-### 데모 데이터
-
-빈 상태에서 화면을 확인하려면 데모 세션 14일치를 생성할 수 있습니다:
-
-- URL 쿼리로 `?demo=1`을 붙여 페이지를 열면 `seedDemoData()`가 자동 실행됩니다 (예: `index.html?demo=1`).
-- 설정 페이지의 데모 데이터 버튼으로도 호출할 수 있습니다.
-- 기존 세션이 하나라도 있으면 아무 것도 하지 않고 `false`를 반환합니다 (덮어쓰지 않음).
-
----
-
-## 📝 Git Commit Convention
-
-```
-<Type>: <설명>
-```
-
-|Type|설명|
+| Verified in this repository | Not yet verified |
 |---|---|
-|**Feat**|새로운 기능 추가|
-|**Fix**|버그 수정|
-|**Refactor**|리팩토링|
-|**Design**|UI 변경|
-|**Comment**|주석|
-|**Style**|포맷팅 (로직 변경 X)|
-|**Test**|테스트 코드|
-|**Chore**|빌드 / 패키지 / 기타|
-|**Init**|초기 생성|
-|**Rename**|파일·폴더 이동|
-|**Remove**|파일 삭제|
+| 4개 게임의 시뮬레이션 입력과 세션 저장 흐름 | 저장소 ESP32 펌웨어의 실제 하드웨어 연결 |
+| localStorage/REST 전환, 미러, 멱등 아웃박스 | 앱 설정 화면에서 센서를 연결하는 사용자 흐름 |
+| FastAPI 인증·프로필·세션·통계·보상 API | 공개 운영 배포와 실제 재활 사용자 사용성 |
+| 백엔드 테스트와 아키텍처 문서 | 의료·임상 효과 |
 
----
+별도 NinaPro DB2 EMG 분류 실험은 **오프라인 연구 트랙**입니다. 현행 1채널 FSR 제품 흐름과 연결되지 않았으며 제품 성능의 근거로 제시하지 않습니다.
 
+## Documentation
 
-## 📄 라이선스
+- [Architecture](ARCHITECTURE.md)
+- [Technology stack](docs/01-기술스택.md)
+- [Sensor data policy](docs/backend/04-sensor-data-policy.md)
+- [Backend guide](backend/README.md)
 
-이 프로젝트는 교육 및 연구 목적의 프로토타입입니다.
+## License
 
----
-
-<p align="center">
-  <strong>ReGrip</strong> — 재활을 게임처럼, 회복을 즐겁게 🎮
-</p>
+교육·연구 목적의 프로토타입입니다. 외부 사용 전 저장소의 라이선스와 데이터 라이선스를 별도로 확인해 주세요.
