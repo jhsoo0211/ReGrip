@@ -5,8 +5,9 @@ from fastapi import APIRouter, Depends, Response
 from sqlalchemy import select
 
 from ..core.db import get_db
+from ..core.errors import AppError
 from ..core.timeutil import iso_z
-from ..models import Calibration, User
+from ..models import Calibration, Device, User
 from ..schemas.calibration import CalibrationCreate, CalibrationOut
 from .deps import get_current_user
 
@@ -27,6 +28,10 @@ def _to_out(c: Calibration) -> CalibrationOut:
 def create_calibration(
     body: CalibrationCreate, user: User = Depends(get_current_user), db=Depends(get_db)
 ):
+    if body.device_id is not None:
+        device = db.get(Device, body.device_id)
+        if device is None or device.owner_user_id != user.id:
+            raise AppError(422, "VALIDATION_FAILED", "사용자에게 등록된 기기가 아닙니다.", {"field": "deviceId"})
     c = Calibration(
         user_id=user.id,
         device_id=body.device_id,

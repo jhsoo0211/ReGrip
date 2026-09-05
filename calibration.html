@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet"/>
 <link rel="stylesheet" href="shared.css"/>
+<link rel="stylesheet" href="sensor-ui.css"/>
 <script src="tailwind-config.js"></script>
 <style>
   /* ── Calibration step state machine (.step-active / .step-done / .step-locked) ── */
@@ -148,8 +149,9 @@
     <section class="flex-1 p-8 md:p-10 border-b md:border-b-0 md:border-r border-surface-container flex flex-col justify-between">
       <div>
         <h1 class="font-display text-4xl font-bold mb-1 tracking-tight">캘리브레이션 룸</h1>
-        <p class="text-cool-gray text-base mb-6">0–100% 관절 가동 범위 기준 설정</p>
+        <p class="text-cool-gray text-base mb-6">압력 센서의 이완·편안한 쥐기 기준을 설정합니다.</p>
 
+        <div id="calibration-sensor-controls" class="mb-6"></div>
         <!-- Existing calibration (populated on load if a record exists) -->
         <div id="existing-cal" class="cal-info-box mb-6 hidden">
           <div class="flex items-start gap-2">
@@ -186,8 +188,8 @@
               <div class="flex gap-4">
                 <div id="step-2-number" class="cal-step-num">02</div>
                 <div>
-                  <h3 class="font-display text-lg font-bold mb-1">100% 최대 악력</h3>
-                  <p class="text-cool-gray text-sm">안전한 범위 내에서 <span class="font-bold underline">최대한 세게</span> 쥐세요.</p>
+                  <h3 class="font-display text-lg font-bold mb-1">100% 기준 (편안하게 쥐기)</h3>
+                  <p class="text-cool-gray text-sm">무리하지 말고 <span class="font-bold underline">편안하게</span> 쥔 상태를 유지하세요.</p>
                 </div>
               </div>
               <span class="material-symbols-outlined text-3xl text-on-surface flex-shrink-0" style="font-variation-settings:'FILL' 1">back_hand</span>
@@ -200,6 +202,8 @@
         </div>
       </div>
 
+      <p id="calibration-error" class="calibration-error" role="alert"></p>
+      <button id="reset-calibration" type="button" class="cal-capture-btn">처음부터 다시 보정</button>
       <!-- Start Button -->
       <div class="mt-8">
         <button id="btn-start"
@@ -237,6 +241,7 @@
         <div id="baseline-marker-100" class="meter-baseline hidden"><span class="meter-baseline-label"></span></div>
       </div>
 
+      <p id="calibration-raw" class="text-xs mt-4"></p>
       <div id="live-value" class="mt-8 font-display text-3xl font-bold text-on-surface tabular" aria-live="polite" aria-atomic="true">0%</div>
 
       <p id="sim-hint" class="mt-2 text-[11px] font-display font-bold text-cool-gray text-center leading-snug">
@@ -252,185 +257,117 @@
 
   </main>
 
-  <script src="shared.js"></script>
+<script src="sensor-service.js"></script>
+<script src="sensor-ui.js"></script>
+<script src="shared.js"></script>
   <script>
-    injectFeedbackModal();
-
-    // Wizard page skips initPage() — honor the app-level reduced-motion setting here too.
-    try {
-      if (DataService.getSettingsSync().reducedMotion) {
-        document.documentElement.setAttribute('data-reduced-motion', '');
-      }
-    } catch {}
-
-    // ── State ──
-    let baseline0     = null;
-    let baseline100   = null;
-    let liveForce     = SensorService.getForce();   // logical 0–100 (never Math.random)
-    let pressActive   = false;
-    let rafId         = null;
-    let lastTick      = performance.now();
-    let lastAriaWrite = performance.now();
-
-    const meterFill   = document.getElementById('live-meter-fill');
-    const liveValueEl = document.getElementById('live-value');
-    const flashEl     = document.getElementById('meter-flash');
-    const meterWrap   = document.getElementById('meter-wrap');
-    const hintEl      = document.getElementById('sim-hint');
-
-    // Seed the initial readout (no more hard-coded 15%).
-    meterFill.style.height  = liveForce + '%';
-    liveValueEl.textContent = Math.round(liveForce) + '%';
-
-    // ── Live meter driven by SensorService (onForceUpdate), NOT Math.random ──
-    function onForce(f) { liveForce = f; }
-    SensorService.onForceUpdate(onForce);
-
-    function renderMeter(now) {
-      meterFill.style.height = liveForce + '%';
-      // aria-live throttle: mirror the numeric value at most ~1×/sec.
-      if (now - lastAriaWrite >= 1000) {
-        liveValueEl.textContent = Math.round(liveForce) + '%';
-        lastAriaWrite = now;
-      }
+/* Raw capture wizard: simulation is never saved as sensor calibration. */
+(function () {
+  injectFeedbackModal();
+  const sensor=SensorService, $=id=>document.getElementById(id);
+  let restCapture=null, busy=false, disposed=false, captureGeneration=0, lastMode=sensor.getMode();
+  const cleanupPanel=ReGripSensorUI.mount($('calibration-sensor-controls'));
+  const error=$('calibration-error'), first=$('btn-cap-1'), second=$('btn-cap-2'), start=$('btn-start');
+  const returnTo=new URLSearchParams(location.search).get('return');
+  const gamePages=['game-balloon.html','game-crane.html','game-rhythm.html','game-glide.html'];
+  start.onclick=()=>{location.href=gamePages.includes(returnTo)?returnTo:'training.html';};
+  function showError(message){error.textContent=message||'';}
+  function sync(){
+    if(disposed)return;
+    const mode=sensor.getMode(),connected=sensor.getStatus()==='connected';
+    first.disabled=busy||!connected||mode==='simulation';
+    second.disabled=busy||!connected||!restCapture||mode==='simulation';
+    start.disabled=busy||!sensor.isReady();
+    start.textContent=mode==='simulation'?'시뮬레이션으로 연습하기':'운동 시작하기';
+    start.classList.toggle('unlocked',!start.disabled);
+    $('sim-hint').textContent=mode==='simulation'?'센서 없이 조작을 연습할 수 있습니다. 센서 보정은 연결 후 진행해 주세요.':'실제 압력 센서 입력입니다. 표시 값은 kg 단위가 아닙니다.';
+    const cal=sensor.getCalibration();
+    $('existing-cal').classList.toggle('hidden',!cal);
+    if(cal)$('existing-cal-detail').textContent=`저장된 기준: 이완 ${Math.round(cal.baseline0)} / 편안한 쥐기 ${Math.round(cal.baseline100)} ${mode==='ble'?'ADC':'%'}`;
+  }
+  function meter(sample){
+    if(disposed)return;
+    const force=sensor.getForce();
+    $('live-meter-fill').style.height=Math.max(0,Math.min(100,force))+'%';
+    $('live-value').textContent=Math.round(force)+'%';
+    if(sample && typeof sample==='object'){
+      const raw=sensor.getMode()==='websocket'?sample.forceRaw:sample.fsrRaw;
+      $('calibration-raw').textContent=Number.isFinite(raw)?`압력 원본값 ${Math.round(raw)} ${sensor.getMode()==='ble'?'ADC':'%'}`:'';
     }
-
-    function tick(now) {
-      const dt = Math.min(0.05, (now - lastTick) / 1000);
-      lastTick = now;
-
-      // Simulation (sensor not connected): the user "grips" via SPACE / hold to
-      // ramp force up (+55%/s) and it decays on release (-45%/s) — game pattern.
-      if (SensorService.getStatus() !== 'connected') {
-        liveForce = pressActive
-          ? Math.min(100, liveForce + 55 * dt)
-          : Math.max(0, liveForce - 45 * dt);
-        SensorService.setSimulatedForce(liveForce);   // routes back through onForce
-      }
-
-      renderMeter(now);
-      rafId = requestAnimationFrame(tick);
+  }
+  function mark(n){
+    const step=$('step-'+n); step.classList.remove('step-active','step-locked');step.classList.add('step-done');
+    $('step-'+n+'-number').textContent='✓';
+    $('btn-cap-'+n).textContent='기록 완료';
+  }
+  function reset(message=''){
+    captureGeneration++;restCapture=null;showError(message);
+    for(const n of [1,2]){
+      $('step-'+n).classList.remove('step-done','step-active','step-locked');
+      $('step-'+n).classList.add(n===1?'step-active':'step-locked');
+      $('step-'+n+'-number').textContent='0'+n;
+      $('btn-cap-'+n).textContent=n===1?'이완 상태 1초 기록':'편안한 쥐기 1초 기록';
     }
-    rafId = requestAnimationFrame(tick);
-
-    // ── Grip-simulation input: SPACE anywhere + hold on the meter panel ──
-    function startPress() { pressActive = true; }
-    function stopPress()  { pressActive = false; }
-    function onKeyDown(e) { if (e.code === 'Space') { e.preventDefault(); startPress(); } }
-    function onKeyUp(e)   { if (e.code === 'Space') stopPress(); }
-    document.addEventListener('keydown', onKeyDown);
-    document.addEventListener('keyup',   onKeyUp);
-    meterWrap.addEventListener('pointerdown',  (e) => { e.preventDefault(); startPress(); });
-    meterWrap.addEventListener('pointerup',     stopPress);
-    meterWrap.addEventListener('pointerleave',  stopPress);
-    meterWrap.addEventListener('pointercancel', stopPress);
-
-    // Hide the grip hint when a real sensor is connected.
-    function syncHint() { hintEl.style.display = SensorService.getStatus() === 'connected' ? 'none' : ''; }
-    syncHint();
-    SensorService.onStatusChange(syncHint);
-
-    // ── Tube baseline dash markers ──
-    function showBaselineMarker(id, value, label) {
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.style.bottom = value + '%';
-      el.querySelector('.meter-baseline-label').textContent = `${label} ${Math.round(value)}%`;
-      el.classList.remove('hidden');
-    }
-
-    // ── Capture-moment green flash (decorative → skipped under reduced motion) ──
-    function flashMeter() {
-      if (prefersReducedMotion() || !flashEl) return;
-      flashEl.classList.remove('flash');
-      void flashEl.offsetWidth;              // restart the animation
-      flashEl.classList.add('flash');
-    }
-
-    // ── Step state helpers (class-based, replaces imperative style writes) ──
-    function markStepDone(stepEl, numEl, captureBtn) {
-      stepEl.classList.remove('step-active', 'step-locked');
-      stepEl.classList.add('step-done');
-      numEl.innerHTML = '<span class="material-symbols-outlined" style="font-size:1.4rem">check</span>';
-      if (!prefersReducedMotion()) {
-        numEl.classList.remove('check-pop');
-        void numEl.offsetWidth;
-        numEl.classList.add('check-pop');    // scale pop morph
-      }
-      captureBtn.textContent = '기록됨 ✓';
-      captureBtn.classList.add('captured');
-      captureBtn.disabled = true;
-    }
-
-    function activateStep(stepEl) {
-      stepEl.classList.remove('step-locked');
-      stepEl.classList.add('step-active');
-    }
-
-    // ── Capture handler (async: persists on the 100% step) ──
-    async function captureBaseline(step) {
-      if (step === 1) {
-        baseline0 = Math.round(liveForce);
-        markStepDone(
-          document.getElementById('step-1'),
-          document.getElementById('step-1-number'),
-          document.getElementById('btn-cap-1')
-        );
-        activateStep(document.getElementById('step-2'));
-        document.getElementById('baseline-info').classList.remove('hidden');
-        document.getElementById('b0-info').textContent = `0% 기준: ${baseline0}%`;
-        showBaselineMarker('baseline-marker-0', baseline0, '0%');
-        flashMeter();
-
-      } else if (step === 2) {
-        baseline100 = Math.round(liveForce);
-        markStepDone(
-          document.getElementById('step-2'),
-          document.getElementById('step-2-number'),
-          document.getElementById('btn-cap-2')
-        );
-        document.getElementById('b100-info').textContent = `100% 기준: ${baseline100}%`;
-        showBaselineMarker('baseline-marker-100', baseline100, '100%');
-        flashMeter();
-
-        // ── Persist both baselines + apply to the sensor pipeline (core wiring) ──
-        await DataService.saveCalibration({ baseline0, baseline100, date: new Date().toISOString() });
-        SensorService.setCalibration({ baseline0, baseline100 });
-
-        // Unlock the start button (scale pop + retro-shadow entrance).
-        const btnStart = document.getElementById('btn-start');
-        btnStart.disabled = false;
-        btnStart.classList.add('unlocked');
-        if (!prefersReducedMotion()) {
-          btnStart.classList.add('pop');
-          btnStart.addEventListener('animationend', () => btnStart.classList.remove('pop'), { once: true });
+    $('baseline-info').classList.add('hidden');
+    $('b0-info').textContent='';$('b100-info').textContent='';
+    sync();
+  }
+  function onStatus(){
+    const mode=sensor.getMode();
+    if((busy||restCapture)&&(mode!==lastMode||sensor.getStatus()!=='connected'))reset('센서 입력이 바뀌거나 끊겼습니다. 연결 후 이완 기준부터 다시 측정해 주세요.');
+    lastMode=mode;sync();
+  }
+  function captureLegacy(){
+    return new Promise((resolve,reject)=>{
+      const values=[];let last=performance.now(),maxGap=0;
+      const onSample=s=>{if(sensor.getMode()!=='websocket')return;const gap=performance.now()-last;last=performance.now();maxGap=Math.max(maxGap,gap);if(Number.isFinite(s.forceRaw))values.push(s.forceRaw);};
+      sensor.onRawSample(onSample);
+      setTimeout(()=>{
+        sensor.offRawSample(onSample);
+        if(disposed||sensor.getMode()!=='websocket'||sensor.getStatus()!=='connected'||values.length<15||Math.max(maxGap,performance.now()-last)>150)return reject(new Error('센서 입력이 충분하지 않습니다. 연결을 확인하고 다시 측정해 주세요.'));
+        values.sort((a,b)=>a-b);
+        resolve({baseline:values[Math.floor(values.length/2)],spread:values[Math.floor((values.length-1)*.95)]-values[Math.floor((values.length-1)*.05)],mode:'websocket'});
+      },1000);
+    });
+  }
+  window.captureBaseline=async function(n){
+    if(busy)return;
+    if(sensor.getMode()==='simulation'){showError('실제 센서를 연결해야 보정 기준을 저장할 수 있습니다.');return;}
+    if(sensor.getStatus()!=='connected'){showError('센서 연결을 먼저 확인해 주세요.');return;}
+    busy=true;showError('');sync();const button=n===1?first:second;button.textContent='1초 동안 자세를 유지해 주세요';
+    const generation=++captureGeneration;
+    try{
+      const mode=sensor.getMode();
+      const capture=mode==='ble'?await sensor.captureBaseline():await captureLegacy();
+      if(disposed||generation!==captureGeneration)return;
+      if(n===1){
+        restCapture={...capture,mode};
+        mark(1);$('step-2').classList.remove('step-locked','step-done');$('step-2').classList.add('step-active');
+        $('baseline-info').classList.remove('hidden');$('b0-info').textContent=`이완 기준: ${Math.round(capture.baseline)}`;$('b100-info').textContent='';
+      }else{
+        if(!restCapture||restCapture.mode!==mode)throw new Error('입력 장치가 바뀌었습니다. 이완 기준부터 다시 측정해 주세요.');
+        if(mode==='ble')await sensor.saveBleCalibration(restCapture,capture);
+        else{
+          const span=Math.abs(capture.baseline-restCapture.baseline);
+          if(capture.baseline<=restCapture.baseline||span<1||restCapture.spread>span*.2||capture.spread>span*.2)throw new Error('두 기준이 너무 가깝거나 불안정합니다. 힘을 풀고 이완 기준부터 다시 측정해 주세요.');
+          const cal={baseline0:restCapture.baseline,baseline100:capture.baseline,date:new Date().toISOString()};
+          await DataService.saveCalibration(cal);sensor.setCalibration(cal);
         }
+        if(disposed||generation!==captureGeneration)return;
+        mark(2);$('b100-info').textContent=`쥐기 기준: ${Math.round(capture.baseline)}`;
+        showToast('보정 기준을 저장했어요',{type:'success'});
       }
-    }
-    window.captureBaseline = captureBaseline;   // referenced by inline onclick
-
-    // ── Existing calibration → top info box ──
-    (async () => {
-      let cal = null;
-      try { cal = await DataService.getCalibration(); } catch {}
-      if (cal && typeof cal.baseline0 === 'number' && typeof cal.baseline100 === 'number') {
-        const when = cal.date ? ` (${formatKoreanDate(cal.date)})` : '';
-        document.getElementById('existing-cal-detail').textContent =
-          `기존 캘리브레이션: 0%=${cal.baseline0}, 100%=${cal.baseline100}${when}`;
-        document.getElementById('existing-cal').classList.remove('hidden');
-      }
-    })();
-
-    // ── Cleanup on page leave: unsubscribe + stop the rAF loop + drop listeners ──
-    function cleanup() {
-      SensorService.offForceUpdate(onForce);
-      SensorService.offStatusChange(syncHint);
-      if (rafId) cancelAnimationFrame(rafId);
-      document.removeEventListener('keydown', onKeyDown);
-      document.removeEventListener('keyup', onKeyUp);
-    }
-    window.addEventListener('pagehide', cleanup);
-    window.addEventListener('beforeunload', cleanup);
+    }catch(e){if(!disposed&&generation===captureGeneration){showError(e.message||'보정하지 못했습니다. 다시 측정해 주세요.');button.textContent='다시 측정';}}
+    finally{busy=false;sync();}
+  };
+  $('reset-calibration').onclick=()=>reset();
+  sensor.onStatusChange(onStatus);sensor.onRawSample(meter);sensor.onForceUpdate(meter);
+  // Screen reader updates come from the user-triggered capture status; the live number is visual only.
+  $('live-value').removeAttribute('aria-live');
+  function cleanup(){disposed=true;captureGeneration++;cleanupPanel();sensor.offStatusChange(onStatus);sensor.offRawSample(meter);sensor.offForceUpdate(meter);}
+  window.addEventListener('pagehide',cleanup,{once:true});
+  reset();meter(sensor.getRawSample());
+})();
   </script>
 </body>
 </html>

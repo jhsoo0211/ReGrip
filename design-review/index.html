@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>ReGrip — 세 가지 디자인 미리보기</title>
+  <link rel="stylesheet" href="mockup.css">
+  <script src="mockup.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#product-main">본문으로 이동</a>
+  <header class="review-bar" aria-label="디자인 비교 도구">
+    <div class="review-brand"><strong>ReGrip</strong><span>DESIGN REVIEW</span></div>
+    <div class="theme-switch" role="group" aria-label="디자인 방향">
+      <button data-theme="a"><i class="swatch a"></i><b>A</b> 차분한 블루</button>
+      <button data-theme="b"><i class="swatch b"></i><b>B</b> 친근한 세이지</button>
+      <button data-theme="c"><i class="swatch c"></i><b>C</b> 선명한 라벤더</button>
+    </div>
+    <div class="review-right">
+      <div class="size-switch" role="group" aria-label="미리보기 화면 크기"><button data-device="desktop" title="데스크톱 화면">데스크톱</button><button data-device="mobile" title="390픽셀 모바일 화면">모바일</button></div>
+      <button class="choose" id="choose-design">이 디자인 선택</button>
+    </div>
+  </header>
+  <div class="review-caption"><span id="direction-note"></span><span class="preview-label"><i></i>디자인 미리보기 · 예시 데이터</span></div>
+  <div class="device-frame" id="device-frame"><div id="app"></div></div>
+  <p class="review-foot">연결·보정·게임 버튼을 직접 눌러 보세요. 이 페이지의 조작은 실제 센서와 훈련 기록에 반영되지 않습니다.</p>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <dialog id="preview-dialog" aria-labelledby="dialog-title"></dialog>
+</body>
+</html>

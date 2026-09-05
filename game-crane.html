@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet"/>
 <link rel="stylesheet" href="shared.css"/>
+<link rel="stylesheet" href="sensor-ui.css"/>
 <script src="tailwind-config.js"></script>
 <style>
   /* Viewport */
@@ -377,6 +378,8 @@
 </div>
 
 
+<script src="sensor-service.js"></script>
+<script src="sensor-ui.js"></script>
 <script src="shared.js"></script>
 <script>
 // ── Constants (game constants; force targets come from shell.cfg) ─────────────
@@ -437,6 +440,7 @@ const shell = GameShell.create({
   onPauseChange,
   buildResult,
   onCleanup,
+  onReset,
 });
 const cfg = shell.cfg;   // grabForce / descendMinForce / carryMinForce / releaseForce / graceMs
 
@@ -445,7 +449,7 @@ document.getElementById('exit-btn').addEventListener('click', () => shell.confir
 
 // Instruction line uses the live carry threshold
 document.getElementById('howto-text').textContent =
-  `① 꽉 쥐어 하강 ② 3초 파지 ③ ${cfg.carryMinForce}% 유지하며 운반 ④ 배출구에서 천천히 놓기`;
+  `① ${cfg.grabForce}%로 시작 ② ${cfg.descendMinForce}% 이상 3초 파지 ③ ${cfg.carryMinForce}% 이상 운반 ④ ${cfg.releaseForce}% 미만으로 놓기`;
 
 // ── State ────────────────────────────────────────────────────────────────────
 let phase        = 'IDLE';
@@ -474,10 +478,9 @@ let ariaAccum    = 0;
 let lastShownSec = 60;
 let donutBusy    = false;
 
-let sessionStart = Date.now();
 let gameElapsed  = 0;
 let timeLeft     = GAME_DURATION;
-let lastTick     = Date.now();
+let lastTick     = 0;
 let rafId        = null;
 let finished     = false;
 
@@ -620,7 +623,7 @@ function floatPlusOne(cx, cy) {
 }
 
 // ── Gauge target line (per-phase; 'above' = 유지, 'below' = 낮추기) ────────────
-let targetPct = cfg.grabForce, targetMode = 'above';
+let targetPct = null, targetMode = 'above';
 function setTarget(pct, mode) {
   if (pct === targetPct && mode === targetMode) return;
   targetPct = pct; targetMode = mode;
@@ -639,7 +642,7 @@ function setPhaseChip(key) {
   switch (key) {
     case 'IDLE':     txt = `캡슐 위에서 꽉 쥐세요 (${cfg.grabForce}% 이상)`; break;
     case 'DESCEND':  txt = '유지하며 내려갑니다…'; break;
-    case 'GRIP':     txt = '꽉! 3초 파지'; break;
+    case 'GRIP':     txt = `${cfg.descendMinForce}% 이상으로 3초 유지`; break;
     case 'ASCEND':   txt = '끌어올리는 중…'; break;
     case 'CARRY':    txt = `배출구로 운반 중 — ${cfg.carryMinForce}% 이상 유지`; break;
     case 'DROPZONE': txt = `천천히 놓아주세요 (${cfg.releaseForce}% 미만)`; break;
@@ -746,8 +749,11 @@ renderCrane();
 function gameTick() {
   if (finished || !shell.playing) { rafId = null; return; }
 
-  const now = Date.now();
-  const dt = Math.min(0.05, (now - lastTick) / 1000);
+  const now = performance.now();
+  const activeDt = Math.max(0, (now - lastTick) / 1000);
+  // Keep motion, grip, grace and countdown on one clock; pause long frame gaps.
+  if (activeDt > 0.25) { shell.pause('timing'); rafId = null; return; }
+  const dt = activeDt;
   lastTick = now;
 
   // Force input (simulation ramps; real sensor drives gripForce via onForce)
@@ -760,8 +766,8 @@ function gameTick() {
   if (gripForce > maxForce) maxForce = gripForce;
 
   // Timer
-  gameElapsed += dt;
-  timeLeft = Math.max(0, GAME_DURATION - gameElapsed);
+  gameElapsed += activeDt;
+  timeLeft = Math.max(0, (shell.isPractice() ? 20 : GAME_DURATION) - gameElapsed);
   updateTimer();
 
   // ── State machine ──
@@ -788,7 +794,7 @@ function gameTick() {
     case 'DESCEND': {
       craneOpen(true);
       setPhaseChip('DESCEND');
-      setTarget(cfg.grabForce, 'above');
+      setTarget(cfg.descendMinForce, 'above');
       craneX = targetCapsule ? targetCapsule.x : craneX;
       clawY += DESCEND_SPEED * dt;
       if (clawY >= descendDepth) { clawY = descendDepth; holdTime = 0; phase = 'GRIP'; }
@@ -798,9 +804,11 @@ function gameTick() {
     case 'GRIP': {
       craneOpen(false);
       setPhaseChip('GRIP');
-      setTarget(cfg.grabForce, 'above');
+      setTarget(cfg.descendMinForce, 'above');
       clawY = descendDepth;
-      holdTime += dt;
+      checkGrace(gripForce < cfg.descendMinForce, dt, failEmpty);
+      if (phase !== 'GRIP') break;
+      if (gripForce >= cfg.descendMinForce) holdTime += dt;
       cycleGripForces.push(gripForce);
       updateDonut();
       if (holdTime >= HOLD_NEEDED) {
@@ -810,8 +818,6 @@ function gameTick() {
         resetGripHud();
         graceTimer = 0;
         phase = 'ASCEND_FULL';
-      } else {
-        checkGrace(gripForce < cfg.descendMinForce, dt, failEmpty);
       }
       break;
     }
@@ -830,7 +836,7 @@ function gameTick() {
       setTarget(cfg.carryMinForce, 'above');
       clawY = 0;
       craneX = moveToward(craneX, chuteX, CARRY_SPEED * dt);
-      if (Math.abs(craneX - chuteX) < 2) { craneX = chuteX; dropzoneStart = Date.now(); phase = 'DROPZONE'; }
+      if (Math.abs(craneX - chuteX) < 2) { craneX = chuteX; dropzoneStart = gameElapsed; phase = 'DROPZONE'; }
       checkGrace(gripForce < cfg.carryMinForce, dt, failDropCapsule);
       break;
     }
@@ -841,7 +847,7 @@ function gameTick() {
       craneX = chuteX; clawY = 0;
       // Success: relax below releaseForce → capsule drops into the chute.
       if (gripForce < cfg.releaseForce) {
-        const releaseSecs = +((Date.now() - dropzoneStart) / 1000).toFixed(1);
+        const releaseSecs = +(gameElapsed - dropzoneStart).toFixed(1);
         craneOpen(true);
         commitCapsule(releaseSecs);
         dropTimer = 0;
@@ -887,6 +893,7 @@ function gameTick() {
     if (forceLive) forceLive.textContent = '악력 ' + fv + '퍼센트';
   }
 
+  if (shell.progress(activeDt, score)) return;
   if (timeLeft <= 0) { handleTimeUp(); return; }
 
   rafId = requestAnimationFrame(gameTick);
@@ -906,12 +913,11 @@ function updateTimer() {
   if (t <= 10) timerEl.classList.add('timer-warning');
 }
 
-// ── Time-up handling (auto-success while carrying) ────────────────────────────
+// Only a completed release counts as success; carried capsules stay incomplete.
 function handleTimeUp() {
   if (finished) return;
   if ((phase === 'ASCEND_FULL' || phase === 'CARRY' || phase === 'DROPZONE') && carriedColor) {
-    const releaseSecs = phase === 'DROPZONE' ? +((Date.now() - dropzoneStart) / 1000).toFixed(1) : 0;
-    commitCapsule(releaseSecs);
+    phaseChip.textContent = '운반 중 종료 · 놓기까지 완료한 캡슐만 성공으로 기록합니다.';
   }
   finishGame();
 }
@@ -927,7 +933,7 @@ function finishGame() {
   // 서버 제약: avgForce ≤ maxForce ≤ 100.
   const maxF = Math.min(100, Math.max(Math.round(maxForce), avgF));
   const stars = starsForScore('crane', score);
-  const elapsedSec = Math.round((Date.now() - sessionStart) / 1000);
+  const elapsedSec = Math.round(gameElapsed);
   const durationMin = Math.max(1, Math.round(elapsedSec / 60));
 
   _finalResult = {
@@ -955,20 +961,36 @@ function finishGame() {
 
 // ── Shell callbacks ───────────────────────────────────────────────────────────
 function onStart() {
-  sessionStart = Date.now();
+  gripForce = SensorService.getForce();
   gameElapsed = 0;
   timeLeft = GAME_DURATION;
-  lastTick = Date.now();
+  lastTick = performance.now();
   rafId = requestAnimationFrame(gameTick);
 }
 
 function onPauseChange(paused) {
+  pressActive = false;
   if (paused) {
     if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
   } else {
-    lastTick = Date.now();   // avoid a dt spike on resume
+    gripForce = SensorService.getForce();
+    lastTick = performance.now();
     if (rafId === null && !finished) rafId = requestAnimationFrame(gameTick);
   }
+}
+
+function onReset() {
+  if (rafId) cancelAnimationFrame(rafId);
+  rafId = null; finished = false; phase = 'IDLE'; pressActive = false;
+  gripForce = SensorService.getForce(); craneX = 250; craneDir = 1; clawY = 0;
+  holdTime = graceTimer = dropTimer = dropzoneStart = score = attempts = gameElapsed = maxForce = ariaAccum = 0;
+  carriedColor = targetCapsule = null; cycleGripForces = []; forceSamples = []; setDetails = [];
+  _finalResult = null; timeLeft = GAME_DURATION; lastShownSec = -1; donutBusy = false;
+  chuteItems.innerHTML = ''; hideCarried(); layout(); spawnCapsules(); resetGripHud();
+  scoreEl.textContent = '0'; timerEl.classList.remove('timer-warning');
+  holdDonutWrap.classList.remove('donut-shake'); donutRing.classList.remove('donut-flash');
+  setPhaseChip('IDLE'); setTarget(cfg.grabForce, 'above'); updateTimer(); renderCrane(); craneOpen(true);
+  if (SensorService.getMode() === 'simulation') SensorService.setSimulatedForce(0);
 }
 
 function buildResult() { return _finalResult || {}; }
@@ -989,7 +1011,7 @@ function onVis() {
   if (document.hidden) {
     if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
   } else if (shell.playing && rafId === null && !finished) {
-    lastTick = Date.now();
+    lastTick = performance.now();
     rafId = requestAnimationFrame(gameTick);
   }
 }

@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet"/>
 <link rel="stylesheet" href="shared.css"/>
+<link rel="stylesheet" href="sensor-ui.css"/>
 <script src="tailwind-config.js"></script>
 <style>
   #game-viewport { background: linear-gradient(180deg, #BAE6FD 0%, #E0F2FE 55%, #F0F9FF 100%); }
@@ -319,6 +320,8 @@
 </div>
 
 
+<script src="sensor-service.js"></script>
+<script src="sensor-ui.js"></script>
 <script src="shared.js"></script>
 <script>
 // ── Reduced motion (settings absorbed by GameShell; keep the connotative local var) ──
@@ -371,6 +374,7 @@ const shell = GameShell.create({
   onPauseChange,
   buildResult,
   onCleanup,
+  onReset,
 });
 
 const cfg  = shell.cfg;
@@ -390,7 +394,8 @@ const spawnPct     = 104;
 // ── Runtime state ─────────────────────────────────────────────────────────────
 let gripForce = 0, prevForce = 0, pressActive = false;
 let running = false, resting = false, paused = false;
-let rafId = null, lastTick = 0, sessionStart = 0;
+let rafId = null, lastTick = 0;
+let gameElapsed = 0;             // active play + planned rests; excludes pause/hidden/stale
 let setIndex = 0;
 let setClock = 0;                // ms elapsed in current set's active play
 let cues = [];
@@ -644,10 +649,13 @@ function updateSetHud() {
 
 // ── Main loop ───────────────────────────────────────────────────────────────
 function tick() {
-  const now = Date.now();
-  let dt = (now - lastTick) / 1000;
+  if (!running || !shell.playing) { rafId = null; return; }
+  const now = performance.now();
+  const activeDt = Math.max(0, (now - lastTick) / 1000);
+  if (activeDt > 0.25) { shell.pause('timing'); rafId = null; return; }
+  const dt = activeDt;
   lastTick = now;
-  if (dt > 0.1) dt = 0.1;   // clamp long gaps (tab throttling)
+  gameElapsed += activeDt;
 
   // Force acquisition (simulation ramp when no sensor).
   if (SensorService.getMode() === 'simulation') {
@@ -674,13 +682,13 @@ function tick() {
   else { releaseInd.textContent = '힘 풀기'; releaseInd.className = 'hold'; }
 
   if (resting) {
-    updateRest(dt);
+    updateRest(activeDt);
   } else {
     // Sampling (rest excluded so 0-force rest doesn't skew averages).
     forceSamples.push(gripForce);
     if (gripForce > maxForce) maxForce = gripForce;
 
-    setClock += dt * 1000;
+    setClock += activeDt * 1000;
 
     // Release gate.
     if (gripForce < REL) releasedSinceValid = true;
@@ -711,6 +719,7 @@ function tick() {
     }
 
     updateSetHud();
+    if (shell.progress(activeDt, judgedCount)) return;
 
     // Set complete?
     if (cues.length && cues.every(c => c.judged)) {
@@ -744,7 +753,7 @@ function endGame() {
   // 서버 제약: avgForce ≤ maxForce ≤ 100.
   const maxF = Math.min(100, Math.max(Math.round(maxForce), avgF));
   const stars = starsForScore('rhythm', score);
-  const elapsedSec = Math.round((Date.now() - sessionStart) / 1000);   // includes rest (real elapsed)
+  const elapsedSec = Math.round(gameElapsed);
   const durationMin = Math.max(1, Math.round(elapsedSec / 60));
 
   _finalResult = {
@@ -783,8 +792,8 @@ function buildResult() {
 
 function onStart() {
   running = true;
-  sessionStart = Date.now();
-  lastTick = Date.now();
+  gripForce = prevForce = SensorService.getForce();
+  lastTick = performance.now();
   setIndex = 0;
   startSet();
   rafId = requestAnimationFrame(tick);
@@ -793,12 +802,30 @@ function onStart() {
 function onPauseChange(p) {
   paused = p;
   if (p) {
+    // Release may happen while paused; commit the observed hold before resetting
+    // prevForce on resume, otherwise that release edge and this valid rep vanish.
+    finalizePendingSqueeze();
     pressActive = false;
     if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
   } else {
-    lastTick = Date.now();   // avoid dt spike after resume
+    gripForce = prevForce = SensorService.getForce();
+    lastTick = performance.now();
     if (rafId === null && running) rafId = requestAnimationFrame(tick);
   }
+}
+
+function onReset() {
+  if (rafId) cancelAnimationFrame(rafId);
+  if (fbTimer) clearTimeout(fbTimer);
+  rafId = fbTimer = null; running = resting = paused = pressActive = false;
+  gripForce = prevForce = SensorService.getForce();
+  gameElapsed = setIndex = setClock = score = combo = maxCombo = judgedCount = 0;
+  sqPeak = sqStart = maxForce = peakForce = restRemaining = balloonSteps = ariaAccum = 0;
+  sqActive = sqWasValid = false; releasedSinceValid = true; restLastAnnounce = -1;
+  forceSamples = []; setValidForces = []; setHoldSecs = []; setDetails = []; _finalResult = null;
+  clearCues(); cues = []; restOverlay.classList.remove('show'); judgeFb.style.opacity = '0';
+  scoreEl.textContent = comboEl.textContent = '0'; balloonWrap.style.opacity = ''; layoutBalloonLift();
+  if (SensorService.getMode() === 'simulation') { SensorService.setSimulatedForce(0); prevForce = 0; }
 }
 
 function onCleanup() {
@@ -813,7 +840,7 @@ function onVis() {
   if (document.hidden) {
     if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
   } else if (running && !paused && rafId === null) {
-    lastTick = Date.now();
+    lastTick = performance.now();
     rafId = requestAnimationFrame(tick);
   }
 }

@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet"/>
 <link rel="stylesheet" href="shared.css"/>
+<link rel="stylesheet" href="sensor-ui.css"/>
 <script src="tailwind-config.js"></script>
 <style>
   /* ── Viewport (deep-sea) ─────────────────────────────────────────────── */
@@ -272,6 +273,8 @@
 </div>
 
 
+<script src="sensor-service.js"></script>
+<script src="sensor-ui.js"></script>
 <script src="shared.js"></script>
 <script>
 // ═══ 잠수함 항로 — 시각-운동 힘 추적 (glide) ═══════════════════════════════════
@@ -508,8 +511,8 @@ function renderField() {
 }
 
 function renderSub(dt) {
-  // Smooth toward the raw force for visuals; judgement uses raw gripForce.
-  renderForce += (gripForce - renderForce) * Math.min(1, dt * 12);
+  // SensorService already filters FSR; display and judgement use the same sample.
+  renderForce = gripForce;
   const b = Math.max(2, Math.min(98, renderForce));
   subWrap.style.bottom = b + '%';
   if (!reducedMotion) {
@@ -542,12 +545,13 @@ function fmtTime(sec) {
 
 // ── Main loop ────────────────────────────────────────────────────────────────
 function gameTick() {
-  if (!running) { rafId = null; return; }
-  const now = Date.now();
-  let dt = (now - lastTick) / 1000;
+  if (!running || !shell.playing) { rafId = null; return; }
+  const now = performance.now();
+  const activeDt = Math.max(0, (now - lastTick) / 1000);
+  if (activeDt > 0.25) { shell.pause('timing'); rafId = null; return; }
+  const dt = activeDt;
   lastTick = now;
-  if (dt > 0.1) dt = 0.1;                          // clamp tab-throttle spikes
-  elapsed += dt;
+  elapsed += activeDt;
 
   // Simulation ramp (real sensor path skips this).
   if (SensorService.getMode() === 'simulation') {
@@ -568,6 +572,7 @@ function gameTick() {
   while (judged < gates.length && elapsed >= gates[judged].A) {
     judgeGate(gates[judged]);
   }
+  if (shell.progress(activeDt, judged)) return;
 
   // Render
   renderField();
@@ -659,7 +664,7 @@ function onVisibility() {
   if (document.hidden) {
     if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
   } else if (running && shell && shell.playing && rafId === null) {
-    lastTick = Date.now();        // avoid a dt spike after resume
+    lastTick = performance.now();
     rafId = requestAnimationFrame(gameTick);
   }
 }
@@ -675,19 +680,35 @@ shell = GameShell.create({
   onStart() {
     running = true;
     ended = false;
-    lastTick = Date.now();
+    gripForce = SensorService.getForce();
+    lastTick = performance.now();
     document.addEventListener('visibilitychange', onVisibility);
     rafId = requestAnimationFrame(gameTick);
   },
   onPauseChange(paused) {
+    pressActive = false;
     if (paused) {
       running = false;
       if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
     } else {
       running = true;
-      lastTick = Date.now();
+      gripForce = SensorService.getForce();
+      lastTick = performance.now();
       if (rafId === null) rafId = requestAnimationFrame(gameTick);
     }
+  },
+  onReset() {
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = null; running = ended = pressActive = false;
+    gripForce = SensorService.getForce(); renderForce = gripForce;
+    elapsed = score = judged = combo = forceSum = forceCount = maxForceRaw = ariaAccum = gateAccum = bubbleAccum = 0;
+    lastSecShown = -1; finalResult = null;
+    for (const a of [winForceSum, winForceCount, winTrackSecs, winReps]) a.fill(0);
+    for (const g of gates) { g.judged = g.passed = false; g.el.classList.remove('gate-pass', 'gate-miss'); }
+    scoreEl.textContent = comboEl.textContent = '0'; accuracyEl.textContent = '0%';
+    timerEl.textContent = '1:30'; timerEl.classList.remove('timer-warning');
+    currentTarget = targetAt(0); renderGauge(); renderField(); renderSub(0);
+    if (SensorService.getMode() === 'simulation') SensorService.setSimulatedForce(0);
   },
   buildResult() {
     return finalResult || computeResult();

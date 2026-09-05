@@ -1,0 +1,32 @@
+.sensor-panel{padding:18px;border:1px solid var(--glass-border,#d5dfeb);border-radius:16px;background:rgba(255,255,255,.8);text-align:left;color:var(--ink,#22364d);font-size:14px}
+.sensor-panel-heading{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.sensor-panel-heading>span{font-size:12px;color:#536477}
+.sensor-panel-help{margin:8px 0 12px;font-size:13px;line-height:1.6;color:#526275;word-break:keep-all}
+.sensor-panel-actions{display:flex;flex-wrap:wrap;gap:8px}
+.sensor-panel button,.sensor-panel-actions>a{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:10px 14px;border-radius:10px;border:1px solid transparent;background:var(--primary,#37679f);color:white;font:inherit;font-weight:700;text-decoration:none;cursor:pointer}
+.sensor-panel .sensor-secondary,.sensor-panel-actions>a{background:white;color:#284661;border-color:#c4d0df}
+.sensor-panel button:disabled{opacity:.5;cursor:wait}
+.sensor-panel [hidden]{display:none!important}
+.sensor-panel button:focus-visible,.sensor-panel a:focus-visible,.sensor-panel summary:focus-visible{outline:3px solid #368adb;outline-offset:3px}
+.sensor-panel-error{color:#a72626;margin:12px 0 0;font-size:13px}
+.sensor-diagnostics{margin-top:14px;border-top:1px solid #dae2ec;padding-top:12px}
+.sensor-diagnostics summary{cursor:pointer;color:#526275;font-size:13px}
+.sensor-readings{display:flex;gap:18px;flex-wrap:wrap;padding:14px 0 8px;font-size:13px}
+.sensor-readings b{font-variant-numeric:tabular-nums}
+.sensor-diagnostics canvas{width:100%;height:58px;background:#f3f6fa;border-radius:6px}
+.sensor-ws{display:flex;align-items:end;gap:8px}
+.sensor-ws label{flex:1;font-size:12px}
+.sensor-ws input{display:block;width:100%;box-sizing:border-box;margin-top:5px;padding:10px;border:1px solid #c4d0df;border-radius:8px;min-height:44px;color:#22364d}
+.sensor-panel-compact{padding:12px}
+.source-badge{display:inline-flex;align-items:center;padding:3px 8px;border:1px solid #c7d5e5;border-radius:6px;color:#43566b;font-size:11px;font-weight:600;white-space:nowrap}
+.source-filter{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:14px 0}
+.source-filter{font-size:13px;color:#43566b}
+.source-filter select{min-height:44px;border:1px solid #bccada;border-radius:8px;background:white;padding:8px 12px;color:#233952}
+.calibration-notice{margin:16px 0;padding:12px 16px;border-radius:10px;background:#edf4fb;color:#284661;font-size:14px;line-height:1.6}
+.calibration-error{color:#ad2727;min-height:24px;margin-top:12px}
+@media(max-width:480px){.sensor-panel-actions>*{flex:1 1 auto}
+.sensor-ws{flex-direction:column;align-items:stretch}
+}
+
+/* Keep the original game cards reachable when connection diagnostics are expanded. */
+.game-ready-card,.game-pause-card{max-height:calc(100vh - 48px);max-height:calc(100dvh - 48px);overflow-y:auto;}

@@ -5,13 +5,22 @@ to_camel alias 로 API 는 baselineRaw0/baselineRaw100 을 노출한다(02 계�
 """
 from __future__ import annotations
 
+from pydantic import Field, model_validator
+
 from .base import CamelModel
+from .provenance import UUIDString
 
 
 class CalibrationCreate(CamelModel):
-    device_id: str | None = None
-    baseline_raw_0: float
-    baseline_raw_100: float
+    device_id: UUIDString | None = None
+    baseline_raw_0: float = Field(allow_inf_nan=False)
+    baseline_raw_100: float = Field(allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def validate_range(self):
+        if self.baseline_raw_0 == self.baseline_raw_100:
+            raise ValueError("보정 기준값의 차이는 0일 수 없습니다.")
+        return self
 
 
 class CalibrationOut(CamelModel):

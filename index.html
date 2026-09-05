@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet"/>
 <link rel="stylesheet" href="shared.css"/>
+<link rel="stylesheet" href="sensor-ui.css"/>
 <script src="tailwind-config.js"></script>
 <style>
   /* Card entrance (fade + rise 16px) — cleared on animationend so hover transforms work */
@@ -154,13 +155,15 @@
   <div id="nav-bottom"></div>
 </div>
 
+<script src="sensor-service.js"></script>
+<script src="sensor-ui.js"></script>
 <script src="shared.js"></script>
 <script>
 initPage('home');
 
 // 이 페이지의 모든 게이미피케이션 수치는 GamificationEngine.getStats() 단일 소스에서만 렌더한다.
 (async function renderHome() {
-  const stats   = await GamificationEngine.getStats();
+  const [stats, sensorStats] = await Promise.all([GamificationEngine.getStats(), GamificationEngine.getStats('real')]);
   const profile = DataService.getProfileSync();
   const empty   = stats.totalSessions === 0;
   const rm      = prefersReducedMotion();
@@ -172,7 +175,7 @@ initPage('home');
     document.getElementById('greeting-title').innerHTML = `첫 훈련을<br/>시작해 보세요 ${wave}`;
     document.getElementById('greeting-sub').textContent = '센서를 연결하고 첫 세션을 완료하면 여기에 진행 상황이 채워집니다.';
   } else {
-    document.getElementById('greeting-title').innerHTML = `안녕하세요,<br/>${name}님! ${wave}`;
+    document.getElementById('greeting-title').innerHTML = `안녕하세요,<br/>${escHtml(name)}님! ${wave}`;
   }
 
   // ── 레벨 칩 ──
@@ -194,7 +197,7 @@ initPage('home');
   // ── 오늘의 통계 ──
   animateCount(document.getElementById('home-streak'), stats.streak, { suffix: '일' });
 
-  const d = stats.weeklyForceDeltaPct;               // null 가능
+  const d = sensorStats.weeklyForceDeltaPct;               // null 가능
   document.getElementById('home-force-delta').textContent =
     d == null ? '—' : `${d > 0 ? '+' : ''}${Math.round(d)}%`;
   // 비교 데이터가 없을 때만(값이 '—') 안내 캡션 노출.
@@ -243,7 +246,7 @@ initPage('home');
         <div class="flex items-center gap-3">
           <span class="material-symbols-outlined text-primary" style="font-variation-settings:'FILL' 1">${s.icon}</span>
           <div>
-            <div class="font-display text-sm font-bold">${s.label || '훈련'}</div>
+            <div class="font-display text-sm font-bold">${escHtml(s.label || '훈련')}</div><span class="source-badge">${sourceLabel(s)}</span>
             <div class="text-on-surface-variant text-xs tabular">${formatKoreanDate(s.date)} · ${mins}분 · ${s.sets || 0}세트</div>
           </div>
         </div>

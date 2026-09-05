@@ -4,13 +4,15 @@ from __future__ import annotations
 from datetime import datetime, time, timedelta
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from ..core.db import get_db
 from ..core.timeutil import resolve_zone, to_naive_utc, to_user_date
 from ..models import Session as SessionModel, User, UserSettings, UserStats
-from ..schemas.stats import ChartPoint, StatsOut
+from ..schemas.stats import ChartPoint, SourceCounts, StatsOut
+from ..schemas.provenance import SourceFilter
 from ..services.gamification import effective_streak
+from ..services.session_sources import source_group, source_predicate
 from .deps import get_current_user
 
 router = APIRouter(prefix="/users/me", tags=["stats"])
@@ -30,6 +32,7 @@ def get_stats(
     user: User = Depends(get_current_user),
     db=Depends(get_db),
     range_: str = Query(default="7d", alias="range"),
+    source: SourceFilter = Query(default="all"),
 ):
     stats = db.get(UserStats, user.id)
     if stats is None:
@@ -49,9 +52,23 @@ def get_stats(
 
     rows = db.execute(
         select(SessionModel.started_at, SessionModel.avg_force).where(
-            SessionModel.user_id == user.id, SessionModel.started_at >= start_dt
+            SessionModel.user_id == user.id, SessionModel.started_at >= start_dt,
+            source_predicate(source),
         )
     ).all()
+
+    source_counts = {"real": 0, "simulation": 0, "unknown": 0}
+    counts = db.execute(
+        select(SessionModel.input_source, func.count()).where(SessionModel.user_id == user.id)
+        .group_by(SessionModel.input_source)
+    ).all()
+    for input_source, count in counts:
+        source_counts[source_group(input_source)] += count
+    selected_count, best_force = db.execute(
+        select(func.count(), func.max(SessionModel.max_force)).where(
+            SessionModel.user_id == user.id, source_predicate(source),
+        )
+    ).one()
 
     # 날짜별 집계 (사용자 TZ 날짜로 버킷팅)
     buckets: dict[str, list[float]] = {}
@@ -78,7 +95,10 @@ def get_stats(
         # 읽기 시 감쇠(B3): 마지막 세션이 오늘/어제(사용자 TZ)가 아니면 0.
         current_streak=effective_streak(stats, today),
         longest_streak=stats.longest_streak,
-        total_sessions=stats.total_sessions,
-        best_max_force=float(stats.best_max_force) if stats.best_max_force is not None else None,
+        total_sessions=selected_count,
+        best_max_force=float(best_force) if best_force is not None else None,
         chart=chart,
+        source=source,
+        all_session_count=sum(source_counts.values()),
+        source_counts=SourceCounts(**source_counts),
     )

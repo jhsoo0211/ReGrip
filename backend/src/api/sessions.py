@@ -4,6 +4,7 @@ from __future__ import annotations
 import base64
 import json
 from datetime import date, datetime, time, timedelta
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
@@ -11,8 +12,9 @@ from sqlalchemy import and_, or_, select
 
 from ..core.db import get_db
 from ..core.errors import AppError
-from ..core.timeutil import iso_z
-from ..models import Session as SessionModel, User
+from ..core.timeutil import iso_z, resolve_zone, to_naive_utc
+from ..models import Session as SessionModel, User, UserSettings
+from ..schemas.provenance import SourceFilter, UUIDString
 from ..schemas.session import (
     SessionCreate,
     SessionDetail,
@@ -23,6 +25,7 @@ from ..schemas.session import (
 )
 from ..services.labels import label_for
 from ..services.session_service import process_session_submission
+from ..services.session_sources import source_predicate
 from .deps import get_current_user
 
 router = APIRouter(prefix="/users/me", tags=["sessions"])
@@ -36,7 +39,7 @@ def _encode_cursor(started_at: datetime, sid: str) -> str:
 def _decode_cursor(cursor: str) -> tuple[datetime, str]:
     try:
         data = json.loads(base64.urlsafe_b64decode(cursor.encode()).decode())
-        return datetime.fromisoformat(data["s"]), data["id"]
+        return to_naive_utc(datetime.fromisoformat(data["s"])), str(UUID(data["id"]))
     except Exception:
         raise AppError(400, "BAD_REQUEST", "잘못된 cursor 입니다.", {"field": "cursor"})
 
@@ -53,6 +56,8 @@ def _summary(s: SessionModel) -> SessionSummary:
         avg_force=float(s.avg_force),
         max_force=float(s.max_force),
         stars=s.stars,
+        input_source=s.input_source,
+        calibration_snapshot=s.calibration_snapshot,
     )
 
 
@@ -64,12 +69,25 @@ def list_sessions(
     to: date | None = Query(default=None, alias="to"),
     cursor: str | None = Query(default=None),
     limit: int = Query(default=20, ge=1, le=100),
+    source: SourceFilter = Query(default="all"),
 ):
-    q = select(SessionModel).where(SessionModel.user_id == user.id)
+    q = select(SessionModel).where(SessionModel.user_id == user.id, source_predicate(source))
+    if from_ is not None and to is not None and from_ > to:
+        raise AppError(422, "VALIDATION_FAILED", "from은 to 이하여야 합니다.", {"field": "from"})
+    user_settings = db.get(UserSettings, user.id)
+    zone = resolve_zone(user_settings.timezone if user_settings is not None else None)
     if from_ is not None:
-        q = q.where(SessionModel.started_at >= datetime.combine(from_, time.min))
+        try:
+            start = to_naive_utc(datetime.combine(from_, time.min, tzinfo=zone))
+        except (OverflowError, ValueError):
+            raise AppError(422, "VALIDATION_FAILED", "조회 가능한 날짜 범위를 벗어났습니다.", {"field": "from"})
+        q = q.where(SessionModel.started_at >= start)
     if to is not None:
-        q = q.where(SessionModel.started_at < datetime.combine(to, time.min) + timedelta(days=1))
+        try:
+            end = to_naive_utc(datetime.combine(to + timedelta(days=1), time.min, tzinfo=zone))
+        except (OverflowError, ValueError):
+            raise AppError(422, "VALIDATION_FAILED", "조회 가능한 날짜 범위를 벗어났습니다.", {"field": "to"})
+        q = q.where(SessionModel.started_at < end)
     if cursor:
         c_started, c_id = _decode_cursor(cursor)
         # keyset (started_at DESC, id DESC)
@@ -101,7 +119,7 @@ def create_session(
 
 @router.get("/sessions/{session_id}", response_model=SessionDetail)
 def get_session(
-    session_id: str, user: User = Depends(get_current_user), db=Depends(get_db)
+    session_id: UUIDString, user: User = Depends(get_current_user), db=Depends(get_db)
 ):
     s = db.execute(
         select(SessionModel).where(
@@ -121,6 +139,8 @@ def get_session(
         max_force=float(s.max_force),
         stars=s.stars,
         force_series=s.force_series,
+        input_source=s.input_source,
+        calibration_snapshot=s.calibration_snapshot,
         sets=[
             SessionSetOut(
                 set_index=st.set_index,

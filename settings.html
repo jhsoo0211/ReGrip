@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet"/>
 <link rel="stylesheet" href="shared.css"/>
+<link rel="stylesheet" href="sensor-ui.css"/>
 <script src="tailwind-config.js"></script>
 <style>
   /* Toggle switch */
@@ -126,20 +127,7 @@
           <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1">sensors</span>
           기기 연결
         </div>
-        <!-- Sensor Status -->
-        <div class="settings-row">
-          <div>
-            <div class="settings-row-label">ReGrip Sensor v2</div>
-            <div class="settings-row-sub">배터리 87% · 신호 강도 우수</div>
-            <div class="settings-row-sub" style="color:var(--ink-muted);font-size:11px;margin-top:2px;">시뮬레이션 값</div>
-          </div>
-          <div class="flex items-center gap-3">
-            <span id="sensor-badge" class="flex items-center gap-2 font-display text-xs font-bold px-3 py-1 rounded-full retro-border bg-white" style="min-height:28px;"></span>
-            <button onclick="openFeedbackModal()" class="retro-border retro-shadow rounded-lg px-4 py-2 font-display font-bold text-sm bg-white hover:bg-surface-container transition-colors">
-              해제
-            </button>
-          </div>
-        </div>
+        <div class="settings-row"><div id="sensor-controls" style="width:100%"></div></div>
         <!-- Sensor Name -->
         <div class="settings-row flex-col items-start gap-3">
           <div class="settings-row-label">센서 이름</div>
@@ -177,9 +165,9 @@
             <div class="settings-row-sub">세션 강도와 목표 구간을 조절합니다</div>
           </div>
           <div class="radio-pill">
-            <input type="radio" name="difficulty" id="diff-easy" value="easy"/>
+            <input type="radio" name="difficulty" id="diff-easy" value="easy" checked/>
             <label for="diff-easy">초급</label>
-            <input type="radio" name="difficulty" id="diff-medium" value="medium" checked/>
+            <input type="radio" name="difficulty" id="diff-medium" value="medium"/>
             <label for="diff-medium">중급</label>
             <input type="radio" name="difficulty" id="diff-hard" value="hard"/>
             <label for="diff-hard">고급</label>
@@ -325,6 +313,8 @@
   <div id="nav-bottom"></div>
 </div>
 
+<script src="sensor-service.js"></script>
+<script src="sensor-ui.js"></script>
 <script src="shared.js"></script>
 <script>
 initPage('settings');
@@ -372,21 +362,30 @@ function clearData() {
   // F12: 서버 연결 모드에서는 로컬 캐시(임시 사본)만 정리한다 — 서버 데이터는 건드리지 않는다.
   // 로컬 저장 모드에서만 실제 '초기화'(되돌릴 수 없음)로 동작한다.
   const rest = DataService.isRest();
+  const scope = DataService._storageScope();
   openConfirmModal({
     title: rest ? '로컬 캐시 정리' : '데이터 초기화',
     body: rest
-      ? '이 브라우저에 저장된 로컬 캐시(임시 사본)를 정리합니다. 서버에 저장된 훈련 기록에는 영향을 주지 않으며, 새로고침 시 서버에서 다시 불러옵니다.'
+      ? '서버 기록의 임시 사본을 정리합니다. 아직 업로드하지 않은 기록과 이 브라우저의 센서 보정은 보존됩니다. 서버 기록은 새로고침 시 다시 불러옵니다.'
       : '모든 훈련 기록과 센서 보정 데이터를 삭제합니다. 이 작업은 되돌릴 수 없습니다.',
     confirmLabel: rest ? '캐시 정리' : '초기화',
     cancelLabel: '취소',
     danger: !rest,
     onConfirm: () => {
-      localStorage.removeItem('regrip_sessions');
-      localStorage.removeItem('regrip_calibration');
+      if (scope !== DataService._storageScope()) return;
       if (rest) {
+        const pending = new Set(DataService._readOutbox(scope).map(p => p.clientSessionId));
+        DataService._writeLocal('regrip_sessions', DataService._readLocal('regrip_sessions', [], scope).filter(s => pending.has(s.clientSessionId)), scope);
         // 서버 데이터는 그대로 — 새로고침 시 서버에서 다시 채워진다. 토스트를 위해 reload 생략.
         showToast('로컬 캐시를 정리했습니다. 서버 기록은 그대로입니다.', { type: 'info' });
       } else {
+        localStorage.removeItem('regrip_sessions');
+        localStorage.removeItem('regrip_calibration');
+        localStorage.removeItem('regrip_outbox');
+        const keys = Array.from({length:localStorage.length}, (_, i) => localStorage.key(i));
+        const localCalibrationPrefix = 'regrip_sensor_calibration_v2:' + encodeURIComponent(JSON.stringify(['local', String((AuthService.getUser() || {}).id || 'anonymous')])) + ':';
+        keys.filter(key => key && key.startsWith(localCalibrationPrefix)).forEach(key => localStorage.removeItem(key));
+        SensorService.disconnect();
         location.reload();
       }
     },
@@ -484,7 +483,7 @@ document.querySelectorAll('[data-toggle-row]').forEach(row => {
 });
 
 // Live sensor status badge.
-bindSensorBadge(document.getElementById('sensor-badge'));
+ReGripSensorUI.mount(document.getElementById('sensor-controls'), {diagnostics:true});
 
 // ── Load / restore all persisted settings via DataService ──
 const saved = DataService.getSettingsSync();

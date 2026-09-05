@@ -2,6 +2,13 @@
 from __future__ import annotations
 
 from .base import CamelModel
+from .provenance import SourceFilter
+
+
+class SourceCounts(CamelModel):
+    real: int = 0
+    simulation: int = 0
+    unknown: int = 0
 
 
 class ChartPoint(CamelModel):
@@ -19,6 +26,9 @@ class StatsOut(CamelModel):
     total_sessions: int
     best_max_force: float | None = None
     chart: list[ChartPoint] = []
+    source: SourceFilter = "all"
+    all_session_count: int
+    source_counts: SourceCounts
 
 
 class XpEventOut(CamelModel):

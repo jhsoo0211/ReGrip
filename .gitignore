@@ -15,3 +15,5 @@ scripts/.dev-pids.json
 scripts/*.log
 
 graphify-out/
+
+.tools/

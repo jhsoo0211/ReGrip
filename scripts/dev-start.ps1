@@ -1,7 +1,7 @@
 ﻿# ReGrip dev 통합 시작 (Windows / PowerShell)
 #
 # 백엔드(FastAPI, uvicorn, 포트 8000)와 프론트(정적 파일 서버, 포트 3000)를
-# 각각 새 콘솔 창으로 띄우고, 백엔드 /health 가 준비될 때까지 기다린다.
+# 각각 백그라운드에서 실행하고, 백엔드 /health 가 준비될 때까지 기다린다.
 #
 # 사용:
 #   .\scripts\dev-start.ps1              # 기본
@@ -43,6 +43,10 @@ if (-not (Get-Command py -ErrorAction SilentlyContinue)) {
     $FrontPython = "python"; $FrontPyArgs = @()
 }
 
+# Use the verified project interpreter when available for the static server too.
+$ProjectPython = Join-Path $RepoRoot "backend\venv\Scripts\python.exe"
+if (Test-Path -LiteralPath $ProjectPython) { $FrontPython = $ProjectPython; $FrontPyArgs = @() }
+
 # ---- 1) 포트 선점 검사 ----
 $ports = if ($LocalOnly) { @($FrontendPort) } else { @($BackendPort, $FrontendPort) }
 foreach ($port in $ports) {
@@ -72,8 +76,8 @@ if (-not $LocalOnly) {
     }
     Write-Host "[dev-start] 백엔드 기동 중... (uvicorn src.main:app --port $BackendPort)"
     $backend = Start-Process -FilePath $Python `
-        -ArgumentList "-m", "uvicorn", "src.main:app", "--port", "$BackendPort" `
-        -WorkingDirectory $BackendDir -PassThru
+        -ArgumentList "-X", "utf8", "-m", "uvicorn", "src.main:app", "--port", "$BackendPort" `
+        -WorkingDirectory $BackendDir -WindowStyle Hidden -RedirectStandardOutput (Join-Path $PSScriptRoot "backend.log") -RedirectStandardError (Join-Path $PSScriptRoot "backend-error.log") -PassThru
     $backendId = $backend.Id
 
     # ---- 3) /health 폴링 ----
@@ -81,8 +85,8 @@ if (-not $LocalOnly) {
     $ready = $false
     while ((Get-Date) -lt $deadline) {
         if ($backend.HasExited) {
-            Write-Host "[오류] 백엔드 프로세스가 기동 중 종료됐습니다 — 백엔드 창의 로그를 확인하세요."
-            Write-Host "       (자주 겪는 원인: 모델 변경 후 개발 DB 스키마 드리프트 → backend\regrip_dev.db 삭제 후 재시도, backend\README.md 참고)"
+            Write-Host "[오류] 백엔드 프로세스가 기동 중 종료됐습니다 — scripts/backend.log와 backend-error.log를 확인하세요."
+            Write-Host "       (자주 겪는 원인: 모델 변경 후 개발 DB 스키마 드리프트 → DB를 삭제하지 말고 백업 후 scripts.upgrade_sqlite 실행, backend\README.md 참고)"
             exit 1
         }
         try {
@@ -92,7 +96,7 @@ if (-not $LocalOnly) {
         Start-Sleep -Milliseconds 700
     }
     if (-not $ready) {
-        Write-Host "[오류] $HealthTimeoutSec 초 안에 /health 가 준비되지 않았습니다. 백엔드 창을 확인하세요."
+        Write-Host "[오류] $HealthTimeoutSec 초 안에 /health 가 준비되지 않았습니다. scripts/backend-error.log를 확인하세요."
         exit 1
     }
     Write-Host "[dev-start] 백엔드 준비 완료 (http://127.0.0.1:$BackendPort/health = ok)"
@@ -100,8 +104,8 @@ if (-not $LocalOnly) {
 
 # ---- 4) 프론트 기동 (정적 파일 서버, 127.0.0.1 바인딩) ----
 Write-Host "[dev-start] 프론트 기동 중... (정적 서버, 포트 $FrontendPort)"
-$frontArgs = $FrontPyArgs + @("-m", "http.server", "$FrontendPort", "--bind", "127.0.0.1", "--directory", $RepoRoot)
-$frontend = Start-Process -FilePath $FrontPython -ArgumentList $frontArgs -WorkingDirectory $RepoRoot -PassThru
+$frontArgs = $FrontPyArgs + @("-X", "utf8", "-m", "http.server", "$FrontendPort", "--bind", "127.0.0.1", "--directory", $RepoRoot)
+$frontend = Start-Process -FilePath $FrontPython -ArgumentList $frontArgs -WorkingDirectory $RepoRoot -WindowStyle Hidden -RedirectStandardOutput (Join-Path $PSScriptRoot "frontend.log") -RedirectStandardError (Join-Path $PSScriptRoot "frontend-error.log") -PassThru
 
 # ---- 5) PID 기록 (dev-stop 이 사용) ----
 @{

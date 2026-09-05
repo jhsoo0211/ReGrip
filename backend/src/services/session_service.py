@@ -70,7 +70,20 @@ def _summary(sess: SessionModel) -> dict:
         "avgForce": float(sess.avg_force),
         "maxForce": float(sess.max_force),
         "stars": sess.stars,
+        "inputSource": sess.input_source,
+        "calibrationSnapshot": sess.calibration_snapshot,
     }
+
+
+def _existing_result(sess: SessionModel) -> dict:
+    """Add provenance to pre-v2 response snapshots without changing saved reward facts."""
+    result = dict(sess.result_snapshot or {})
+    if "session" in result:
+        summary = dict(result["session"])
+        summary.setdefault("inputSource", sess.input_source or "unknown")
+        summary.setdefault("calibrationSnapshot", sess.calibration_snapshot)
+        result["session"] = summary
+    return result
 
 
 def _find_existing(db, user_id: str, client_session_id: str) -> SessionModel | None:
@@ -97,7 +110,7 @@ def process_session_submission(db, user, payload) -> tuple[int, dict]:
     # 2) 멱등 사전 조회 (락 이후) — 이미 처리된 세션이면 최초 결과 그대로 반환(검증도 건너뜀).
     existing = _find_existing(db, user.id, payload.client_session_id)
     if existing is not None:
-        return 200, (existing.result_snapshot or {})
+        return 200, _existing_result(existing)
 
     # 3) 사용자 로컬 타임존 (A4): streak/일일상한 달력일의 기준.
     zone = _user_zone(db, user.id)
@@ -111,7 +124,13 @@ def process_session_submission(db, user, payload) -> tuple[int, dict]:
         raise AppError(
             422, "VALIDATION_FAILED", "avgForce must be <= maxForce", {"field": "avgForce"}
         )
-    started_aware = as_aware_utc(payload.started_at)
+    try:
+        started_aware = as_aware_utc(payload.started_at)
+    except (OverflowError, ValueError):
+        raise AppError(
+            422, "VALIDATION_FAILED", "startedAt이 유효한 UTC 날짜 범위를 벗어났습니다.",
+            {"field": "startedAt"},
+        )
     now_aware = datetime.now(timezone.utc)
     if started_aware > now_aware + timedelta(seconds=settings.started_at_skew_sec):
         raise AppError(
@@ -126,10 +145,12 @@ def process_session_submission(db, user, payload) -> tuple[int, dict]:
             {"field": "startedAt"},
         )
     # deviceId 존재 선검증 (C2): FK 위반(운영 PG 500)에 앞서 422 로 명확히 거부한다.
-    if payload.device_id is not None and db.get(Device, payload.device_id) is None:
-        raise AppError(
-            422, "VALIDATION_FAILED", "존재하지 않는 deviceId 입니다.", {"field": "deviceId"}
-        )
+    if payload.device_id is not None:
+        device = db.get(Device, payload.device_id)
+        if device is None or device.owner_user_id != user.id:
+            raise AppError(
+                422, "VALIDATION_FAILED", "사용자에게 등록된 기기가 아닙니다.", {"field": "deviceId"}
+            )
 
     # 5) 일일 세션 상한 (422) — '주장된 startedAt' 이 아니라 **서버 수신 시각(created_at)** 기준의
     #    사용자 로컬 '오늘' 로 센다 (A2). 백데이트를 여러 날짜로 분산해도 수신일이 같으면 상한에 걸린다.
@@ -175,6 +196,9 @@ def process_session_submission(db, user, payload) -> tuple[int, dict]:
         hand_used=payload.hand_used,
         device_id=payload.device_id,
         force_series=payload.force_series,
+        input_source=payload.input_source,
+        calibration_snapshot=(payload.calibration_snapshot.model_dump(mode="json", by_alias=True)
+                              if payload.calibration_snapshot is not None else None),
     )
     db.add(sess)
     try:
@@ -186,7 +210,7 @@ def process_session_submission(db, user, payload) -> tuple[int, dict]:
         db.rollback()
         existing = _find_existing(db, user.id, payload.client_session_id)
         if existing is not None:
-            return 200, (existing.result_snapshot or {})
+            return 200, _existing_result(existing)
         logger.warning("세션 INSERT 중 예상치 못한 IntegrityError: %s", exc)
         raise
 

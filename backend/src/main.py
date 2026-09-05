@@ -1,7 +1,7 @@
 """ReGrip API 진입점.
 
 FastAPI 앱: /api/v1 라우터, CORS(로컬 프론트 화이트리스트), 에러 envelope 핸들러,
-StaticFiles(/static → storage, 아바타), startup 시 SQLite 테이블 생성 + 업적 6종 upsert.
+StaticFiles(/static/avatars만 공개), startup 시 SQLite 스키마 검사 + 업적 8종 upsert.
 """
 from __future__ import annotations
 
@@ -27,6 +27,7 @@ from .api import settings as settings_api
 from .core.config import settings
 from .core.db import SessionLocal, engine
 from .core.errors import register_error_handlers
+from .core.schema import verify_session_schema
 from .models import Base
 from .services.achievements import seed_achievements
 
@@ -119,6 +120,7 @@ def _verify_prod_settings() -> None:
 async def lifespan(app: FastAPI):
     # 운영 필수 설정 검증(fail-fast). 위반 시 RuntimeError 로 기동을 중단한다.
     _verify_prod_settings()
+    verify_session_schema(engine)
 
     # 개발/테스트(SQLite): ORM 모델로 테이블 자동 생성.
     # 운영(PostgreSQL): migrations/001_init.sql 로 스키마를 관리하므로 여기서 만들지 않는다.
@@ -126,7 +128,7 @@ async def lifespan(app: FastAPI):
         Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
-        seed_achievements(db)  # 업적 6종 upsert (멱등)
+        seed_achievements(db)  # 업적 8종 upsert (멱등)
         if engine.dialect.name == "sqlite":
             # 신호 카탈로그 라벨 어휘 seed. 운영(PG)은 003_signal_catalog.sql 이 담당하므로 SQLite 만.
             # sig 는 선택적 서브시스템이므로 지연 import 로 감싼다. sig 어휘 모듈이 없으면
@@ -158,7 +160,7 @@ register_error_handlers(app)
 # 정적 파일(아바타) 서빙: /static/avatars/...
 _storage = Path(settings.storage_dir)
 (_storage / "avatars").mkdir(parents=True, exist_ok=True)
-app.mount("/static", StaticFiles(directory=str(_storage)), name="static")
+app.mount("/static/avatars", StaticFiles(directory=str(_storage / "avatars")), name="avatars")
 
 # /api/v1 하위 라우터
 api_v1 = APIRouter(prefix="/api/v1")

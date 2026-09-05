@@ -53,6 +53,10 @@ class Session(Base, TimestampMixin):
         ForeignKey("calibrations.id", ondelete="SET NULL"), nullable=True
     )
     force_series = mapped_column(JSONB, nullable=True)  # 1Hz 다운샘플
+    input_source: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="unknown", server_default="unknown"
+    )
+    calibration_snapshot = mapped_column(JSONB, nullable=True)
     # [MVP 추가] 멱등 재제출 시 최초 응답 그대로 반환하기 위한 스냅샷
     result_snapshot = mapped_column(JSONB, nullable=True)
 
@@ -73,6 +77,10 @@ class Session(Base, TimestampMixin):
             "max_force BETWEEN 0 AND 100 AND max_force >= avg_force", name="ck_sessions_max_force"
         ),
         CheckConstraint("stars BETWEEN 1 AND 3", name="ck_sessions_stars"),
+        CheckConstraint(
+            "input_source IN ('ble','websocket','simulation','unknown')",
+            name="ck_sessions_input_source",
+        ),
     )
 
 

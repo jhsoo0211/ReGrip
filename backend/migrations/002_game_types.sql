@@ -13,7 +13,7 @@
 --   1. sessions.exercise_type CHECK: 6종 → 8종 (game_rhythm/game_glide 추가).
 --   2. sessions.difficulty CHECK: ('easy','normal','hard') → ('easy','medium','hard').
 --   3. user_settings.difficulty CHECK: ('easy','normal','hard') → ('easy','medium','hard').
---   2·3 은 CHECK 를 바꾸기 전에 기존 'normal' 값을 'medium' 으로 마이그레이션한다.
+--   2·3 은 기존 CHECK 제거 → 'normal'을 'medium'으로 변환 → 새 CHECK 추가 순서다.
 --
 -- 주의(제약 이름): 001 은 위 3개 CHECK 를 컬럼 인라인 CHECK 로 정의했으므로 PostgreSQL 이
 --   자동 명명한다(sessions_exercise_type_check / sessions_difficulty_check /
@@ -35,17 +35,17 @@ ALTER TABLE sessions ADD CONSTRAINT ck_sessions_exercise_type
      'pinch_hold','full_grip','finger_ext','lateral_grip'));
 
 -- 2. sessions.difficulty — 'normal' → 'medium' 통일 (프론트 _normalizeDifficulty 와 일치) --
---    CHECK 를 바꾸기 전에 기존 데이터를 먼저 마이그레이션해야 재생성 CHECK 위반이 나지 않는다.
-UPDATE sessions SET difficulty = 'medium' WHERE difficulty = 'normal';
+--    기존 CHECK는 medium을 거부하므로 먼저 제거한 뒤 데이터를 변환한다.
 ALTER TABLE sessions DROP CONSTRAINT IF EXISTS sessions_difficulty_check;
 ALTER TABLE sessions DROP CONSTRAINT IF EXISTS ck_sessions_difficulty;
+UPDATE sessions SET difficulty = 'medium' WHERE difficulty = 'normal';
 ALTER TABLE sessions ADD CONSTRAINT ck_sessions_difficulty
   CHECK (difficulty IN ('easy','medium','hard'));
 
 -- 3. user_settings.difficulty — 'normal' → 'medium' 통일 (ORM ck_settings_difficulty 와 일치) --
-UPDATE user_settings SET difficulty = 'medium' WHERE difficulty = 'normal';
 ALTER TABLE user_settings DROP CONSTRAINT IF EXISTS user_settings_difficulty_check;
 ALTER TABLE user_settings DROP CONSTRAINT IF EXISTS ck_settings_difficulty;
+UPDATE user_settings SET difficulty = 'medium' WHERE difficulty = 'normal';
 ALTER TABLE user_settings ADD CONSTRAINT ck_settings_difficulty
   CHECK (difficulty IN ('easy','medium','hard'));
 

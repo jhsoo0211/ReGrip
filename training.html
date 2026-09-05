@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet"/>
 <link rel="stylesheet" href="shared.css"/>
+<link rel="stylesheet" href="sensor-ui.css"/>
 <script src="tailwind-config.js"></script>
 <style>
   .game-card {
@@ -360,6 +361,8 @@
   <div id="nav-bottom"></div>
 </div>
 
+<script src="sensor-service.js"></script>
+<script src="sensor-ui.js"></script>
 <script src="shared.js"></script>
 <script>
   initPage('training');
@@ -384,27 +387,26 @@
     });
   })();
 
-  // Calibration banner — reflect whether a calibration record exists.
-  (async () => {
+  // Only the current input/device calibration is relevant to game readiness.
+  function updateCalibrationBanner() {
     const banner = document.getElementById('cal-banner');
-    const title  = document.getElementById('cal-banner-title');
-    const sub    = document.getElementById('cal-banner-sub');
-    let cal = null;
-    try { cal = await DataService.getCalibration(); } catch {}
-
-    if (!cal) {
-      // No calibration yet → emphasized state (primary border + one-shot icon pulse).
-      banner.classList.add('cal-emphasis');
-      title.textContent = '게임 전 캘리브레이션을 권장합니다.';
-      sub.textContent   = '정확한 0%~100% 기준을 먼저 설정하세요.';
+    const title = document.getElementById('cal-banner-title');
+    const sub = document.getElementById('cal-banner-sub');
+    const mode = SensorService.getMode(), cal = SensorService.getCalibration();
+    banner.classList.toggle('cal-emphasis', mode !== 'simulation' && !cal);
+    if (mode === 'simulation') {
+      title.textContent = '센서 없이 20초 연습부터 시작해 보세요.';
+      sub.textContent = '게임 준비 화면에서 센서를 연결하거나 키보드·터치로 연습할 수 있어요.';
+    } else if (!cal) {
+      title.textContent = '연결한 센서를 내 손에 맞게 보정해 주세요.';
+      sub.textContent = '힘을 푼 상태와 편안하게 쥔 상태를 각각 1초 기록합니다.';
     } else {
-      // Calibration on record → muted confirmation state.
-      title.textContent = '캘리브레이션 기준이 설정되어 있습니다.';
-      sub.textContent   = cal.date
-        ? `최근 캘리브레이션: ${formatKoreanDate(cal.date)}`
-        : '언제든 다시 측정할 수 있습니다.';
+      title.textContent = '현재 센서의 보정 기준이 준비됐습니다.';
+      sub.textContent = '게임 준비 화면에서 연결 상태를 확인하고 시작하세요.';
     }
-  })();
+  }
+  SensorService.onStatusChange(updateCalibrationBanner);
+  updateCalibrationBanner();
 </script>
 </body>
 </html>

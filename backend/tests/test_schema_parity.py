@@ -21,7 +21,7 @@ from src.models import Base
 
 _BACKEND = Path(__file__).resolve().parents[1]
 _MIGRATIONS = _BACKEND / "migrations"
-_SQL_FILES = ["001_init.sql", "002_game_types.sql", "003_signal_catalog.sql"]
+_SQL_FILES = ["001_init.sql", "002_game_types.sql", "003_signal_catalog.sql", "004_session_provenance.sql"]
 
 # 한쪽(SQL/ORM)에만 존재하는 것이 정당한, 알려진 ck_* 예외.
 #   - ck_sig_blob_relpath : PG 전용 정규식(~) CHECK. SQLite 미지원 → ORM 에 없음(003 SQL only).

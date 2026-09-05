@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet"/>
 <link rel="stylesheet" href="shared.css"/>
+<link rel="stylesheet" href="sensor-ui.css"/>
 <script src="tailwind-config.js"></script>
 <style>
   #game-viewport { background: linear-gradient(180deg, #BAE6FD 0%, #E0F2FE 60%, #FFF1ED 100%); }
@@ -268,6 +269,8 @@
 </div>
 
 
+<script src="sensor-service.js"></script>
+<script src="sensor-ui.js"></script>
 <script src="shared.js"></script>
 <script>
 // ── Constants (physics/timing — unchanged) ─────────────────────────────────
@@ -293,10 +296,9 @@ let peakForce    = 0;      // gauge peak-hold marker
 let setDetails   = [];     // per-pop rows for session v2
 let wasInZone    = false;
 let ariaAccum    = 0;      // 1s throttle accumulator for aria mirror
-let sessionStart = 0;      // set at onStart (real play time only)
+let gameElapsed  = 0;
 let lastTick     = 0;
 let rafId        = null;
-let timerId      = null;
 let finalMetrics = null;   // computed once at end; shared by res-* fill and buildResult
 
 // ── Reduced motion (OS preference — juice gating only; shell handles the setting) ──
@@ -332,14 +334,15 @@ const shell = GameShell.create({
   gameId: 'balloon',
   viewportId: 'game-viewport',
   howto: [
-    { icon: 'back_hand',    text: '손을 쥐면 상승 · 풀면 하강' },
-    { icon: 'timer',        text: '초록 구간에서 3초 유지하면 풍선이 팝!' },
+    { icon: 'back_hand',    text: '힘을 주어 풍선을 초록 구간까지 올리세요' },
+    { icon: 'timer',        text: '악력 게이지의 초록 범위에서 3초 유지하면 풍선이 팝!' },
     { icon: 'keyboard',     text: '스페이스바 또는 화면 터치로도 연습할 수 있어요' },
   ],
   onStart,
   onPauseChange,
   buildResult,
   onCleanup,
+  onReset,
 });
 
 // ── Personalization (difficulty-parameterized; physics equilibrium unchanged) ──
@@ -452,26 +455,20 @@ function popBalloon() {
     { duration: 420, easing: 'cubic-bezier(0.34,1.56,0.64,1)' });
 }
 
-// ── Timer (counts down every second; gated by running + tab visibility) ──────
-function startTimer() {
-  timerId = setInterval(() => {
-    if (!running || document.hidden) return;
-    timeLeft--;
-    const m = Math.floor(timeLeft / 60);
-    const s = timeLeft % 60;
-    timerEl.textContent = `${m}:${String(s).padStart(2,'0')}`;
-    if (timeLeft <= 10) timerEl.classList.add('timer-warning');
-    if (timeLeft <= 0) endGame();
-  }, 1000);
-}
-
 // ── Game loop (rAF) ────────────────────────────────────────────────────────
 function gameTick() {
-  if (!running) { rafId = null; return; }
+  if (!running || !shell.playing) { rafId = null; return; }
 
-  const now = Date.now();
-  const dt  = (now - lastTick) / 1000;
+  const now = performance.now();
+  const activeDt = Math.max(0, (now - lastTick) / 1000);
+  // A blocked frame is unobserved play, not a jump in simulation or held time.
+  if (activeDt > 0.25) { shell.pause('timing'); rafId = null; return; }
+  const dt = activeDt;
   lastTick  = now;
+  gameElapsed += activeDt;
+  timeLeft = Math.max(0, Math.ceil((shell.isPractice() ? 20 : GAME_DURATION) - gameElapsed));
+  timerEl.textContent = `${Math.floor(timeLeft / 60)}:${String(timeLeft % 60).padStart(2,'0')}`;
+  timerEl.classList.toggle('timer-warning', timeLeft <= 10);
 
   // Simulated grip via press (ramp reaches TARGET_HOLD_PCT easily)
   if (SensorService.getMode() === 'simulation') {
@@ -483,14 +480,18 @@ function gameTick() {
   forceSamples.push(gripForce);
   if (gripForce > maxForce) maxForce = gripForce;
 
-  // Balloon physics — equilibrium at TARGET_HOLD_PCT (shared with the gauge band above).
-  const velocity = (gripForce - TARGET_HOLD_PCT) * 0.08;
-  balloonPct = Math.max(2, Math.min(98, balloonPct + velocity * dt * 60));
+  // The displayed force band actually stabilizes the balloon inside the height target.
+  const alreadyInZone = balloonPct >= (1 - TARGET_HI) * 100 && balloonPct <= (1 - TARGET_LO) * 100;
+  const inForceBand = gripForce >= BAND_LO && gripForce <= BAND_HI;
+  const velocity = alreadyInZone && inForceBand ? 0
+    : Math.max(-12, Math.min(12, (gripForce - TARGET_HOLD_PCT) * 0.6));
+  balloonPct = Math.max(2, Math.min(98, balloonPct + velocity * dt));
 
   const balloonTopRatio = 1 - (balloonPct / 100);
   const inZone = balloonTopRatio >= TARGET_LO && balloonTopRatio <= TARGET_HI;
+  const holding = inZone && inForceBand;
 
-  if (inZone) {
+  if (holding) {
     holdTime += dt;
     targetZone.classList.add('holding');
     if (!wasInZone && !reducedMotion) {
@@ -501,23 +502,28 @@ function gameTick() {
     holdTime = Math.max(0, holdTime - dt * 0.5);
     targetZone.classList.remove('holding');
   }
-  wasInZone = inZone;
+  wasInZone = holding;
 
   // In-zone live label — "유지 중! N초" while in the target band, default otherwise.
   // target-label has no aria-live, so this never double-announces with #force-live.
-  if (inZone) {
+  if (holding) {
     targetLabel.classList.add('holding');
     targetLabel.textContent = '유지 중! ' + holdTime.toFixed(1) + '초';
+  } else if (inZone) {
+    targetLabel.classList.remove('holding');
+    targetLabel.textContent = '게이지의 초록 범위에 맞춰 주세요';
   } else if (targetLabel.textContent !== TARGET_LABEL_DEFAULT) {
     targetLabel.classList.remove('holding');
     targetLabel.textContent = TARGET_LABEL_DEFAULT;
   }
 
   // Hold vibration once past 2.0s
-  if (inZone && holdTime >= 2.0 && !reducedMotion) balloonSvg.classList.add('balloon-shake');
+  if (holding && holdTime >= 2.0 && !reducedMotion) balloonSvg.classList.add('balloon-shake');
   else balloonSvg.classList.remove('balloon-shake');
 
   if (holdTime >= TARGET_HOLD) popBalloon();
+  if (shell.progress(activeDt, score)) return;
+  if (timeLeft <= 0) { endGame(); return; }
 
   // Position + squash/stretch (scaleY ±6%)
   balloonWrap.style.bottom = balloonPct + '%';
@@ -565,7 +571,7 @@ function computeMetrics() {
   // 서버 제약: avgForce ≤ maxForce ≤ 100. 반올림/샘플 경로로 avg가 max를 넘지 않도록 클램프.
   const maxF = Math.min(100, Math.max(Math.round(maxForce), avgF));
   const stars = starsForScore('balloon', score);
-  const elapsedSec  = Math.round((Date.now() - sessionStart) / 1000);
+  const elapsedSec  = Math.round(gameElapsed);
   const durationMin = Math.max(1, Math.round(elapsedSec / 60));
   return { avgF, maxF, stars, elapsedSec, durationMin };
 }
@@ -574,7 +580,6 @@ function computeMetrics() {
 function endGame() {
   if (!running || shell.state.phase === 'ended') return;
   running = false;
-  if (timerId) { clearInterval(timerId); timerId = null; }
   if (rafId)   { cancelAnimationFrame(rafId); rafId = null; }
 
   finalMetrics = computeMetrics();
@@ -611,26 +616,41 @@ function buildResult() {
 // ── Shell lifecycle callbacks ────────────────────────────────────────────────
 function onStart() {
   running      = true;
-  sessionStart = Date.now();
-  lastTick     = Date.now();
-  startTimer();
+  gripForce    = SensorService.getForce();
+  lastTick     = performance.now();
   rafId = requestAnimationFrame(gameTick);
 }
 
 function onPauseChange(paused) {
+  pressActive = false;
   if (paused) {
     running = false;                                     // gates timer + gameTick
     if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
   } else {
     running  = true;
-    lastTick = Date.now();                               // avoid a dt spike after resume
+    gripForce = SensorService.getForce();
+    lastTick = performance.now();
     if (rafId === null) rafId = requestAnimationFrame(gameTick);
   }
 }
 
+function onReset() {
+  if (rafId) cancelAnimationFrame(rafId);
+  rafId = null;
+  balloonPct = 10; gripForce = SensorService.getForce(); pressActive = false;
+  holdTime = score = gameElapsed = maxForce = peakForce = ariaAccum = 0;
+  timeLeft = GAME_DURATION; running = wasInZone = false;
+  forceSamples = []; setDetails = []; finalMetrics = null;
+  scoreEl.textContent = '0'; holdSecsEl.textContent = '0.0s'; timerEl.textContent = '2:00';
+  timerEl.classList.remove('timer-warning'); balloonSvg.classList.remove('balloon-shake');
+  targetZone.classList.remove('holding'); targetLabel.classList.remove('holding');
+  targetLabel.textContent = TARGET_LABEL_DEFAULT; holdArc.style.strokeDashoffset = 157;
+  balloonWrap.style.bottom = '10%';
+  if (SensorService.getMode() === 'simulation') SensorService.setSimulatedForce(0);
+}
+
 function onCleanup() {
   running = false;
-  if (timerId) { clearInterval(timerId); timerId = null; }
   if (rafId)   { cancelAnimationFrame(rafId); rafId = null; }
   SensorService.offForceUpdate(onForce);
 }
@@ -640,7 +660,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
   } else if (shell.playing && running && rafId === null) {
-    lastTick = Date.now();   // avoid a dt spike after resume
+    lastTick = performance.now();
     rafId = requestAnimationFrame(gameTick);
   }
 });

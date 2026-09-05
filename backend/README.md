@@ -1,7 +1,8 @@
 # ReGrip 백엔드 (MVP)
 
-손 재활 게이미피케이션 플랫폼 ReGrip 의 백엔드 API. **"서버가 진실을 계산한다"** 원칙 위에서
-별점·XP·레벨·업적을 서버가 재계산하고, 세션 저장은 `clientSessionId` 멱등키로 중복을 방지한다.
+손 재활 게이미피케이션 플랫폼 ReGrip 의 백엔드 API.
+클라이언트가 제출한 게임 결과로 별점·XP·레벨·업적을 서버가 재계산하고,
+세션 저장은 `clientSessionId` 멱등키로 중복을 방지한다. 센서 측정 자체를 서버가 인증하는 구조는 아니다.
 
 - 스택: Python 3.11 · FastAPI · SQLAlchemy 2.x(sync) · Pydantic v2(camelCase) · argon2id · PyJWT
 - DB: 개발/테스트 = SQLite, 운영 = PostgreSQL (`DATABASE_URL` 하나로 전환)
@@ -58,17 +59,18 @@ start http://127.0.0.1:8000/docs
 python -m scripts.seed_achievements
 ```
 
-> ⚠️ **모델을 바꾼 뒤 500이 난다면 개발 DB 스키마 드리프트다.**
-> startup 의 `create_all` 은 **없는 테이블만 만들고, 기존 테이블의 컬럼·CHECK 제약을 바꾸지 않는다.**
-> 컬럼/제약을 추가·변경했다면(예: 002 의 exercise_type·difficulty CHECK 확장) 개발 DB 파일을
-> 지우고 다시 띄운다(개발 데이터는 버려도 되는 값이다).
->
-> ```powershell
-> Remove-Item .\regrip_dev.db -ErrorAction SilentlyContinue
-> ```
->
-> 운영(PostgreSQL)은 `create_all` 이 아니라 `migrations/*.sql` 이 진실이므로,
-> 스키마 변경 시 마이그레이션 SQL 을 반드시 함께 갱신한다(§5).
+`create_all`은 기존 테이블에 컬럼을 추가하지 않는다. 기존 SQLite DB에 세션 출처 컬럼이 없으면
+기동 시 업그레이드 안내와 함께 중단한다. **기존 DB를 삭제하지 말고**, API를 중지한 뒤 다음을 실행한다:
+
+```powershell
+.\venv\Scripts\python.exe -m scripts.upgrade_sqlite --database .\regrip_dev.db --dry-run
+.\venv\Scripts\python.exe -m scripts.upgrade_sqlite --database .\regrip_dev.db
+```
+
+이 명령은 SQLite backup API로 WAL의 커밋된 데이터까지 `.backups`에 백업하고, 트랜잭션으로
+`input_source`와 `calibration_snapshot` 중 없는 컬럼만 추가한다. 재실행은 변경 없이 종료한다.
+이전 기록은 `unknown`이며 XP·보상·점수는 수정하지 않는다. 실패하면 DDL을 롤백하고 백업 경로를 안내한다.
+이 도구의 범위는 004의 두 컬럼 추가이며, 이전 버전의 다른 스키마 차이를 자동 수정하지 않는다.
 
 ## 3. 테스트
 
@@ -85,6 +87,9 @@ python -m scripts.seed_achievements
 
    ```powershell
    psql "$env:DATABASE_URL" -f migrations/001_init.sql
+   psql "$env:DATABASE_URL" -f migrations/002_game_types.sql
+   psql "$env:DATABASE_URL" -f migrations/003_signal_catalog.sql
+   psql "$env:DATABASE_URL" -f migrations/004_session_provenance.sql
    ```
 
 3. PostgreSQL 드라이버를 설치한다(psycopg 3 권장):
@@ -109,8 +114,8 @@ python -m scripts.seed_achievements
    ```
 
 > 운영에서는 `ENV=prod` 일 때만 Refresh 쿠키에 `Secure` 플래그가 붙는다(HTTPS 필수).
-> `migrations/001_init.sql` 은 `src/models` 의 SQLAlchemy 모델과 **수동으로 정렬**되어 있다.
-> 스키마를 바꾸면 두 곳을 함께 고쳐야 한다.
+> `migrations/*.sql`과 ORM 모델은 수동으로 정렬한다. 기존 DB에는 아직 적용하지 않은 마이그레이션만
+> 순서대로 적용한다. 002는 이전 CHECK를 제거한 뒤 `normal`을 `medium`으로 변환한다.
 
 ---
 
@@ -132,7 +137,7 @@ src/
 ```
 
 ### 게이미피케이션 핵심 (03 문서)
-- **별점 서버 재계산**: balloon `[5,10]`, crane `[4,8]` 임계. 클라 `stars` 무시.
+- **별점 서버 재계산**: balloon `[5,10]`, crane `[3,5]`, rhythm `[14,20]`, glide `[15,24]`. 클라 `stars` 무시.
 - **세션 XP** = `min(50 + score*2, 150) + (별3 +50 / 별2 +20)`.
 - **7일 연속 보너스** = `+200`, streak run 당 1회.
 - **totalXp = Σ xp_events** (원장 불변식). `level = 100+(L-1)*25` 누적, 티어 6종.
@@ -176,3 +181,41 @@ src/
 - 모든 요청에 `Authorization: Bearer <accessToken>`, refresh 는 쿠키(`credentials:'include'`).
 - 세션 생성 시 `crypto.randomUUID()` 로 `clientSessionId` 발급(멱등키).
 - 아바타는 `/static/avatars/...` URL 로 서빙(로컬). S3/presigned URL 전환은 추후.
+
+## 8. 입력 출처와 BLE 보정 스냅샷
+
+정규 세션 POST와 목록·상세 응답에 `inputSource`와 `calibrationSnapshot`이 추가된다.
+`inputSource`는 `ble | websocket | simulation | unknown`이며 누락된 기존 클라이언트·기록은 `unknown`이다.
+BLE 세션은 아래 스냅샷이 필수이고 다른 입력 출처의 스냅샷은 null이다.
+
+```json
+{
+  "inputSource": "ble",
+  "calibrationSnapshot": {
+    "version": 2,
+    "source": "ble",
+    "unit": "adc_12bit",
+    "channel": "fsr",
+    "baseline0": 3000,
+    "baseline100": 1000,
+    "capturedAt": "2026-09-05T12:00:00Z"
+  }
+}
+```
+
+ADC는 증가·감소 방향을 모두 지원한다. 두 기준값은 유한한 0~4095이고 차이의 절댓값은 64 이상이어야 한다.
+게임 시작 시 사용한 보정을 스냅샷으로 고정하고, 로컬 기록·아웃박스·재전송에서도 그대로 유지한다.
+기존 `/calibrations` API는 레거시 보정용이며 BLE 보정은 사용자·장치별 로컬 캐시와 세션 스냅샷을 사용한다.
+`avgForce`, `maxForce`, `forceSeries`는 ADC 원시값이 아닌 정규화된 0~100 값이다.
+
+`GET /users/me/sessions`와 `GET /users/me/stats`는 `source=all|real|simulation|unknown`을 받는다.
+API 기본값은 호환성을 위해 `all`이고, `real`은 `ble`과 `websocket`이다. 실제 측정 화면은 반드시 `source=real`을
+명시한다. 통계의 `totalSessions`, `bestMaxForce`, `chart`는 선택한 출처만 포함한다. `totalXp`, 레벨, 티어,
+streak는 전체 정규 세션 기준으로 유지하며, `allSessionCount`와 `sourceCounts`는 출처별 전체 기간 횟수를 제공한다.
+측정이 없는 경우 `bestMaxForce`와 차트 평균은 null이다. 날짜 필터·차트는 사용자의 타임존 기준이다.
+
+20초 연습은 프론트에서 세션 제출과 XP 계산을 하지 않는다. 시뮬레이션 정규 세션은 기록과 게임 보상에 포함하지만
+실제 측정 통계에는 포함하지 않는다. 입력 출처 표시는 클라이언트가 사용한 입력 방식의 기록이며 실기 인증이 아니다.
+
+공개 정적 파일은 `/static/avatars`로 제한한다. 연구 카탈로그 DB·학습 결과·신호 blob이 들어 있는
+`storage`의 다른 경로는 API가 공개하지 않는다.

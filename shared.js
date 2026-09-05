@@ -2,7 +2,7 @@
  *
  * Public surface (used by page scripts):
  *   DataService          — localStorage-first data layer, REST-switchable
- *   SensorService        — WebSocket sensor with simulation fallback + status machine
+ *   SensorService        — BLE / WebSocket / explicit simulation (sensor-service.js)
  *   GamificationEngine   — single source of truth for XP / levels / achievements / stats
  *                          (incl. rewardPreviewFor — local-mode reward preview)
  *   GAME_DEFS, GAME_TUNING, starsForScore, iconForSession, gameIdOf, mulberry32, deriveSetDetails
@@ -227,6 +227,7 @@ function injectFeedbackModal() {
 // localStorage keys: regrip_access_token, regrip_user.
 // ═══════════════════════════════════════════════════════════════════════════════
 const AuthService = {
+  _revision: 0,
   async signup({ email, password, name, birthDate } = {}) {
     const body = {
       email,
@@ -244,6 +245,7 @@ const AuthService = {
 
   // Silent token renewal. Returns true on success (new accessToken stored), false otherwise.
   async refresh() {
+    const scope = DataService._storageScope(), revision = this._revision;
     try {
       const res = await fetch(DataService._apiUrl('/auth/refresh'), {
         method: 'POST',
@@ -253,6 +255,8 @@ const AuthService = {
       if (!res.ok) return false;
       const data = await res.json();
       if (!data || !data.accessToken) return false;
+      if (revision !== this._revision || scope !== DataService._storageScope()) return false;
+      if (data.user && data.user.id !== (this.getUser() || {}).id) return false;
       this._store(data);
       return true;
     } catch (e) {
@@ -262,12 +266,13 @@ const AuthService = {
   },
 
   async logout() {
+    // Clear synchronously: a late logout response must not clear a subsequent login.
+    this._clearTokens();
     try {
       await fetch(DataService._apiUrl('/auth/logout'), { method: 'POST', credentials: 'include' });
     } catch (e) {
       console.warn('[AuthService] logout 요청 실패(로컬 토큰은 삭제합니다):', e && e.message);
     }
-    this._clearTokens();
   },
 
   getUser() {
@@ -301,15 +306,20 @@ const AuthService = {
     }
   },
   _store(data) {
+    this._revision++;
     try {
       if (data.accessToken) localStorage.setItem('regrip_access_token', data.accessToken);
       if (data.user) localStorage.setItem('regrip_user', JSON.stringify(data.user));
+      localStorage.setItem('regrip_auth_api_base', DataService._baseUrl);
+      DataService._authLostHandled = false;
     } catch (e) { console.warn('[AuthService] 토큰 저장 실패:', e && e.message); }
   },
   _clearTokens() {
+    this._revision++;
     try {
       localStorage.removeItem('regrip_access_token');
       localStorage.removeItem('regrip_user');
+      localStorage.removeItem('regrip_auth_api_base');
     } catch {}
   },
 };
@@ -330,6 +340,26 @@ const AuthService = {
 // synchronous getXSync() mirrors keep working offline; every saveX also writes the mirror
 // and, on network failure, warns + persists locally to avoid data loss.
 // ═══════════════════════════════════════════════════════════════════════════════
+// Session provenance is declared at game start; legacy rows stay unknown.
+function escHtml(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+const INPUT_SOURCE_LABELS = {ble:'센서 · Bluetooth',websocket:'센서 · Wi-Fi',simulation:'시뮬레이션',unknown:'출처 미상'};
+function sessionSource(session) { return Object.hasOwn(INPUT_SOURCE_LABELS, session && session.inputSource) ? session.inputSource : 'unknown'; }
+function sourceLabel(session) { return INPUT_SOURCE_LABELS[sessionSource(session)]; }
+function matchesSessionSource(session, source = 'all') {
+  const actual = sessionSource(session);
+  return source === 'all' || (source === 'real' ? actual === 'ble' || actual === 'websocket' : actual === source);
+}
+function filterSessionSource(sessions, source = 'all') {
+  if (!['all','real','simulation','unknown'].includes(source)) throw new RangeError('Unknown session source filter');
+  return (Array.isArray(sessions) ? sessions : []).filter(s => matchesSessionSource(s, source)).map(s => ({...s,inputSource:sessionSource(s),calibrationSnapshot:s.calibrationSnapshot || null}));
+}
+function countSessionSources(sessions) {
+  const counts={real:0,simulation:0,unknown:0};
+  for (const s of sessions) {const actual=sessionSource(s);counts[actual==='ble'||actual==='websocket'?'real':actual]++;}
+  return counts;
+}
 const DataService = {
   _backend: 'local',   // 'local' | 'rest'
   _baseUrl: '',
@@ -383,14 +413,32 @@ const DataService = {
   },
 
   // ── localStorage helpers ──
-  _readLocal(key, fallback) {
+  // Unscoped keys remain the local-mode/legacy archive. Never infer their REST owner.
+  _storageScope() {
+    if (!this.isRest()) return 'local';
+    const user = AuthService.getUser();
+    return 'rest:' + encodeURIComponent(this._baseUrl) + ':' + encodeURIComponent(user && user.id || '@unowned');
+  },
+  _storageKey(key, scope = this._storageScope()) {
+    const scoped = ['regrip_sessions', 'regrip_outbox', 'regrip_profile', 'regrip_settings', 'regrip_calibration', 'regrip_migration_prompted'];
+    return scope !== 'local' && scoped.includes(key) ? key + ':v2:' + scope : key;
+  },
+  _canSendFor(scope) {
+    if (!this.isRest() || scope !== this._storageScope() || !(AuthService.getUser() || {}).id || !AuthService.isAuthenticated()) return false;
     try {
-      const v = JSON.parse(localStorage.getItem(key));
+      const authBase = localStorage.getItem('regrip_auth_api_base');
+      if (authBase !== null && authBase !== this._baseUrl) return false;
+    } catch {}
+    return true;
+  },
+  _readLocal(key, fallback, scope = this._storageScope()) {
+    try {
+      const v = JSON.parse(localStorage.getItem(this._storageKey(key, scope)));
       return v == null ? fallback : v;
     } catch { return fallback; }
   },
-  _writeLocal(key, data) {
-    try { localStorage.setItem(key, JSON.stringify(data)); } catch (e) {
+  _writeLocal(key, data, scope = this._storageScope()) {
+    try { localStorage.setItem(this._storageKey(key, scope), JSON.stringify(data)); } catch (e) {
       console.warn(`[DataService] localStorage write failed for ${key}:`, e && e.message);
     }
   },
@@ -400,7 +448,8 @@ const DataService = {
   // On 401: tries AuthService.refresh() once, retries the request, else clears tokens
   // and routes to login (via _onAuthLost). Returns parsed JSON ({} for empty body) on
   // success, or null on any failure (callers fall back to their localStorage mirror).
-  async _fetch(path, opts = {}, _retry = true) {
+  async _fetch(path, opts = {}, _retry = true, scope = this._storageScope()) {
+    if (scope !== 'local' && !this._canSendFor(scope)) return null;
     try {
       const headers = { ...this._headers, ...(opts.headers || {}) };
       if (!headers['Authorization']) {
@@ -416,8 +465,12 @@ const DataService = {
       _regripMarkOnline();   // a response (any status) means the network is up (F3)
 
       if (res.status === 401 && _retry) {
+        if (!this._canSendFor(scope)) return null;
+        const revision = AuthService._revision;
         const recovered = await AuthService.refresh();
-        if (recovered) return this._fetch(path, opts, false);   // retry once with fresh token
+        if (recovered && this._canSendFor(scope)) return this._fetch(path, opts, false, scope);
+        if (revision !== AuthService._revision) return null;
+        if (!this._canSendFor(scope)) return null;
         AuthService._clearTokens();
         this._onAuthLost();
         return null;
@@ -447,15 +500,19 @@ const DataService = {
   },
 
   async getProfile() {
+    const scope = this._storageScope();
     if (this._backend === 'rest') {
       const data = await this._fetch('/users/me/profile');
-      if (data) { this._writeLocal('regrip_profile', data); return data; }  // refresh cache mirror (incl. avatarUrl)
+      if (data) this._writeLocal('regrip_profile', data, scope);
+      if (scope !== this._storageScope()) return this.getProfileSync();
+      if (data) return data;
       return this.getProfileSync();                                         // fallback to mirror
     }
     return this.getProfileSync();
   },
 
   async saveProfile(data) {
+    const scope = this._storageScope();
     if (this._backend === 'rest') {
       // Server accepts birthDate (not age) + partial updates. Strip age, cast goal fields,
       // drop empty strings, and forward avatarBase64 only when it is a real data URL.
@@ -475,11 +532,11 @@ const DataService = {
 
       const res = await this._fetch('/users/me/profile', { method: 'PUT', body: payload });
       if (res) {
-        this._writeLocal('regrip_profile', res);   // mirror the authoritative response (avatarUrl now resolved)
+        this._writeLocal('regrip_profile', res, scope);
         return res;
       }
       console.warn('[DataService] saveProfile REST 실패 — 로컬 미러에 저장합니다.');
-      this._writeLocal('regrip_profile', { ...this.getProfileSync(), ...data });
+      this._writeLocal('regrip_profile', { ...this._readLocal('regrip_profile', {}, scope), ...data }, scope);
       return null;
     }
     this._writeLocal('regrip_profile', data);
@@ -491,6 +548,8 @@ const DataService = {
     return {
       id: s.id,
       clientSessionId: s.clientSessionId,
+      inputSource: sessionSource(s),
+      calibrationSnapshot: s.calibrationSnapshot || null,
       date: s.date,
       gameId: et.startsWith('game_') ? et.slice(5) : null,
       label: s.label,
@@ -505,24 +564,36 @@ const DataService = {
   },
 
   // ── Sessions ──
-  async getSessions() {
-    if (this._backend === 'rest') {
-      const res = await this._fetch('/users/me/sessions?limit=100');
-      if (res && Array.isArray(res.data)) {
-        const mapped = res.data.map(s => this._sessionFromServer(s));
-        this._writeLocal('regrip_sessions', mapped);
-        return mapped;
-      }
-      return this._readLocal('regrip_sessions', []);   // fallback to mirror
-    }
-    return this._readLocal('regrip_sessions', []);
+  async getSessions(source = 'all') {
+    const scope = this._storageScope();
+    const cached = () => scope === this._storageScope() ? filterSessionSource(this._readLocal('regrip_sessions', [], scope), source) : [];
+    if (this._backend !== 'rest') return cached();
+    const mapped = [], seenCursors = new Set();
+    let cursor = null;
+    do {
+      const query = '/users/me/sessions?limit=100&source=' + encodeURIComponent(source) + (cursor ? '&cursor=' + encodeURIComponent(cursor) : '');
+      const res = await this._fetch(query, {}, true, scope);
+      if (scope !== this._storageScope()) return [];
+      if (!res || !Array.isArray(res.data)) return cached();
+      mapped.push(...res.data.map(s => this._sessionFromServer(s)));
+      cursor = res.meta && res.meta.nextCursor;
+      if (cursor && seenCursors.has(cursor)) return cached();
+      if (cursor) seenCursors.add(cursor);
+    } while (cursor);
+    const old = this._readLocal('regrip_sessions', [], scope);
+    const pending = new Set(this._readOutbox(scope).map(s => s.clientSessionId));
+    const serverIds = new Set(mapped.map(s => s.clientSessionId || s.id));
+    const retained = old.filter(s => !serverIds.has(s.clientSessionId || s.id) &&
+      (!matchesSessionSource(s, source) || pending.has(s.clientSessionId)));
+    const merged = [...mapped, ...retained].sort((a,b) => new Date(b.date) - new Date(a.date));
+    this._writeLocal('regrip_sessions', merged, scope);
+    return filterSessionSource(merged, source);
   },
-
   // Prepend a session object to the local mirror (newest first).
-  _mirrorSession(session) {
-    const sessions = this._readLocal('regrip_sessions', []);
+  _mirrorSession(session, scope = this._storageScope()) {
+    const sessions = this._readLocal('regrip_sessions', [], scope);
     sessions.unshift(session);
-    this._writeLocal('regrip_sessions', sessions);
+    this._writeLocal('regrip_sessions', sessions, scope);
   },
 
   // Convert a frontend v2 session → the backend POST payload.
@@ -543,6 +614,8 @@ const DataService = {
     return {
       clientSessionId,
       exerciseType,
+      inputSource: sessionSource(data),
+      calibrationSnapshot: data.calibrationSnapshot ? JSON.parse(JSON.stringify(data.calibrationSnapshot)) : null,
       startedAt: data.date,
       durationSec: data.durationSec != null ? data.durationSec : (data.durationMin || 1) * 60,
       score: data.sets,
@@ -556,12 +629,14 @@ const DataService = {
   },
 
   async saveSession(data) {
+    const scope = this._storageScope();
+    data = { ...data, inputSource: sessionSource(data), calibrationSnapshot: data.calibrationSnapshot ? JSON.parse(JSON.stringify(data.calibrationSnapshot)) : null };
     if (this._backend === 'rest') {
       // Idempotency: reuse/generate a clientSessionId and mirror the session locally FIRST so a
       // retry (offline queue) re-sends the SAME key and the server dedupes it.
       const clientSessionId = data.clientSessionId || _uuid();
       data.clientSessionId = clientSessionId;
-      this._mirrorSession({ ...data, id: data.id || clientSessionId, clientSessionId });
+      this._mirrorSession({ ...data, id: data.id || clientSessionId, clientSessionId }, scope);
 
       const gid = gameIdOf(data);
       if (!gid) {
@@ -570,15 +645,16 @@ const DataService = {
         return undefined;
       }
       const payload = this._sessionToPayload(data, clientSessionId, 'game_' + gid);
-      const res = await this._fetch('/users/me/sessions', { method: 'POST', body: payload });
+      // Persist before the first await so navigation or a concurrent history read cannot lose it.
+      this._enqueueOutbox(payload, scope);
+      const res = await this._fetch('/users/me/sessions', { method: 'POST', body: payload }, true, scope);
       if (res === null) {
-        // Server unreachable/failed: the session is already mirrored locally. Queue the payload
-        // (its clientSessionId travels with it) so the next authenticated load re-sends it
-        // idempotently (B3 outbox). Re-send of an already-committed session returns 200 (no dupe).
-        this._enqueueOutbox(payload);
+        // It was already queued before the request. A concurrent retry may have acknowledged
+        // it while this request was pending, so do not resurrect a removed entry here.
         console.warn('[DataService] saveSession REST 실패 — 로컬 미러 + 아웃박스에 적재(오프라인 내성).');
         return undefined;
       }
+      this._writeOutbox(this._readOutbox(scope).filter(p => p.clientSessionId !== clientSessionId), scope);
       return res;   // {session, xpAwarded, totalXp, level, levelUp, unlockedAchievements}
     }
     const sessions = this._readLocal('regrip_sessions', []);
@@ -593,6 +669,7 @@ const DataService = {
   },
 
   async getSettings() {
+    const scope = this._storageScope();
     const local = this.getSettingsSync();
     if (this._backend === 'rest') {
       const data = await this._fetch('/users/me/settings');
@@ -600,10 +677,10 @@ const DataService = {
         // Server fields override shared keys; local-only fields (reducedMotion, sensorName)
         // are always kept from localStorage (the server has no reducedMotion).
         const merged = { ...local, ...data, reducedMotion: local.reducedMotion };
-        this._writeLocal('regrip_settings', merged);
-        return merged;
+        this._writeLocal('regrip_settings', merged, scope);
+        return scope === this._storageScope() ? merged : this.getSettingsSync();
       }
-      return local;
+      return scope === this._storageScope() ? local : this.getSettingsSync();
     }
     return local;
   },
@@ -625,54 +702,57 @@ const DataService = {
 
   // ── Calibration ──
   async getCalibration() {
+    const scope = this._storageScope();
     if (this._backend === 'rest') {
       const data = await this._fetch('/users/me/calibrations/latest', { silent404: true });
       if (data && data.baselineRaw0 != null) {
         const cal = { baseline0: data.baselineRaw0, baseline100: data.baselineRaw100, date: data.calibratedAt };
-        this._writeLocal('regrip_calibration', cal);
-        return cal;
+        this._writeLocal('regrip_calibration', cal, scope);
+        return scope === this._storageScope() ? cal : null;
       }
       // No calibration yet is a normal state: the server answers 204 (empty body → {}), and an
       // older server may answer 404 (silenced above). Either way we fall back to the local mirror.
-      return this._readLocal('regrip_calibration', null);
+      return scope === this._storageScope() ? this._readLocal('regrip_calibration', null, scope) : null;
     }
     return this._readLocal('regrip_calibration', null);
   },
 
   async saveCalibration(data) {
+    const scope = this._storageScope();
     if (this._backend === 'rest') {
       const payload = { baselineRaw0: data.baseline0, baselineRaw100: data.baseline100 };
       const res = await this._fetch('/users/me/calibrations', { method: 'POST', body: payload });
       if (res === null) console.warn('[DataService] saveCalibration REST 실패 — 로컬에 저장합니다.');
-      this._writeLocal('regrip_calibration', { baseline0: data.baseline0, baseline100: data.baseline100, date: data.date });
+      this._writeLocal('regrip_calibration', { baseline0: data.baseline0, baseline100: data.baseline100, date: data.date }, scope);
     } else {
       this._writeLocal('regrip_calibration', data);
     }
   },
 
   // ── Offline outbox (F1/B3) ──
-  // regrip_outbox holds session POST payloads that failed to reach the server. Each payload
+  // regrip_outbox durably holds session POST payloads until acknowledged by the server. Each payload
   // carries its own clientSessionId (idempotency key), so re-sending is safe (server dedupes).
-  _readOutbox() {
-    const q = this._readLocal('regrip_outbox', []);
+  _readOutbox(scope = this._storageScope()) {
+    const q = this._readLocal('regrip_outbox', [], scope);
     return Array.isArray(q) ? q : [];
   },
-  _writeOutbox(q) {
-    this._writeLocal('regrip_outbox', Array.isArray(q) ? q : []);
+  _writeOutbox(q, scope = this._storageScope()) {
+    this._writeLocal('regrip_outbox', Array.isArray(q) ? q : [], scope);
   },
-  _enqueueOutbox(payload) {
+  _enqueueOutbox(payload, scope = this._storageScope()) {
     if (!payload || !payload.clientSessionId) return;
-    const q = this._readOutbox();
+    const q = this._readOutbox(scope);
     if (q.some(p => p && p.clientSessionId === payload.clientSessionId)) return;   // dedupe by idempotency key
     q.push(payload);
-    this._writeOutbox(q);
+    this._writeOutbox(q, scope);
   },
 
   // Raw session POST that SURFACES the HTTP status + error code — unlike _fetch, which collapses
   // every failure to null. Migration/outbox must distinguish the daily-cap 422 (stop, retry later)
   // from a permanent 4xx (drop) and from a transient network/5xx (retry). Returns
   // { ok, status, errorCode, message }. Retries once through AuthService.refresh() on 401.
-  async _sendSessionPayload(payload, _retry = true) {
+  async _sendSessionPayload(payload, _retry = true, scope = this._storageScope()) {
+    if (!this._canSendFor(scope)) return { ok: false, status: 0, errorCode: 'OWNER_CHANGED', message: '' };
     try {
       const headers = { ...this._headers, 'Content-Type': 'application/json' };
       const tok = AuthService.getAccessToken();
@@ -682,8 +762,9 @@ const DataService = {
       });
       _regripMarkOnline();
       if (res.status === 401 && _retry) {
+        if (!this._canSendFor(scope)) return { ok: false, status: 0, errorCode: 'OWNER_CHANGED', message: '' };
         const recovered = await AuthService.refresh();
-        if (recovered) return this._sendSessionPayload(payload, false);
+        if (recovered) return this._sendSessionPayload(payload, false, scope);
       }
       if (res.ok) return { ok: true, status: res.status, errorCode: '', message: '' };
       let errorCode = '', message = '';
@@ -760,19 +841,19 @@ function _regripIsDailyCap(r) {
 // Drain regrip_outbox: re-POST each queued payload idempotently. ok / permanent-4xx entries are
 // removed; daily-cap stops the drain (remaining wait for tomorrow); transient (network/401/429/5xx)
 // stay queued for the next load. Silent except a success toast when ≥1 record lands.
-let _regripResendingOutbox = false;
+const _regripResendingScopes = new Set();
 async function resendOutbox() {
-  if (_regripResendingOutbox) return { sent: 0, capped: false };
-  if (!DataService.isRest() || !AuthService.isAuthenticated()) return { sent: 0, capped: false };
-  _regripResendingOutbox = true;
+  const scope = DataService._storageScope();
+  if (_regripResendingScopes.has(scope) || !DataService._canSendFor(scope)) return { sent: 0, capped: false };
+  _regripResendingScopes.add(scope);
   try {
-    const queue = DataService._readOutbox();
+    const queue = DataService._readOutbox(scope);
     if (!queue.length) return { sent: 0, capped: false };
     const remaining = [];
     let sent = 0, capped = false;
     for (const payload of queue) {
       if (capped) { remaining.push(payload); continue; }
-      const r = await DataService._sendSessionPayload(payload);
+      const r = await DataService._sendSessionPayload(payload, true, scope);
       if (r.ok) { sent++; continue; }
       if (_regripIsDailyCap(r)) { capped = true; remaining.push(payload); continue; }
       // Permanent client rejection (backdate-too-old / validation): retrying can't help → drop.
@@ -782,11 +863,15 @@ async function resendOutbox() {
       }
       remaining.push(payload);   // transient → keep for next attempt
     }
-    DataService._writeOutbox(remaining);
-    if (sent > 0) { try { showToast(`밀린 기록 ${sent}건 서버 반영`, { type: 'success' }); } catch {} }
+    // A new session may be enqueued while this drain awaits a response. Keep new entries,
+    // and do not resurrect an entry already acknowledged by its initial POST.
+    const processed = new Set(queue.map(p => p.clientSessionId));
+    const retry = new Set(remaining.map(p => p.clientSessionId));
+    DataService._writeOutbox(DataService._readOutbox(scope).filter(p => !processed.has(p.clientSessionId) || retry.has(p.clientSessionId)), scope);
+    if (sent > 0 && scope === DataService._storageScope()) { try { showToast(`밀린 기록 ${sent}건 서버 반영`, { type: 'success' }); } catch {} }
     return { sent, capped };
   } finally {
-    _regripResendingOutbox = false;
+    _regripResendingScopes.delete(scope);
   }
 }
 
@@ -794,10 +879,11 @@ async function resendOutbox() {
 // local-only sessions (created before login) to the server account.
 async function maybePromptMigration() {
   if (typeof localStorage === 'undefined') return;
-  if (!DataService.isRest() || !AuthService.isAuthenticated()) return;
-  try { if (localStorage.getItem('regrip_migration_prompted')) return; } catch { return; }
+  const scope = DataService._storageScope();
+  if (!DataService._canSendFor(scope)) return;
+  if (DataService._readLocal('regrip_migration_prompted', false, scope)) return;
 
-  const all = DataService._readLocal('regrip_sessions', []) || [];
+  const all = DataService._readLocal('regrip_sessions', [], 'local') || [];
   // Local-only = a genuine local record: not a demo seed, not server-originated (fromServer),
   // and resolvable to a server game enum (gameIdOf). Non-game legacy labels stay local (as saveSession does).
   const candidates = all.filter(s => s && !s.demo && !s.fromServer && gameIdOf(s));
@@ -815,7 +901,7 @@ async function maybePromptMigration() {
     (age <= H72 - BUFFER ? within : tooOld).push(s);
   }
 
-  const markPrompted = () => { try { localStorage.setItem('regrip_migration_prompted', '1'); } catch {} };
+  const markPrompted = () => DataService._writeLocal('regrip_migration_prompted', true, scope);
 
   if (!within.length) { markPrompted(); return; }   // nothing uploadable → don't re-check every load
 
@@ -828,7 +914,7 @@ async function maybePromptMigration() {
     body,
     confirmLabel: '업로드',
     cancelLabel: '나중에',
-    onConfirm: () => { _migrateSessions(within); },
+    onConfirm: () => { _migrateSessions(within, scope); },
   });
   // Prompt exactly once: persist the flag now so neither "나중에" nor a partial async upload re-prompts.
   markPrompted();
@@ -836,28 +922,38 @@ async function maybePromptMigration() {
 
 // Sequentially upload the given local sessions. Assign+persist a clientSessionId BEFORE sending so
 // a reload mid-migration re-sends the SAME key (server dedupes). Daily-cap → remaining to outbox.
-async function _migrateSessions(sessions) {
-  const mirror = DataService._readLocal('regrip_sessions', []) || [];
+async function _migrateSessions(sessions, scope = DataService._storageScope()) {
+  if (!DataService._canSendFor(scope)) return;
+  const mirror = DataService._readLocal('regrip_sessions', [], 'local') || [];
   for (const s of sessions) {
     if (!s.clientSessionId) s.clientSessionId = _uuid();
     const hit = mirror.find(mm => mm === s || (mm && s.id != null && mm.id === s.id));
     if (hit) hit.clientSessionId = s.clientSessionId;
   }
-  DataService._writeLocal('regrip_sessions', mirror);   // persist keys before any POST
+  DataService._writeLocal('regrip_sessions', mirror, 'local');   // preserve original local history
 
   const toPayload = (s) => DataService._sessionToPayload(s, s.clientSessionId, 'game_' + gameIdOf(s));
+  const owned = DataService._readLocal('regrip_sessions', [], scope);
+  const ids = new Set(owned.map(s => s.clientSessionId));
+  for (const s of sessions) {
+    if (!ids.has(s.clientSessionId)) { owned.push({ ...s }); ids.add(s.clientSessionId); }
+    DataService._enqueueOutbox(toPayload(s), scope);
+  }
+  DataService._writeLocal('regrip_sessions', owned, scope);
 
   let sent = 0, failed = 0, capped = false;
   for (const s of sessions) {
     const payload = toPayload(s);
-    if (capped) { DataService._enqueueOutbox(payload); continue; }
-    const r = await DataService._sendSessionPayload(payload);
-    if (r.ok) { sent++; continue; }
-    if (_regripIsDailyCap(r)) { capped = true; DataService._enqueueOutbox(payload); continue; }
+    if (capped) continue;
+    const r = await DataService._sendSessionPayload(payload, true, scope);
+    if (r.ok) {
+      DataService._writeOutbox(DataService._readOutbox(scope).filter(p => p.clientSessionId !== payload.clientSessionId), scope);
+      sent++; continue;
+    }
+    if (_regripIsDailyCap(r)) { capped = true; continue; }
     failed++;
-    // Transient failures go to the outbox for auto-retry; permanent 4xx stays local only.
-    if (r.status === 0 || r.status === 401 || r.status === 429 || r.status >= 500) {
-      DataService._enqueueOutbox(payload);
+    if (r.status >= 400 && r.status < 500 && r.status !== 401 && r.status !== 429) {
+      DataService._writeOutbox(DataService._readOutbox(scope).filter(p => p.clientSessionId !== payload.clientSessionId), scope);
     }
   }
 
@@ -865,146 +961,14 @@ async function _migrateSessions(sessions) {
   if (sent > 0) parts.push(`기록 ${sent}건 서버 반영 완료`);
   if (capped) parts.push('일일 한도 초과분은 내일 자동 재시도됩니다');
   else if (failed > 0) parts.push(`${failed}건은 나중에 다시 시도합니다`);
-  if (parts.length) {
+  if (parts.length && scope === DataService._storageScope()) {
     try { showToast(parts.join(' · '), { type: (capped || failed) ? 'info' : 'success' }); } catch {}
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// SENSOR SERVICE — simulation now, WebSocket / Serial later
-//
-// ESP32 integration (wireless-first — see docs/backend/04-sensor-data-policy.md ADR-04-0):
-//   1. ESP32 runs a WebSocket server on the local network (port 8080)
-//   2. Sends JSON: { "force": 73.5, "timestamp": 1717648200000 }
-//   3. Call: SensorService.connect('ws://<esp32-ip>:8080')
-//   (BLE / Web Serial are future transport adapters; wired USB is the fallback.)
-//
-// Status machine: 'simulation' | 'connecting' | 'connected' | 'disconnected'
-//   connect()  → 'connecting'  (onopen → 'connected')
-//   onclose    → 'disconnected' (stays while reconnect is pending)
-//   disconnect()→ 'simulation'
-// ═══════════════════════════════════════════════════════════════════════════════
-const SensorService = {
-  _ws: null,
-  _mode: 'simulation',   // 'simulation' | 'websocket'
-  _force: 0,
-  _callbacks: [],
-  _reconnectTimer: null,
-  _wsUrl: null,
-  _status: 'simulation',
-  _statusCallbacks: [],
-  _cal: null,            // { baseline0, baseline100 } — applied to real (onmessage) force only
-
-  // ── Status machine ──
-  getStatus() { return this._status; },
-  onStatusChange(cb)  { if (typeof cb === 'function') this._statusCallbacks.push(cb); },
-  offStatusChange(cb) { this._statusCallbacks = this._statusCallbacks.filter(c => c !== cb); },
-  _emitStatus() { this._statusCallbacks.forEach(cb => { try { cb(this._status); } catch {} }); },
-  _setStatus(s) { this._status = s; this._emitStatus(); },
-
-  // ── Calibration ──
-  setCalibration({ baseline0, baseline100 } = {}) {
-    if (typeof baseline0 !== 'number' || typeof baseline100 !== 'number' || (baseline100 - baseline0) <= 0) {
-      console.warn('[SensorService] 잘못된 캘리브레이션 값(범위 0 이하) — 무시합니다.', { baseline0, baseline100 });
-      return;
-    }
-    this._cal = { baseline0, baseline100 };
-  },
-
-  async loadCalibration() {
-    try {
-      const cal = await DataService.getCalibration();
-      if (cal && typeof cal.baseline0 === 'number' && typeof cal.baseline100 === 'number') {
-        this.setCalibration(cal);
-      }
-    } catch (e) {
-      console.warn('[SensorService] loadCalibration 실패:', e && e.message);
-    }
-  },
-
-  // Normalize a raw sensor reading into a 0–100 logical value using calibration.
-  _normalize(raw) {
-    let v = raw;
-    if (this._cal) {
-      const { baseline0, baseline100 } = this._cal;
-      v = (raw - baseline0) / (baseline100 - baseline0) * 100;
-    }
-    return Math.max(0, Math.min(100, v));
-  },
-
-  // ── Connection ──
-  connect(wsUrl) {
-    this._wsUrl = wsUrl;
-    this._mode = 'websocket';
-    this._setStatus('connecting');
-
-    try {
-      this._ws = new WebSocket(wsUrl);
-    } catch (e) {
-      console.warn('[SensorService] WebSocket 생성 실패:', e && e.message);
-      this._setStatus('disconnected');
-      return;
-    }
-
-    this._ws.onopen = () => {
-      console.log('[SensorService] Connected to', wsUrl);
-      clearTimeout(this._reconnectTimer);
-      this._setStatus('connected');
-    };
-
-    this._ws.onmessage = (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        if (typeof data.force === 'number') {
-          this._force = this._normalize(data.force);   // calibration applies to real sensor data
-          this._callbacks.forEach(cb => cb(this._force));
-        }
-      } catch {}
-    };
-
-    this._ws.onerror = () => {
-      // NOTE: do NOT flip _mode to 'simulation' here — keeping _mode === 'websocket'
-      // lets onclose schedule the reconnect (bug fix).
-      console.warn('[SensorService] WebSocket error');
-    };
-
-    this._ws.onclose = () => {
-      this._setStatus('disconnected');
-      if (this._mode === 'websocket') {
-        console.log('[SensorService] Disconnected, retrying in 3s...');
-        this._reconnectTimer = setTimeout(() => this.connect(wsUrl), 3000);
-      }
-    };
-  },
-
-  reconnect() {
-    if (this._wsUrl) this.connect(this._wsUrl);
-  },
-
-  disconnect() {
-    clearTimeout(this._reconnectTimer);
-    if (this._ws) { this._ws.onclose = null; this._ws.close(); this._ws = null; }
-    this._mode = 'simulation';
-    this._wsUrl = null;
-    this._setStatus('simulation');
-  },
-
-  onForceUpdate(cb)    { this._callbacks.push(cb); },
-  offForceUpdate(cb)   { this._callbacks = this._callbacks.filter(c => c !== cb); },
-  getForce()           { return this._force; },
-  getMode()            { return this._mode; },
-
-  // Called by game loops when in simulation mode.
-  // Calibration is NOT applied here — the value is already a logical 0–100.
-  setSimulatedForce(v) {
-    if (this._mode === 'simulation') {
-      this._force = Math.max(0, Math.min(100, v));
-      this._callbacks.forEach(cb => cb(this._force));
-    }
-  },
-};
-
-// ═══════════════════════════════════════════════════════════════════════════════
+// Sensor transport is owned by sensor-service.js.
+const SensorService = globalThis.SensorService || (typeof require === "function" ? require("./sensor-service.js").createSensorService() : null);
 // GAME DEFINITIONS & SESSION HELPERS
 // ═══════════════════════════════════════════════════════════════════════════════
 const GAME_DEFS = {
@@ -1072,10 +1036,10 @@ const GAME_TUNING = {
   glide:   { easy: { tolerance: 12 },  medium: { tolerance: 8 },   hard: { tolerance: 5 } },
 };
 
-// Normalize a settings.difficulty value: legacy 'normal' → 'medium'; unknown/unset → 'medium'.
+// Normalize a settings.difficulty value: legacy 'normal' → 'medium'; unknown/unset → 'easy'.
 function _normalizeDifficulty(d) {
   if (d === 'normal') return 'medium';
-  return (d === 'easy' || d === 'medium' || d === 'hard') ? d : 'medium';
+  return (d === 'easy' || d === 'medium' || d === 'hard') ? d : 'easy';
 }
 
 // Resolve the full runtime config for a game: common fields + difficulty tuning + per-game
@@ -1228,8 +1192,13 @@ function deriveSetDetails(session) {
 const DAY_MS = 86400000;
 function dayNum(dateLike) {
   const d = new Date(dateLike);
-  d.setHours(0, 0, 0, 0);
-  return Math.floor(d.getTime() / DAY_MS);
+  if (!Number.isFinite(d.getTime())) return NaN;
+  const timezone = DataService.getSettingsSync().timezone || 'Asia/Seoul';
+  let parts;
+  try { parts = new Intl.DateTimeFormat('en-US', {timeZone: timezone, year:'numeric',month:'numeric',day:'numeric'}).formatToParts(d); }
+  catch { parts = new Intl.DateTimeFormat('en-US', {timeZone:'Asia/Seoul',year:'numeric',month:'numeric',day:'numeric'}).formatToParts(d); }
+  const part = type => Number(parts.find(p => p.type === type).value);
+  return Math.floor(Date.UTC(part('year'), part('month') - 1, part('day')) / DAY_MS);
 }
 // Longest run of consecutive calendar days that contain a session (order-independent).
 function maxConsecutiveDays(sessions) {
@@ -1244,8 +1213,10 @@ function maxConsecutiveDays(sessions) {
 }
 
 function formatKoreanDate(isoString) {
-  const d = new Date(isoString);
-  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+  const number = dayNum(isoString);
+  if (!Number.isFinite(number)) return '—';
+  const d = new Date(number * DAY_MS);
+  return `${d.getUTCFullYear()}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.${String(d.getUTCDate()).padStart(2, '0')}`;
 }
 
 // Rarity → colors (reused from achievements.html vocabulary).
@@ -1386,13 +1357,14 @@ const GamificationEngine = {
     return streak;
   },
 
-  computeStats(sessions, profile) {
+  computeStats(sessions, profile, source = 'all') {
     sessions = Array.isArray(sessions) ? sessions : [];
     profile = profile || {};
 
-    const totalSessions = sessions.length;
+    const measured = filterSessionSource(sessions, source);
+    const totalSessions = measured.length;
     const chrono = [...sessions].sort((a, b) => new Date(a.date) - new Date(b.date));
-    const recent = [...sessions].sort((a, b) => new Date(b.date) - new Date(a.date));
+    const recent = [...measured].sort((a, b) => new Date(b.date) - new Date(a.date));
 
     // ── Streak & session XP ──
     const streak = this.computeStreak(sessions);
@@ -1400,17 +1372,17 @@ const GamificationEngine = {
     const streakBonus = streak >= 7 ? this.XP_RULES.streak7Bonus : 0;
 
     // ── Aggregates ──
-    const maxForce = sessions.reduce((m, s) => Math.max(m, s.maxForce || 0), 0);
+    const maxForce = measured.reduce((m, s) => Math.max(m, s.maxForce || 0), 0);
     const avgSets = totalSessions
-      ? Math.round((sessions.reduce((a, s) => a + (s.sets || 0), 0) / totalSessions) * 10) / 10
+      ? Math.round((measured.reduce((a, s) => a + (s.sets || 0), 0) / totalSessions) * 10) / 10
       : 0;
 
     // ── Weekly windows (calendar days) ──
     const todayN = dayNum(new Date());
     const inThisWeek = (s) => { const n = dayNum(s.date); return n >= todayN - 6 && n <= todayN; };
     const inPrevWeek = (s) => { const n = dayNum(s.date); return n >= todayN - 13 && n <= todayN - 7; };
-    const thisWeek = sessions.filter(inThisWeek);
-    const prevWeek = sessions.filter(inPrevWeek);
+    const thisWeek = measured.filter(inThisWeek);
+    const prevWeek = measured.filter(inPrevWeek);
 
     const weeklyDoneDays = new Set(thisWeek.map(s => dayNum(s.date))).size;
     const weeklyGoalDays = Number(profile.goalDays) || 5;
@@ -1491,6 +1463,7 @@ const GamificationEngine = {
       progressPct: lvl.progressPct,
       streak,
       totalSessions,
+      source, allSessionCount: sessions.length, sourceCounts: countSessionSources(sessions),
       maxForce,
       avgSets,
       weeklyDoneDays,
@@ -1536,30 +1509,34 @@ const GamificationEngine = {
     return { xpAwarded, totalXp: now.totalXp, level: now.level, levelUp, unlockedAchievements };
   },
 
-  async getStats() {
-    if (DataService.isRest()) return this._statsFromServer();
-    return this.computeStats(await DataService.getSessions(), DataService.getProfileSync());
+  async getStats(source = 'all') {
+    if (DataService.isRest()) return this._statsFromServer(source);
+    return this.computeStats(await DataService.getSessions(), DataService.getProfileSync(), source);
   },
 
   // REST mode: the server is the source of truth for XP / level / streak / achievements.
   // Returns the SAME shape (keys) as computeStats so all six pages render unchanged.
   // If any server fetch fails, falls back to local computation (warns once).
   _serverFallbackWarned: false,
-  async _statsFromServer() {
+  async _statsFromServer(source = 'all') {
+    const scope = DataService._storageScope();
     const profile = DataService.getProfileSync();
     const [statsRes, achRes, xpRes, sessions] = await Promise.all([
-      DataService._fetch('/users/me/stats'),
+      DataService._fetch('/users/me/stats?source=' + encodeURIComponent(source)),
       DataService._fetch('/users/me/achievements'),
       DataService._fetch('/users/me/xp-events?limit=100'),
-      DataService.getSessions(),
+      DataService.getSessions(source),
     ]);
+    if (scope !== DataService._storageScope()) {
+      return this.computeStats(DataService._readLocal('regrip_sessions', []), DataService.getProfileSync(), source);
+    }
 
     if (!statsRes || !achRes || !Array.isArray(achRes.data) || !xpRes || !Array.isArray(xpRes.data)) {
       if (!this._serverFallbackWarned) {
         console.warn('[GamificationEngine] 서버 통계 조회 실패 — 로컬 계산으로 폴백합니다.');
         this._serverFallbackWarned = true;
       }
-      return this.computeStats(Array.isArray(sessions) ? sessions : [], profile);
+      return this.computeStats(DataService._readLocal('regrip_sessions', []), profile, source);
     }
 
     const sess = Array.isArray(sessions) ? sessions : [];
@@ -1662,6 +1639,8 @@ const GamificationEngine = {
       progressPct: lvl.progressPct,
       streak,
       totalSessions,
+      source, allSessionCount: statsRes.allSessionCount ?? totalSessions, sourceCounts: statsRes.sourceCounts || countSessionSources(sess),
+      chart: statsRes.chart || [],
       maxForce,
       avgSets,
       weeklyDoneDays,
@@ -1686,6 +1665,7 @@ const SENSOR_STATUS_META = {
   simulation:   { label: '시뮬레이션 모드', color: '#D97706', bg: '#FEF3C7', icon: 'science'      },
   connecting:   { label: '연결 중…',        color: '#64748B', bg: '#F1F5F9', icon: 'sync'         },
   connected:    { label: '센서 연결됨',      color: '#15803D', bg: '#DCFCE7', icon: 'sensors'      },
+  stale:        { label: '센서 응답 없음', color: '#DC2626', bg: '#FEE2E2', icon: 'sensors_off' },
   disconnected: { label: '연결 끊김',        color: '#DC2626', bg: '#FEE2E2', icon: 'sensors_off'  },
 };
 
@@ -1866,6 +1846,7 @@ const GameShell = {
     const onPauseChange = typeof opts.onPauseChange === 'function' ? opts.onPauseChange : () => {};
     const buildResult = typeof opts.buildResult === 'function' ? opts.buildResult : () => ({});
     const onCleanup = typeof opts.onCleanup === 'function' ? opts.onCleanup : () => {};
+    const onReset = typeof opts.onReset === 'function' ? opts.onReset : () => {};
 
     const cfg = gameConfig(gameId);
     const def = GAME_DEFS[gameId] || { label: '게임' };
@@ -1884,6 +1865,14 @@ const GameShell = {
     let saving = false;
     let pauseBtn = null;        // 런타임 주입한 헤더 일시정지 버튼 (게임 HTML 은 수정하지 않는다)
     let pauseBtnClick = null;
+    let practiceMode = false, practiceElapsed = 0, practiceOverlay = null;
+    let sessionContext = null, sessionOwnerScope = null, readySensorCleanup = null;
+    let practiceBadge = null;
+    let pauseReason = '';
+    const practiceGoal = { balloon: 1, crane: 1, rhythm: 4, glide: 3 }[gameId] || 1;
+    const inputReady = () => SensorService.isReady();
+    const sameInput = () => !sessionContext || (sessionOwnerScope === DataService._storageScope() &&
+      JSON.stringify(SensorService.getSessionContext()) === JSON.stringify(sessionContext));
     const reduced = () => prefersReducedMotion();
     const escHtml = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
       c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1900,23 +1889,8 @@ const GameShell = {
       if (badge) sensorBadgeUnsub = bindSensorBadge(badge);
     } catch {}
 
-    let hasCalibration = false;
-    try {
-      const cal = DataService._readLocal('regrip_calibration', null);
-      hasCalibration = !!(cal && typeof cal.baseline0 === 'number' && typeof cal.baseline100 === 'number');
-    } catch {}
-
     // ── Ready overlay ──
     function buildReadyOverlay() {
-      const status = (SensorService.getStatus && SensorService.getStatus()) || 'simulation';
-      const connected = status === 'connected';
-      const sensorIcon = connected ? 'sensors' : 'science';
-      const sensorLine = connected
-        ? '센서가 연결되어 있습니다'
-        : '시뮬레이션 모드 · 스페이스바 또는 화면 터치로 플레이하세요';
-      const calLine = hasCalibration
-        ? `<span class="material-symbols-outlined">check_circle</span><span>저장된 캘리브레이션 있음</span>`
-        : `<span class="material-symbols-outlined">info</span><span>저장된 캘리브레이션 없음 · <a href="calibration.html">보정하기</a></span>`;
       const howtoHtml = howto.map(h =>
         `<li><span class="material-symbols-outlined">${escHtml(h.icon || 'chevron_right')}</span><span>${escHtml(h.text || '')}</span></li>`
       ).join('');
@@ -1932,15 +1906,14 @@ const GameShell = {
             <h2 class="game-ready-title font-display">${escHtml(def.label)}</h2>
             <span class="game-difficulty-chip">${DIFF_LABEL[cfg.difficulty] || '보통'}</span>
           </div>
-          <div class="game-ready-status">
-            <span class="game-ready-line"><span class="material-symbols-outlined">${sensorIcon}</span><span>${sensorLine}</span></span>
-            <span class="game-ready-line">${calLine}</span>
-          </div>
+          <div class="game-ready-status game-sensor-controls"></div>
+          <p class="game-input-message" role="status"></p>
           ${howtoHtml ? `<ul class="game-ready-howto">${howtoHtml}</ul>` : ''}
           <div class="game-ready-actions">
             <button type="button" class="btn-retro btn-retro-primary game-ready-start" autofocus>
               <span class="material-symbols-outlined">play_arrow</span>시작하기
             </button>
+            <button type="button" class="btn-retro game-ready-practice">20초 연습</button>
             <a class="btn-retro game-ready-exit" href="training.html">나가기</a>
           </div>
         </div>
@@ -1949,22 +1922,29 @@ const GameShell = {
     }
 
     function removeReadyOverlay() {
+      if (readySensorCleanup) { readySensorCleanup(); readySensorCleanup = null; }
       if (readyOverlay) { readyOverlay.remove(); readyOverlay = null; }
     }
 
     function showReadyOverlay() {
       readyOverlay = buildReadyOverlay();
       document.body.appendChild(readyOverlay);
+      if (typeof ReGripSensorUI !== 'undefined') readySensorCleanup = ReGripSensorUI.mount(readyOverlay.querySelector('.game-sensor-controls'), { compact: true });
       const startBtn = readyOverlay.querySelector('.game-ready-start');
       if (startBtn) {
-        startBtn.addEventListener('click', beginCountdown);
+        startBtn.addEventListener('click', () => beginCountdown(false));
         requestAnimationFrame(() => startBtn.focus());
       }
+      readyOverlay.querySelector('.game-ready-practice').addEventListener('click', () => beginCountdown(true));
+      syncInputState();
     }
 
-    function beginCountdown() {
-      if (state.phase !== 'ready') return;
+    function beginCountdown(practice = false) {
+      if (state.phase !== 'ready' || !inputReady() || document.hidden) return;
+      practiceMode = !!practice;
+      practiceElapsed = 0;
       state.phase = 'countdown';
+      if (readySensorCleanup) { readySensorCleanup(); readySensorCleanup = null; }
       const card = readyOverlay && readyOverlay.querySelector('.game-ready-card');
       if (!card) { finishCountdown(); return; }
       card.innerHTML = `<div class="game-countdown-num" aria-live="assertive">3</div>`;
@@ -1985,8 +1965,23 @@ const GameShell = {
     }
 
     function finishCountdown() {
+      if (!inputReady() || document.hidden) {
+        state.phase = 'ready';
+        removeReadyOverlay();
+        showReadyOverlay();
+        return;
+      }
+      sessionContext = JSON.parse(JSON.stringify(SensorService.getSessionContext()));
+      sessionOwnerScope = DataService._storageScope();
       removeReadyOverlay();
       state.phase = 'playing';
+      if (practiceMode) {
+        practiceBadge = document.createElement('span');
+        practiceBadge.className = 'font-display text-xs font-bold';
+        practiceBadge.textContent = '연습 · 최대 20초';
+        const anchor = document.getElementById('sensor-badge');
+        if (anchor && anchor.parentNode) anchor.parentNode.appendChild(practiceBadge);
+      }
       syncPauseBtn();
       try { onStart(); } catch (e) { console.warn('[GameShell] onStart 오류:', e && e.message); }
       // 카운트다운(≈2.1s) 중에 화면을 가로로 돌린 경우: 그때는 phase 가 'playing' 이 아니라
@@ -1995,69 +1990,147 @@ const GameShell = {
       if (rotateOverlay) pause();
     }
 
+    function syncInputState() {
+      const ready = inputReady();
+      if (readyOverlay && state.phase === 'ready') {
+        for (const selector of ['.game-ready-start', '.game-ready-practice']) {
+          const btn = readyOverlay.querySelector(selector);
+          if (btn) btn.disabled = !ready;
+        }
+        const hint = readyOverlay.querySelector('.game-input-message');
+        if (hint) hint.textContent = ready ? '준비 완료 · 연습 기록과 보상은 저장되지 않습니다.' : '센서를 연결하고 보정하거나 시뮬레이션을 선택해 주세요.';
+      }
+      if (state.phase === 'playing' && (!ready || !sameInput())) pause('sensor');
+      if (pauseOverlay) {
+        const btn = pauseOverlay.querySelector('.game-pause-resume');
+        if (btn) btn.disabled = !ready || !sameInput() || document.hidden;
+        const msg = pauseOverlay.querySelector('.game-pause-message');
+        if (msg) msg.textContent = !sameInput() ? '계정, 입력 방식 또는 보정이 변경되었습니다. 훈련 화면에서 새 게임을 시작해 주세요.'
+          : !ready ? '센서 신호를 기다리고 있습니다. 다시 연결되면 계속할 수 있습니다.'
+          : pauseReason === 'sensor' ? '센서가 준비되었습니다. 계속하기를 눌러 재개하세요.'
+          : pauseReason === 'timing' ? '화면 처리가 잠시 지연되어 멈췄습니다. 계속하기를 눌러 주세요.' : '준비되면 계속하기를 눌러 주세요.';
+        const reconnect = pauseOverlay.querySelector('.game-pause-reconnect');
+        if (reconnect) reconnect.hidden = SensorService.getMode() === 'simulation' || ready;
+      }
+    }
+    SensorService.onStatusChange(syncInputState);
+
+    function releaseInput() { if (pressBound) pressBound.up(); }
+
+    // Return true after stopping a practice; page loops must return immediately.
+    function progress(dt, completed) {
+      if (!practiceMode || state.phase !== 'playing') return false;
+      practiceElapsed += dt;
+      if (practiceElapsed < 20 && completed < practiceGoal) return false;
+      releaseInput();
+      state.phase = 'practice-ended';
+      if (practiceBadge) { practiceBadge.remove(); practiceBadge = null; }
+      onPauseChange(true);
+      syncPauseBtn();
+      practiceOverlay = document.createElement('div');
+      practiceOverlay.className = 'game-ready-overlay';
+      practiceOverlay.setAttribute('role', 'dialog');
+      practiceOverlay.setAttribute('aria-modal', 'true');
+      practiceOverlay.setAttribute('aria-label', '연습 완료');
+      practiceOverlay.innerHTML = `<div class="game-ready-card"><h2 class="font-display">연습 완료</h2><p>연습 기록과 보상은 저장되지 않습니다.</p><div class="game-ready-actions"><button class="btn-retro game-practice-repeat">다시 연습</button><button class="btn-retro btn-retro-primary game-practice-main">본게임 시작</button></div></div>`;
+      document.body.appendChild(practiceOverlay);
+      practiceOverlay.querySelector('.game-practice-repeat').addEventListener('click', () => restart(true));
+      const main = practiceOverlay.querySelector('.game-practice-main');
+      main.addEventListener('click', () => restart(false));
+      requestAnimationFrame(() => main.focus());
+      return true;
+    }
+
+    function restart(practice) {
+      if (state.phase !== 'practice-ended') return;
+      if (practiceOverlay) { practiceOverlay.remove(); practiceOverlay = null; }
+      releaseInput();
+      sessionContext = null;
+      sessionOwnerScope = null;
+      practiceElapsed = 0;
+      onReset();
+      state.phase = 'ready';
+      showReadyOverlay();
+      beginCountdown(practice);
+    }
+
     // ── Input (bindPress) ──
     function bindPress(onDown, onUp) {
+      unbindPress();
       const el = document.getElementById(viewportId);
-      const isPlaying = () => state.phase === 'playing';
+      const isPlaying = () => state.phase === 'playing' && SensorService.getMode() === 'simulation';
+      let held = false, pointerId = null;
+      const up = () => {
+        held = false;
+        const releaseId = pointerId;
+        pointerId = null;
+        if (el && releaseId !== null) { try { el.releasePointerCapture(releaseId); } catch {} }
+        if (typeof onUp === 'function') onUp();
+      };
 
       const keydown = (e) => {
         if (e.code !== 'Space' && e.key !== ' ') return;
-        if (!isPlaying()) return;
+        if (!isPlaying() || e.repeat || held) return;
         e.preventDefault();
+        held = true;
         if (typeof onDown === 'function') onDown(e);
       };
       const keyup = (e) => {
         if (e.code !== 'Space' && e.key !== ' ') return;
-        if (!isPlaying()) return;
-        e.preventDefault();
-        if (typeof onUp === 'function') onUp(e);
+        up();
       };
       document.addEventListener('keydown', keydown);
       document.addEventListener('keyup', keyup);
 
       const down = (e) => {
-        if (!isPlaying()) return;
+        if (!isPlaying() || held || (e.button != null && e.button !== 0)) return;
+        if (e.target && typeof e.target.closest === 'function' && e.target.closest('button,a,input,select,textarea')) return;
         if (e.cancelable) e.preventDefault();
+        held = true;
+        pointerId = e.pointerId;
+        if (el) { try { el.setPointerCapture(pointerId); } catch {} }
         if (typeof onDown === 'function') onDown(e);
       };
-      const up = (e) => {
-        if (!isPlaying()) return;
-        if (typeof onUp === 'function') onUp(e);
-      };
       if (el) {
-        el.addEventListener('mousedown', down);
-        el.addEventListener('mouseup', up);
-        el.addEventListener('touchstart', down, { passive: false });
-        el.addEventListener('touchend', up);
+        el.addEventListener('pointerdown', down);
+        el.addEventListener('lostpointercapture', up);
       }
+      document.addEventListener('pointerup', up);
+      document.addEventListener('pointercancel', up);
+      window.addEventListener('blur', up);
       pressBound = { keydown, keyup, down, up, el };
       return unbindPress;
     }
 
     function unbindPress() {
       if (!pressBound) return;
+      pressBound.up();
       document.removeEventListener('keydown', pressBound.keydown);
       document.removeEventListener('keyup', pressBound.keyup);
       if (pressBound.el) {
-        pressBound.el.removeEventListener('mousedown', pressBound.down);
-        pressBound.el.removeEventListener('mouseup', pressBound.up);
-        pressBound.el.removeEventListener('touchstart', pressBound.down);
-        pressBound.el.removeEventListener('touchend', pressBound.up);
+        pressBound.el.removeEventListener('pointerdown', pressBound.down);
+        pressBound.el.removeEventListener('lostpointercapture', pressBound.up);
       }
+      document.removeEventListener('pointerup', pressBound.up);
+      document.removeEventListener('pointercancel', pressBound.up);
+      window.removeEventListener('blur', pressBound.up);
       pressBound = null;
     }
 
     // ── Pause / resume / Esc ──
-    function pause() {
+    function pause(reason = '') {
       if (state.phase !== 'playing') return;
+      releaseInput();
+      pauseReason = reason;
       state.phase = 'paused';
       try { onPauseChange(true); } catch (e) { console.warn('[GameShell] onPauseChange 오류:', e && e.message); }
       showPauseOverlay();
+      syncInputState();
       syncPauseBtn();
     }
 
     function resume() {
-      if (state.phase !== 'paused') return;
+      if (state.phase !== 'paused' || !inputReady() || !sameInput() || document.hidden || rotateOverlay) return;
       removePauseOverlay();
       state.phase = 'playing';
       try { onPauseChange(false); } catch (e) { console.warn('[GameShell] onPauseChange 오류:', e && e.message); }
@@ -2135,10 +2208,12 @@ const GameShell = {
       pauseOverlay.innerHTML = `
         <div class="game-pause-card">
           <h2 class="font-display">일시정지</h2>
+          <p class="game-pause-message" role="status"></p>
           <div class="game-pause-actions">
             <button type="button" class="btn-retro btn-retro-primary game-pause-resume" autofocus>
               <span class="material-symbols-outlined">play_arrow</span>계속하기
             </button>
+            <button type="button" class="btn-retro game-pause-reconnect">센서 다시 연결</button>
             <button type="button" class="btn-retro game-pause-quit">
               <span class="material-symbols-outlined">logout</span>그만하기
             </button>
@@ -2147,6 +2222,16 @@ const GameShell = {
       `;
       document.body.appendChild(pauseOverlay);
       const resumeBtn = pauseOverlay.querySelector('.game-pause-resume');
+      const reconnectBtn = pauseOverlay.querySelector('.game-pause-reconnect');
+      if (reconnectBtn) reconnectBtn.addEventListener('click', async () => {
+        reconnectBtn.disabled = true;
+        try {
+          const restored = await SensorService.reconnect();
+          if (restored === false && pauseOverlay) pauseOverlay.querySelector('.game-pause-message').textContent = '저장된 센서를 찾지 못했습니다. 설정에서 다시 연결한 뒤 새 게임을 시작해 주세요.';
+        } catch (e) {
+          if (pauseOverlay) pauseOverlay.querySelector('.game-pause-message').textContent = e.message || '센서를 연결하지 못했습니다. 다시 시도해 주세요.';
+        } finally { reconnectBtn.disabled = false; }
+      });
       const quitBtn = pauseOverlay.querySelector('.game-pause-quit');
       if (resumeBtn) { resumeBtn.addEventListener('click', resume); requestAnimationFrame(() => resumeBtn.focus()); }
       if (quitBtn) quitBtn.addEventListener('click', confirmExit);
@@ -2258,6 +2343,11 @@ const GameShell = {
       else if (state.phase === 'paused') { e.preventDefault(); resume(); }
     };
     document.addEventListener('keydown', onKey);
+    const onVisibility = () => {
+      if (document.hidden) { releaseInput(); pause('visibility'); }
+      syncInputState();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
 
     function confirmExit() {
       if (state.phase === 'playing') pause();
@@ -2281,6 +2371,10 @@ const GameShell = {
       unwatchRotate();          // matchMedia change 리스너 + Tab 트랩 + 오버레이 DOM 정리
       removePauseBtn();
       document.removeEventListener('keydown', onKey);
+      document.removeEventListener('visibilitychange', onVisibility);
+      SensorService.offStatusChange(syncInputState);
+      if (practiceOverlay) { practiceOverlay.remove(); practiceOverlay = null; }
+      if (practiceBadge) { practiceBadge.remove(); practiceBadge = null; }
       if (typeof window !== 'undefined') window.removeEventListener('pagehide', onPageHide);
       if (sensorBadgeUnsub) { try { sensorBadgeUnsub(); } catch {} sensorBadgeUnsub = null; }
       try { onCleanup(); } catch (e) { console.warn('[GameShell] onCleanup 오류:', e && e.message); }
@@ -2369,6 +2463,10 @@ const GameShell = {
     // ── end(): natural game-over flow (idempotent) ──
     function end() {
       if (state.phase === 'ended') return;
+      if (practiceMode) { progress(20, practiceGoal); return; }
+      if (state.phase !== 'playing' || !sessionContext) return;
+      if (!sameInput()) { pause('sensor'); return; }
+      releaseInput();
       // Capture the sessions list BEFORE saving (local reward preview needs the "before" state).
       let prevSessions = [];
       try { prevSessions = DataService._readLocal('regrip_sessions', []) || []; } catch {}
@@ -2380,6 +2478,7 @@ const GameShell = {
       try { result = buildResult() || {}; } catch (e) { console.warn('[GameShell] buildResult 오류:', e && e.message); result = {}; }
       // Merge shell fields; game-supplied values win.
       result = { ...result, difficulty: result.difficulty || cfg.difficulty, schema: result.schema || 2 };
+      result = { ...result, ...JSON.parse(JSON.stringify(sessionContext)) };
       if (cfg.handUsed && !result.handUsed) result.handUsed = cfg.handUsed;
 
       renderResultStars(result.stars || 0);
@@ -2410,7 +2509,14 @@ const GameShell = {
     return {
       cfg,
       state,
-      get playing() { return state.phase === 'playing'; },
+      get playing() {
+        if (state.phase === 'playing' && (!inputReady() || !sameInput())) pause('sensor');
+        return state.phase === 'playing';
+      },
+      isPractice: () => practiceMode,
+      progress,
+      start: beginCountdown,
+      restart,
       bindPress,
       end,
       pause,
@@ -2472,6 +2578,8 @@ function seedDemoData() {
 
     sessions.push({
       id,
+      inputSource: 'simulation',
+      calibrationSnapshot: null,
       date: new Date(id).toISOString(),
       gameId,
       label: def.label,
@@ -2556,7 +2664,8 @@ function initPage(activeKey) {
 // ── Node interop (unit testing only; harmless in the browser) ──
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
-    AuthService, DataService, SensorService, GamificationEngine,
+    AuthService, DataService, SensorService, GamificationEngine, resendOutbox, _migrateSessions,
+    sessionSource, sourceLabel, filterSessionSource, countSessionSources,
     GAME_DEFS, LEGACY_EXERCISE_ICONS, RARITY_STYLE, SENSOR_STATUS_META,
     GAME_TUNING, gameConfig, recommendTraining, intensityFor, GameShell, showToast, seedDemoData,
     gameIdOf, starsForScore, iconForSession, mulberry32, _seedFrom, deriveSetDetails,
