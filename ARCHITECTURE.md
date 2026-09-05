@@ -50,7 +50,7 @@ flowchart TB
 
 ## 센서 입력과 보정
 
-BLE 패킷은 `timestamp_ms,flex_raw,fsr_raw`의 ASCII CSV입니다. ADC는 0~4095이고 장치 타임스탬프는 uint32 밀리초입니다. ESP32는 채널별 50Hz로 측정하고 최신 샘플을 BLE로 20Hz 전송합니다. USB 시리얼은 측정 확인용이며 브라우저 Web Serial 연결은 구현하지 않았습니다.
+BLE 패킷은 `timestamp_ms,flex_raw,fsr_raw`의 ASCII CSV입니다. ADC는 0~4095이고 장치 타임스탬프는 uint32 밀리초입니다. ESP32는 채널별 50Hz로 측정하고 최신 샘플을 BLE로 20Hz 전송합니다. USB 시리얼은 기존 수집 형식인 `sample_id,timestamp_ms,flex_raw,fsr_raw` 4열로 50Hz 출력하며, 브라우저 Web Serial 연결은 구현하지 않았습니다. `scripts/replay-sensor.cjs`는 이 로그를 20Hz 패킷으로 읽어 실제 센서 서비스와 게임 코드를 실행하는 개발용 검사 도구이며, 저장은 메모리 경계에서 관찰합니다.
 
 서비스는 형식·범위를 벗어난 패킷과 중복·역순 타임스탬프를 거부하고, uint32 롤오버는 허용합니다. 거부한 패킷으로 수신 신선도를 갱신하지 않습니다. 유효 패킷 수신 후 500ms가 지나면 `stale` 상태가 됩니다.
 

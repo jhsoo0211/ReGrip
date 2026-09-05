@@ -16,39 +16,47 @@
 | ADC | 12비트, 0~4095; 채널 전환 후 첫 읽기 폐기 |
 | 측정 주기 | 채널별 50Hz, 20ms 간격 |
 | BLE 전송 | 최신 표본 20Hz, 50ms 간격 |
-| 시리얼 | 115200bps; CSV 50Hz와 상태 메시지 |
+| USB 시리얼 | 115200bps; 50Hz, `sample_id,timestamp_ms,flex_raw,fsr_raw` 4열과 상태 메시지 |
 | 장치 이름 | `ReGrip-Sensor` |
 | Service UUID | `6E400001-B5A3-F393-E0A9-E50E24DCCA9E` |
 | TX characteristic | `6E400003-B5A3-F393-E0A9-E50E24DCCA9E`, READ + NOTIFY |
-| 패킷 | ASCII `timestamp_ms,flex_raw,fsr_raw` |
+| BLE 패킷 | ASCII `timestamp_ms,flex_raw,fsr_raw` 3열 |
 
 예시는 `12340,2010,970`입니다. BLE 패킷에는 개행·NUL을 붙이지 않으며, 최대 문자열 `4294967295,4095,4095`는 20바이트여서 기본 ATT MTU 23에 맞습니다. 타임스탬프는 보드의 `millis()`이며 날짜·UTC 시각이 아닙니다.
 
-PlatformIO가 설치된 환경에서 저장소 루트 기준으로 빌드합니다.
+다른 PC의 Python·PlatformIO 설치는 [펌웨어 실행 안내](../firmware/esp32-ble-sensor/README.md)를 따릅니다. 준비 후 저장소 루트에서 다음 명령으로 컴파일만 확인할 수 있습니다. `.tools/`와 빌드 산출물은 Git에 포함하지 않습니다.
 
 ```powershell
-pio run -d firmware/esp32-ble-sensor
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\flash-sensor.ps1 -BuildOnly
 ```
 
-이번 작업에서 사용한 격리 설치 환경도 저장소의 `.tools/pio`에 남아 있습니다. 이 환경으로 다시 빌드하려면 저장소 루트에서 실행합니다.
+실제 보드에 업로드하려면 먼저 포트를 확인합니다. `COM7`은 예시이므로 ESP32의 USB-UART 포트로 바꿉니다. 업로드 스크립트는 존재하지 않는 포트와 Bluetooth 가상 시리얼 포트를 거절하고, 명시한 포트에만 업로드합니다.
 
 ```powershell
-.\.tools\pio\Scripts\python.exe -m platformio run -d firmware/esp32-ble-sensor
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\flash-sensor.ps1 -ListPorts
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\flash-sensor.ps1 -Port COM7
 ```
 
-새 체크아웃에서는 선택적으로 `backend/venv/Scripts/python.exe -m venv .tools/pio` 후 `.tools/pio/Scripts/python.exe -m pip install platformio==6.1.19`로 같은 CLI 환경을 준비할 수 있습니다. `.tools/`와 빌드 산출물은 Git에 포함하지 않습니다.
+업로드 성공 후 시리얼 모니터도 열려면 `-Port COM7 -Monitor`를 사용합니다. 기본값은 모니터를 열지 않으며 `Ctrl+C`로 종료합니다. 시리얼 모니터의 **세 번째 값**은 가변저항, **네 번째 값**은 FSR입니다. 기존 시리얼 전용 스케치의 CSV도 같은 4열 형식입니다. 웹 앱은 시리얼 포트 대신 3열 BLE notify를 구독합니다.
 
-이 명령은 컴파일만 합니다. 실제 보드에 업로드할 때는 Windows 장치 관리자 또는 `pio device list`로 보드의 포트를 확인한 후, 다음 예시의 `COM5`를 실제 포트로 바꿉니다.
+컴파일 성공은 보드 업로드나 실제 BLE 게임 조작까지 완료했다는 의미가 아닙니다. 빌드·제공된 측정 CSV·실기기 연결의 검증 현황은 [VERIFICATION.md](VERIFICATION.md)에 구분해 기록합니다.
+
+### 측정 CSV로 게임 입력 재현
+
+Node.js가 설치된 개발 PC에서 저장된 측정값을 **실제 SensorService → GameShell → 게임 페이지 코드**로 재생할 수 있습니다. DOM·GATT·시간·최종 저장 경계는 테스트 환경이며, 물리 연결이나 사용자 기록·XP를 생성하지 않습니다. 별도 패키지 설치는 필요 없습니다.
 
 ```powershell
-pio device list
-pio run -d firmware/esp32-ble-sensor -t upload --upload-port COM5
-pio device monitor -d firmware/esp32-ble-sensor --port COM5 --baud 115200
+node scripts/replay-sensor.cjs --file "C:\captures\pressure.csv" --rest 4095 --grip 300 --game all
 ```
 
-시리얼 모니터에서 가변저항을 움직일 때 두 번째 값, FSR에 힘을 줄 때 세 번째 값이 바뀌는지 확인합니다. 시리얼 모니터는 펌웨어 점검 도구입니다. 웹 앱은 시리얼 포트 대신 BLE notify를 구독합니다.
+`--rest`와 `--grip`은 재현에 쓸 두 정수 ADC 기준값을 반드시 명시하는 옵션입니다. 위 숫자는 개발용 예시이며 편안한 쥐기의 측정 결과나 사용자 기본 보정값이 아닙니다. 실제 사용자는 웹 화면에서 직접 보정합니다. `--game`은 `all`, `balloon`, `crane`, `rhythm`, `glide` 중 하나입니다.
 
-2026-09-05 빌드는 성공했고 RAM 12.0%, Flash 86.4%를 사용했습니다. 이 작업에서는 보드에 업로드하지 않았으며, 실제 전압·배선·센서 응답이나 BLE 연결은 검증하지 않았습니다. 최종 증거는 [VERIFICATION.md](VERIFICATION.md)에 있습니다.
+- 3열·4열을 읽고, 부팅 안내·헤더·진단 줄을 측정 행과 구분합니다. 잘못된 행이 있으면 결과를 출력한 뒤 종료 코드 2로 알립니다.
+- 보드 재시작·카운터 역행 구간은 독립 게임으로 재생합니다. 정상 uint32 순환은 같은 구간으로 처리합니다.
+- 50ms마다 가장 최근 측정값을 전달하며 보간하거나 같은 패킷을 반복하지 않습니다. 게임 완료 또는 수동 재개가 필요한 일시정지에서 해당 시나리오를 끝냅니다.
+- JSON 결과의 `forceRange`, `score`, `replayedMs`, `remainingCaptureMs`로 전달된 힘과 진행 범위를 확인합니다. `observedResult`는 메모리에서 관찰한 결과이며 서버·localStorage로 보내지 않습니다.
+
+센서 단계 실험은 게임 목표에 맞춰 움직인 녹화가 아니므로 점수가 낮아도 입력 실패를 뜻하지 않습니다. 원본 CSV와 재생 결과는 Git에 자동 추가되지 않습니다.
 
 ## 2. 웹 앱에서 연결
 

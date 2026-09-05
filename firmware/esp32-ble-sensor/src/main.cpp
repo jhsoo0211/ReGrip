@@ -19,6 +19,7 @@ volatile bool deviceConnected = false;
 volatile bool restartAdvertisingPending = false;
 volatile uint32_t disconnectedAtMs = 0;
 uint32_t nextSampleUs = 0, lastBleMs = 0, sampleTimestampMs = 0;
+uint32_t sampleId = 0;
 uint16_t flexRaw = 0, fsrRaw = 0;
 bool hasSample = false;
 
@@ -47,7 +48,10 @@ void sampleSensors() {
   flexRaw = readAdcStable(FLEX_PIN);
   fsrRaw = readAdcStable(FSR_PIN);
   hasSample = true;
-  Serial.printf("%lu,%u,%u\n", static_cast<unsigned long>(sampleTimestampMs), flexRaw, fsrRaw);
+  // Preserve the USB capture format used by the original 50 Hz measurements.
+  // BLE deliberately omits sample_id to fit the default 20-byte ATT payload.
+  Serial.printf("%lu,%lu,%u,%u\n", static_cast<unsigned long>(sampleId++),
+      static_cast<unsigned long>(sampleTimestampMs), flexRaw, fsrRaw);
 }
 
 void sendBleNotification() {
@@ -83,9 +87,9 @@ void setup() {
   advertising->setScanResponse(true);
   BLEDevice::startAdvertising();
 
-  Serial.println("# ReGrip BLE sensor ready");
+  Serial.println("# ReGrip BLE sensor v2 ready: USB 50 Hz, BLE 20 Hz");
   Serial.println("# GPIO35 potentiometer (flex simulation), GPIO34 pressure");
-  Serial.println("timestamp_ms,flex_raw,fsr_raw");
+  Serial.println("sample_id,timestamp_ms,flex_raw,fsr_raw");
   nextSampleUs = micros();
   lastBleMs = millis();
 }

@@ -56,6 +56,17 @@ Windows Chrome 또는 Edge에서 <http://localhost:3000>을 엽니다. 설정이
 
 Tailwind와 일부 폰트는 CDN을 사용하므로, 인터넷을 완전히 차단한 상태의 최초 화면 로드까지 보장하는 구성은 아닙니다.
 
+### ESP32 펌웨어 반영
+
+처음 한 번 [PlatformIO 도구 환경](firmware/esp32-ble-sensor/README.md)을 준비한 뒤 실행합니다. `COM7`은 실제 ESP32 USB 포트로 바꿉니다.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\flash-sensor.ps1 -ListPorts
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\flash-sensor.ps1 -Port COM7
+```
+
+USB 시리얼은 기존 측정 CSV의 4열을 유지하고, BLE는 게임 입력용 3열을 전송합니다. 연결한 보드 없이 빌드하려면 `-Port COM7` 대신 `-BuildOnly`를 사용합니다. 측정 CSV를 네 게임의 실제 입력 처리 코드에 재생하는 개발 도구는 [CSV 재생 안내](docs/SENSOR_GUIDE.md#측정-csv로-게임-입력-재현)에 정리했습니다.
+
 ### 프런트엔드와 백엔드 함께 실행
 
 먼저 [백엔드 설치 안내](backend/README.md)에 따라 가상환경과 의존성을 준비합니다. 기존 SQLite DB가 있으면 **DB를 삭제하지 말고** API를 중지한 뒤 업그레이드를 확인합니다.
@@ -89,7 +100,7 @@ cd backend
 
 최종 실행 결과와 검증 범위는 [VERIFICATION.md](docs/VERIFICATION.md)를 기준으로 확인합니다. 여기에는 JavaScript 런타임 테스트, API 테스트, 기존 SQLite DB 업그레이드와 재실행, 로컬 HTTP·헬스체크, BLE 펌웨어 빌드 결과를 구분해 기록합니다.
 
-실제 ESP32 업로드·BLE 사용, 실제 브라우저 조작·화면 검수, PostgreSQL 실행은 이번 검증에 포함되지 않았습니다. 서버는 제출 결과로 별점·XP를 재계산하지만, 센서 입력의 진위 자체를 인증하지는 않습니다. 별도 EMG 연구 결과도 현재 게임의 센서 성능을 입증하지 않습니다.
+원시 패킷부터 실제 게임 코드까지의 통합 검사와 측정 CSV 재생을 실행했습니다. Chrome 화면에서는 GATT 연결 부분에 테스트 신호를 주입해 보정·게임 조작을 확인했습니다. 실제 ESP32 업로드·무선 BLE 사용과 PostgreSQL 실행은 아직 별도 확인이 필요합니다. 서버는 제출 결과로 별점·XP를 재계산하지만, 센서 입력의 진위 자체를 인증하지는 않습니다. 별도 EMG 연구 결과도 현재 게임의 센서 성능을 입증하지 않습니다.
 
 ## 문서
 

@@ -1687,8 +1687,11 @@ function renderSensorStatus() {
 // Bind a compact status badge (game headers / settings). Returns an unsubscribe fn.
 function bindSensorBadge(el) {
   if (!el) return () => {};
+  const inputHint = el.closest('header')?.querySelector('.game-hud-hint');
+  const simulationHint = inputHint?.textContent.trim();
   const render = () => {
     const meta = SENSOR_STATUS_META[SensorService.getStatus()] || SENSOR_STATUS_META.simulation;
+    if (inputHint) inputHint.textContent = SensorService.getMode() === 'simulation' ? simulationHint : '센서를 쥐어 조작';
     el.innerHTML = `
       <span style="width:8px;height:8px;border-radius:50%;background:${meta.color};display:inline-block;flex-shrink:0;"></span>
       <span style="color:${meta.color};font-weight:700;">${meta.label}</span>
