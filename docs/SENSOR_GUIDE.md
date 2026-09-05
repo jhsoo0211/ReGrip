@@ -1,6 +1,6 @@
 # 센서 연결·보정 가이드
 
-**대상: Windows Chrome/Edge + ESP32 BLE, 2026-09-05 코드 기준.** 게임은 FSR 압력으로 조작합니다. GPIO35의 가변저항은 flex 센서를 모사한 진단 입력이며 게임을 움직이지 않습니다.
+**대상: Windows Chrome/Edge + ESP32 BLE, 2026-09-06 코드 기준.** 게임은 FSR 압력으로 조작합니다. GPIO35의 가변저항은 flex 센서를 모사한 진단 입력이며 게임을 움직이지 않습니다.
 
 백엔드 없이도 BLE 연결·보정·게임·로컬 기록을 사용할 수 있습니다. 계정 로그인과 서버 동기화가 필요할 때 백엔드를 함께 실행합니다. 기존 제품 디자인은 유지하며 `design-review/`는 실제 센서에 연결하지 않는 별도 목업입니다.
 
@@ -126,6 +126,9 @@ node scripts/replay-sensor.cjs --file "C:\captures\pressure.csv" --rest 4095 --g
 
 | 증상 | 확인할 내용 |
 |---|---|
+| USB를 연결했는데 COM 포트가 없음 | 장치 관리자에서 CP2102 오류 코드 28이면 [Silicon Labs 공식 VCP 드라이버](https://www.silabs.com/software-and-tools/usb-to-uart-bridge-vcp-drivers)를 설치. 드라이버 설치에는 Windows 관리자 승인이 필요함 |
+| 플래시 용량이 Unknown이고 `0xffffffff` 부팅 오류가 반복됨 | USB 전원을 끈 상태에서 외부 배선·브레드보드를 분리해 다시 확인. GPIO12 부팅 상태가 플래시 전압을 바꿀 수 있으므로 [공식 부트 모드 안내](https://docs.espressif.com/projects/esptool/en/latest/esp32/advanced-topics/boot-mode-selection.html)를 확인하고 전압·eFuse를 임의 변경하지 않음 |
+| 실제 USB 포트를 Bluetooth 포트라고 거부함 | 2026-09-06 이전 업로드 스크립트는 Windows PowerShell의 JSON 배열을 중첩해 포트 정보를 섞을 수 있음. 최신 코드를 받은 뒤 실제 USB 포트를 다시 명시 |
 | 장치 선택창이 안 열림 | Windows Chrome/Edge인지, HTTPS 또는 localhost인지, 연결 버튼에서 직접 시작했는지 확인 |
 | 장치가 목록에 없음 | 전원·BLE 펌웨어·장치 이름을 확인하고 다른 연결 앱을 종료한 뒤 다시 검색 |
 | 연결됨인데 시작 불가 | 원시값이 계속 수신되는지와 현재 사용자·기기의 보정 여부 확인 |

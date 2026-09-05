@@ -101,3 +101,27 @@ test('port enumeration failures propagate their code without attempting an uploa
   const r = run({ Port: 'COM3' }, { preflightExit: 9 });
   assert.equal(r.status, 9); assert.equal(r.calls.length, 1); assert.ok(r.calls[0].includes('--json-output'));
 });
+
+test('a USB board is selected independently of Bluetooth ports in the same Windows device list', windows, () => {
+  const ports = [
+    { port: 'COM3', description: 'Bluetooth serial link', hwid: 'BTHENUM\\virtual' },
+    { port: 'COM5', description: 'Silicon Labs CP210x USB to UART Bridge', hwid: 'USB VID:PID=10C4:EA60' },
+  ];
+  const usb = run({ Port: 'COM5' }, { ports });
+  assert.equal(usb.status, 0, usb.stdout + usb.stderr);
+  assert.equal(usb.calls.length, 2);
+  assert.equal(usb.calls[1].at(-1), 'COM5');
+  const bluetooth = run({ Port: 'COM3' }, { ports });
+  assert.notEqual(bluetooth.status, 0);
+  assert.equal(bluetooth.calls.length, 1);
+});
+
+test('duplicate port identities are rejected while a single USB device remains valid', windows, () => {
+  const usb = { port: 'COM5', description: 'USB UART', hwid: 'USB VID:PID=10C4:EA60' };
+  const duplicate = run({ Port: 'COM5' }, { ports: [usb, usb] });
+  assert.notEqual(duplicate.status, 0);
+  assert.equal(duplicate.calls.length, 1);
+  const single = run({ Port: 'COM5' }, { ports: [usb] });
+  assert.equal(single.status, 0, single.stdout + single.stderr);
+  assert.equal(single.calls.length, 2);
+});

@@ -74,7 +74,9 @@ try {
             Write-Host "[sensor] Could not list serial ports (exit $commandExit)."
             exit $commandExit
         }
-        $ports = @(ConvertFrom-Json -InputObject ($portJson -join [Environment]::NewLine))
+        # Windows PowerShell emits a JSON array as one pipeline object. Wrapping
+        # that command in @() nests the device list and mixes every port's identity.
+        $ports = ConvertFrom-Json -InputObject ($portJson -join [Environment]::NewLine)
         $selected = @($ports | Where-Object { $_.port -eq $Port })
         if ($selected.Count -ne 1) {
             throw "Port $Port was not found uniquely. Connect the ESP32 by USB and run -ListPorts again."

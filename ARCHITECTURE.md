@@ -151,7 +151,7 @@ PostgreSQL은 `001_init` → `002_game_types` → `003_signal_catalog` → `004_
 
 ## 구현과 검증의 경계
 
-BLE 펌웨어는 PlatformIO 빌드에 성공했고 RAM 12.0%, Flash 86.4%를 사용했습니다. 실제 보드 업로드·통신 검증은 하지 않았습니다. 코드 테스트와 로컬 서버 HTTP 확인은 실제 브라우저 조작·화면 검수와 구분합니다. 최종 테스트 수와 명령 결과는 [VERIFICATION.md](docs/VERIFICATION.md)에만 기록합니다.
+BLE 펌웨어는 PlatformIO 빌드에 성공했고 RAM 12.0%, Flash 86.4%를 사용했습니다. 2026-09-06에는 센서가 없는 ESP32-D0WD-V3 보드에 업로드하고 USB 50Hz 출력·실제 BLE 약 20Hz 수신·재연결을 확인했습니다. Chrome의 게임 화면 검사는 GATT 연결 부분에 테스트 신호를 주입한 결과이며, 실제 손 압력으로 하는 보정·게임 전체 흐름과 구분합니다. 최종 테스트 수와 명령 결과는 [VERIFICATION.md](docs/VERIFICATION.md)에만 기록합니다.
 
 API·모델에는 `forceSeries` 필드가 있지만 현재 게임 프런트엔드는 1Hz 시계열을 생성·업로드하지 않습니다. 원시 파형 업로드, 별도 시계열 저장소, 기기 인증, 제품 내 ML 추론은 현재 구현에 포함되지 않습니다. NinaPro DB2 기반 EMG 실험은 별도 오프라인 연구이며 FSR 또는 가변저항 모사값의 실시간 분류 경로가 아닙니다. 과거 Stage 3 확장안은 [센서 데이터 정책](docs/backend/04-sensor-data-policy.md)과 [확장 로드맵](docs/backend/05-scaling-roadmap.md)의 계획으로 구분합니다.
 
