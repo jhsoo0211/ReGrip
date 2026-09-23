@@ -19,7 +19,8 @@
       <p class="sensor-panel-error" data-sensor-error role="alert" hidden></p>
       <details class="sensor-diagnostics" ${options.diagnostics ? 'open' : ''}>
         <summary>센서 입력 확인</summary>
-        <div class="sensor-readings"><span>압력 <b data-fsr>—</b> <small data-fsr-unit>ADC</small></span><span>가변 저항 <b data-flex>—</b><small> ADC</small></span></div>
+        <div class="sensor-readings"><span><span data-input-label>압력</span> <b data-fsr>—</b> <small data-fsr-unit>ADC</small></span><span data-flex-reading>가변 저항 <b data-flex>—</b><small> ADC</small></span></div>
+        <div class="sensor-readings" data-finger-readings hidden></div>
         <canvas width="520" height="116" aria-label="압력 센서와 가변 저항 입력 그래프"></canvas>
         <p class="sensor-panel-help" data-plot-help>파랑: 압력 · 보라: 가변저항. 게임 조작에는 압력만 사용합니다.</p>
         <div class="sensor-ws"><label>기존 Wi-Fi 센서 주소<input data-ws-url type="url" placeholder="ws://192.168.4.1:8080" /></label><button type="button" class="sensor-secondary" data-ws-connect>Wi-Fi 연결</button></div>
@@ -28,20 +29,35 @@
     const $ = s => host.querySelector(s);
     const error = $('[data-sensor-error]');
     const frames = [];
-    let destroyed = false, busy = false, plotMode = sensor.getMode();
+    let destroyed = false, busy = false, plotMode = sensor.getMode(), plotChannel = null;
     const canvas = $('canvas'), context = canvas.getContext('2d');
+    function describeInput(sample) {
+      const wifi = sensor.getMode() === 'websocket';
+      const glove = sensor.getMode() === 'ble' && Array.isArray(sample?.fingerRaw);
+      $('[data-input-label]').textContent = glove ? '손가락 평균' : '압력';
+      $('[data-fsr-unit]').textContent = wifi ? '%' : 'ADC';
+      $('[data-flex-reading]').hidden = glove || wifi;
+      $('[data-finger-readings]').hidden = !glove;
+      const names = ['엄지 D0', '검지 D1', '중지 D3', '약지 D4', '소지 D5'];
+      $('[data-finger-readings]').textContent = glove
+        ? sample.fingerRaw.map((v, i) => `${names[i]}: ${v}`).join(' · ') : '';
+      $('[data-plot-help]').textContent = glove
+        ? '엄지: 파랑 · 검지: 초록 · 중지: 주황 · 약지: 보라 · 소지: 분홍. 다섯 입력의 평균을 보정해 게임을 조작합니다.'
+        : wifi ? '파랑: Wi-Fi 센서의 보정 전 압력(%). 이 센서는 가변 저항 값을 전송하지 않습니다.'
+        : '파랑: 압력 · 보라: 가변저항. 게임 조작에는 압력만 사용합니다.';
+      canvas.setAttribute('aria-label', glove ? '다섯 손가락 센서 입력 그래프'
+        : wifi ? 'Wi-Fi 센서 압력 입력 그래프' : '압력 센서와 가변 저항 입력 그래프');
+    }
     const status = () => {
       if (destroyed) return;
       const mode = sensor.getMode(), current = sensor.getStatus();
-      if (mode !== plotMode || current === 'connecting' || current === 'simulation') {
-        frames.length = 0; plotMode = mode;
+      const resetPlot = mode !== plotMode || current === 'connecting' || current === 'simulation';
+      if (resetPlot) {
+        frames.length = 0; plotMode = mode; plotChannel = null;
         $('[data-fsr]').textContent = '—'; $('[data-flex]').textContent = '—';
         if (context) context.clearRect(0, 0, canvas.width, canvas.height);
       }
-      $('[data-fsr-unit]').textContent = mode === 'websocket' ? '%' : 'ADC';
-      $('[data-plot-help]').textContent = mode === 'websocket'
-        ? '파랑: Wi-Fi 센서의 보정 전 압력(%). 이 센서는 가변 저항 값을 전송하지 않습니다.'
-        : '파랑: 압력 · 보라: 가변저항. 게임 조작에는 압력만 사용합니다.';
+      describeInput(resetPlot ? null : sensor.getRawSample());
       $('[data-sensor-status]').textContent = labels[current] || current;
       $('[data-sensor-mode]').textContent = mode === 'ble' ? 'Bluetooth' : mode === 'websocket' ? 'Wi-Fi' : '키보드·터치';
       const needsCal = mode === 'ble' && current === 'connected' && !sensor.isReady();
@@ -57,14 +73,19 @@
     };
     function plot(sample) {
       if (destroyed || !sample) return;
-      const pressure = sensor.getMode() === 'websocket' ? sample.forceRaw : sample.fsrRaw;
+      const glove = Array.isArray(sample.fingerRaw);
+      const pressure = sensor.getMode() === 'websocket' ? sample.forceRaw : glove ? sample.gripRaw : sample.fsrRaw;
+      const channel = glove ? 'finger_mean' : sensor.getMode();
+      if (channel !== plotChannel) { frames.length = 0; plotChannel = channel; }
+      describeInput(sample);
       $('[data-fsr]').textContent = pressure == null ? '—' : String(Math.round(pressure));
       $('[data-flex]').textContent = sample.flexRaw == null ? '—' : String(Math.round(sample.flexRaw));
-      frames.push({ pressure, flex: sample.flexRaw }); if (frames.length > 100) frames.shift();
+      frames.push({ pressure, flex: sample.flexRaw, ...(glove ? Object.fromEntries(sample.fingerRaw.map((v, i) => ['finger'+i, v])) : {}) }); if (frames.length > 100) frames.shift();
       if (!context) return;
       context.clearRect(0, 0, canvas.width, canvas.height);
       const max = sensor.getMode() === 'websocket' ? 100 : 4095;
-      for (const [field, color] of [['pressure','#2863aa'],['flex','#8861ba']]) {
+      const traces = glove ? ['#2863aa','#17815d','#c5641e','#8861ba','#b33e70'].map((color, i) => ['finger'+i, color]) : [['pressure','#2863aa'],['flex','#8861ba']];
+      for (const [field, color] of traces) {
         context.beginPath(); context.strokeStyle = color; context.lineWidth = 2;
         let started = false;
         frames.forEach((f, i) => { if (!Number.isFinite(f[field])) return; const x=i*canvas.width/99, y=canvas.height-6-f[field]/max*(canvas.height-12); if(!started) { context.moveTo(x,y); started=true; } else context.lineTo(x,y); });

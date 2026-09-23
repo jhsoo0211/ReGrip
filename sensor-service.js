@@ -10,9 +10,22 @@
   const CAL_PREFIX = 'regrip_sensor_calibration_v2:';
   const FRESH_MS = 500, FILTER_MS = 80, CAPTURE_MS = 1000, MIN_SPAN = 64;
   const clamp = value => Math.max(0, Math.min(100, value));
-  const clone = value => value ? { ...value } : null;
+  const clone = value => value ? { ...value, ...(value.fingerRaw ? { fingerRaw: [...value.fingerRaw] } : {}) } : null;
+  const inputChannel = sample => sample?.fingerRaw ? 'finger_mean' : 'fsr';
+  const inputValue = sample => sample?.fingerRaw ? sample.gripRaw : sample?.fsrRaw;
 
   function parseBlePacket(payload) {
+    if (ArrayBuffer.isView(payload) || payload instanceof ArrayBuffer) {
+      const view = ArrayBuffer.isView(payload)
+        ? new DataView(payload.buffer, payload.byteOffset, payload.byteLength) : new DataView(payload);
+      if (view.byteLength === 18 && view.getUint8(0) === 0x52 && view.getUint8(1) === 0x47) {
+        if (view.getUint8(2) !== 1 || view.getUint8(3) !== 5) return null;
+        const fingerRaw = Array.from({ length: 5 }, (_, i) => view.getUint16(8 + i * 2, true));
+        if (fingerRaw.some(value => value > 4095)) return null;
+        return { timestampMs: view.getUint32(4, true), fingerRaw,
+          gripRaw: fingerRaw.reduce((sum, value) => sum + value, 0) / 5 };
+      }
+    }
     let text;
     try {
       text = typeof payload === 'string' ? payload : new TextDecoder('utf-8', { fatal: true }).decode(payload);
@@ -25,7 +38,7 @@
   }
 
   function validBleCalibration(cal) {
-    return cal && cal.version === 2 && cal.source === 'ble' && cal.unit === 'adc_12bit' && cal.channel === 'fsr'
+    return cal && cal.version === 2 && cal.source === 'ble' && cal.unit === 'adc_12bit' && ['fsr', 'finger_mean'].includes(cal.channel)
       && [cal.baseline0, cal.baseline100].every(v => Number.isFinite(v) && v >= 0 && v <= 4095)
       && Math.abs(cal.baseline100 - cal.baseline0) >= MIN_SPAN
       && typeof cal.capturedAt === 'string' && Number.isFinite(Date.parse(cal.capturedAt));
@@ -98,7 +111,7 @@
         const stored = key ? read(key) : null;
         bleCalibration = validBleCalibration(stored) ? stored : null;
       }
-      return clone(bleCalibration);
+      return raw && bleCalibration?.channel !== inputChannel(raw) ? null : clone(bleCalibration);
     }
     function getCalibration() { return ensureOwner() ? (mode === 'ble' ? currentBleCalibration() : mode === 'websocket' ? clone(legacyCalibration) : null) : null; }
     function abortCapture(message) { if (captureTask) captureTask.fail(new Error(message)); }
@@ -137,6 +150,10 @@
       if (lastTimestamp !== null && sample.timestampMs !== null) {
         const delta = (sample.timestampMs - lastTimestamp) >>> 0;
         if (delta === 0 || delta > 2147483647) return;
+      }
+      if (raw && inputChannel(raw) !== inputChannel(sample)) {
+        abortCapture('센서 입력 종류가 바뀌었습니다. 다시 보정하세요.');
+        filteredAt = null;
       }
       const receivedAt = now(), wasFresh = isFresh();
       lastTimestamp = sample.timestampMs;
@@ -187,7 +204,7 @@
         packetListener = event => {
           if (!current()) return;
           const sample = parseBlePacket(event.target.value);
-          if (sample) accept(sample, sample.fsrRaw);
+          if (sample) accept(sample, inputValue(sample));
         };
         disconnectListener = () => handleLost(expectedGeneration, expectedAttempt);
         selected.addEventListener('gattserverdisconnected', disconnectListener);
@@ -282,9 +299,9 @@
           for (const sample of samples) { maxGap = Math.max(maxGap, sample.receivedAt - previous); previous = sample.receivedAt; }
           maxGap = Math.max(maxGap, endedAt - previous);
           if (maxGap > 150) { fail(new Error('센서 수신 간격이 불안정합니다. 다시 측정하세요.')); return; }
-          const values = samples.map(s => s.fsrRaw).sort((a, b) => a - b);
+          const values = samples.map(inputValue).sort((a, b) => a - b);
           const quantile = p => { const index = (values.length - 1) * p, low = Math.floor(index); return values[low] + (values[Math.ceil(index)] - values[low]) * (index - low); };
-          const result = { baseline: quantile(0.5), spread: quantile(0.95) - quantile(0.05), sampleCount: samples.length, deviceKey, userKey, startedAt, endedAt, connectionId };
+          const result = { baseline: quantile(0.5), spread: quantile(0.95) - quantile(0.05), sampleCount: samples.length, deviceKey, userKey, startedAt, endedAt, connectionId, channel: inputChannel(raw) };
           finish(); resolve(result);
         }, CAPTURE_MS);
       });
@@ -293,6 +310,7 @@
       if (!ensureOwner()) throw ownerError();
       if (mode !== 'ble' || !device || !isFresh()) throw new Error('최신 센서 수신이 필요합니다. 다시 연결하세요.');
       for (const capture of [rest, squeeze]) {
+        if ((capture?.channel || 'fsr') !== inputChannel(raw)) throw new Error('센서 입력 종류가 바뀌었습니다. 다시 보정하세요.');
         if (!capture || capture.deviceKey !== device.id || capture.userKey !== getUserKey() || capture.connectionId !== attemptId) {
           throw new Error('보정 중 기기 또는 사용자가 바뀌었습니다. 다시 측정하세요.');
         }
@@ -303,11 +321,11 @@
       const span = Math.abs(squeeze.baseline - rest.baseline);
       if (span < MIN_SPAN) throw new Error('두 기준의 차이가 64 ADC 미만입니다. 센서 접촉을 확인하고 다시 측정하세요.');
       if (rest.spread > span * 0.2 || squeeze.spread > span * 0.2) throw new Error('센서 값의 흔들림이 큽니다. 안정된 자세에서 다시 측정하세요.');
-      const snapshot = { version: 2, source: 'ble', unit: 'adc_12bit', channel: 'fsr', baseline0: rest.baseline, baseline100: squeeze.baseline, capturedAt: wallNow().toISOString() };
+      const snapshot = { version: 2, source: 'ble', unit: 'adc_12bit', channel: inputChannel(raw), baseline0: rest.baseline, baseline100: squeeze.baseline, capturedAt: wallNow().toISOString() };
       const key = calibrationKey();
       if (!write(key, snapshot)) throw new Error('이 브라우저에 보정을 저장하지 못했습니다. 저장 공간 설정을 확인하세요.');
       cachedCalKey = key; bleCalibration = snapshot;
-      force = normalize(raw.fsrRaw); filteredAt = now();
+      force = normalize(inputValue(raw)); filteredAt = now();
       emit(forceListeners, force); emit(statusListeners, status);
       return clone(snapshot);
     }

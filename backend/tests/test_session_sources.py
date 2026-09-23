@@ -30,13 +30,16 @@ def payload(source="unknown", **overrides):
     return result
 
 
-def test_ble_snapshot_roundtrip_and_idempotent_replay(client):
+@pytest.mark.parametrize("channel", ["fsr", "finger_mean"])
+def test_ble_snapshot_roundtrip_and_idempotent_replay(client, channel):
     _, headers = register_and_auth(client)
     body = payload("ble")
+    body["calibrationSnapshot"]["channel"] = channel
     first = client.post("/api/v1/users/me/sessions", headers=headers, json=body)
     assert first.status_code == 201, first.text
     stored = first.json()["session"]
     assert stored["inputSource"] == "ble"
+    assert stored["calibrationSnapshot"]["channel"] == channel
     assert stored["calibrationSnapshot"]["baseline0"] == 3000
     assert stored["calibrationSnapshot"]["baseline100"] == 1000
     body["calibrationSnapshot"]["baseline0"] = 3100

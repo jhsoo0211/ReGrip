@@ -24,7 +24,7 @@ class CalibrationSnapshot(CamelModel):
     version: Literal[2]
     source: Literal["ble"]
     unit: Literal["adc_12bit"]
-    channel: Literal["fsr"]
+    channel: Literal["fsr", "finger_mean"]
     baseline0: float = Field(ge=0, le=4095, allow_inf_nan=False)
     baseline100: float = Field(ge=0, le=4095, allow_inf_nan=False)
     captured_at: AwareDatetime

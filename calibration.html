@@ -149,7 +149,7 @@
     <section class="flex-1 p-8 md:p-10 border-b md:border-b-0 md:border-r border-surface-container flex flex-col justify-between">
       <div>
         <h1 class="font-display text-4xl font-bold mb-1 tracking-tight">캘리브레이션 룸</h1>
-        <p class="text-cool-gray text-base mb-6">압력 센서의 이완·편안한 쥐기 기준을 설정합니다.</p>
+        <p class="text-cool-gray text-base mb-6">손을 편 상태와 편안하게 쥔 상태의 센서 기준을 설정합니다.</p>
 
         <div id="calibration-sensor-controls" class="mb-6"></div>
         <!-- Existing calibration (populated on load if a record exists) -->
@@ -280,7 +280,7 @@
     start.disabled=busy||!sensor.isReady();
     start.textContent=mode==='simulation'?'시뮬레이션으로 연습하기':'운동 시작하기';
     start.classList.toggle('unlocked',!start.disabled);
-    $('sim-hint').textContent=mode==='simulation'?'센서 없이 조작을 연습할 수 있습니다. 센서 보정은 연결 후 진행해 주세요.':'실제 압력 센서 입력입니다. 표시 값은 kg 단위가 아닙니다.';
+    $('sim-hint').textContent=mode==='simulation'?'센서 없이 조작을 연습할 수 있습니다. 센서 보정은 연결 후 진행해 주세요.':!connected?'센서 연결 후 입력값을 확인하고 보정해 주세요.':sensor.getRawSample()?.fingerRaw?'다섯 손가락 입력의 평균으로 쥐기를 조작합니다. 표시 값은 힘이나 각도 단위가 아닙니다.':'실제 압력 센서 입력입니다. 표시 값은 kg 단위가 아닙니다.';
     const cal=sensor.getCalibration();
     $('existing-cal').classList.toggle('hidden',!cal);
     if(cal)$('existing-cal-detail').textContent=`저장된 기준: 이완 ${Math.round(cal.baseline0)} / 편안한 쥐기 ${Math.round(cal.baseline100)} ${mode==='ble'?'ADC':'%'}`;
@@ -291,8 +291,8 @@
     $('live-meter-fill').style.height=Math.max(0,Math.min(100,force))+'%';
     $('live-value').textContent=Math.round(force)+'%';
     if(sample && typeof sample==='object'){
-      const raw=sensor.getMode()==='websocket'?sample.forceRaw:sample.fsrRaw;
-      $('calibration-raw').textContent=Number.isFinite(raw)?`압력 원본값 ${Math.round(raw)} ${sensor.getMode()==='ble'?'ADC':'%'}`:'';
+      const raw=sensor.getMode()==='websocket'?sample.forceRaw:sample.fingerRaw?sample.gripRaw:sample.fsrRaw;
+      $('calibration-raw').textContent=Number.isFinite(raw)?`${sample.fingerRaw?'손가락 평균':'압력 원본값'} ${Math.round(raw)} ${sensor.getMode()==='ble'?'ADC':'%'}`:'';
     }
   }
   function mark(n){

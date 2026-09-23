@@ -6,6 +6,52 @@ const { createSensorService, parseBlePacket } = require('../sensor-service');
 const SERVICE = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
 const TX = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
 const flush = async () => { for (let n = 0; n < 12; n++) await Promise.resolve(); };
+function glovePacket(timestamp, fingers) {
+  const bytes = new Uint8Array(18), view = new DataView(bytes.buffer);
+  bytes.set([0x52, 0x47, 1, 5]); view.setUint32(4, timestamp, true);
+  fingers.forEach((value, i) => view.setUint16(8 + i * 2, value, true));
+  return view;
+}
+function sendGlove(h, timestamp, fingers) {
+  h.device.characteristic.value = glovePacket(timestamp, fingers);
+  h.device.characteristic.dispatchEvent(new Event('characteristicvaluechanged'));
+}
+
+test('XIAO five-finger packet preserves every raw channel without inventing pressure', () => {
+  const bytes = glovePacket(4294967295, [100, 200, 300, 400, 500]);
+  const offset = new Uint8Array(22); offset.set(new Uint8Array(bytes.buffer), 2);
+  assert.deepEqual(parseBlePacket(new DataView(offset.buffer, 2, 18)), {
+    timestampMs: 4294967295, fingerRaw: [100, 200, 300, 400, 500], gripRaw: 300,
+  });
+  assert.equal(parseBlePacket(glovePacket(1, [0, 0, 4096, 0, 0])), null);
+  assert.equal(parseBlePacket(new DataView(bytes.buffer, 0, 17)), null);
+  bytes.setUint8(2, 2); assert.equal(parseBlePacket(bytes), null);
+});
+
+test('five-finger BLE input uses measured calibration and records finger_mean provenance', async () => {
+  const h = setup(); await h.service.connectBle();
+  let timestamp = 1;
+  sendGlove(h, timestamp, [400, 500, 600, 700, 800]);
+  assert.equal(h.service.isReady(), false);
+  async function captureFingers(fingers) {
+    const pending = h.service.captureBaseline();
+    for (let i = 0; i < 20; i++) { await h.clock.advance(45); timestamp += 45; sendGlove(h, timestamp, fingers); }
+    await h.clock.advance(100); return pending;
+  }
+  const rest = await captureFingers([400, 500, 600, 700, 800]);
+  const grip = await captureFingers([1400, 1500, 1600, 1700, 1800]);
+  h.service.saveBleCalibration(rest, grip);
+  assert.equal(h.service.getCalibration().channel, 'finger_mean');
+  assert.equal(h.service.getCalibration().baseline0, 600);
+  assert.equal(h.service.getForce(), 100);
+  assert.equal(h.service.isReady(), true);
+  assert.equal(h.service.getRawSample().fsrRaw, undefined);
+  assert.equal(h.service.getSessionContext().calibrationSnapshot.channel, 'finger_mean');
+  // A different wire format must not inherit a five-finger calibration.
+  h.device.send(`${timestamp + 100},100,1600`);
+  assert.equal(h.service.isReady(), false);
+  h.service.disconnect();
+});
 function makeClock() {
   let time = 1, nextId = 0;
   const timers = new Map();
@@ -110,6 +156,41 @@ test('malformed and duplicate notifications cannot keep frozen input fresh', asy
   await h.clock.advance(200);
   assert.equal(h.service.getStatus(), 'stale'); assert.equal(h.service.isReady(), false);
   h.device.send('501,100,250'); assert.equal(h.service.getStatus(), 'connected');
+  h.service.disconnect();
+});
+
+for (const timestamp of [99, 100]) {
+  test(`rejected glove timestamp ${timestamp} cannot cancel an FSR capture or reset filtering`, async () => {
+    const h = setup(); await h.service.connectBle(); h.device.send('100,0,0');
+    const pending = capture(h, 4095, 180);
+    sendGlove(h, timestamp, [1000, 1000, 1000, 1000, 1000]);
+    assert.equal(h.service.getRawSample().timestampMs, 100);
+    const rest = await pending;
+    assert.equal(rest.channel, 'fsr'); assert.equal(rest.sampleCount, 20);
+    assert.equal(rest.baseline, 4095);
+    h.service.disconnect();
+
+    const filtered = setup(); await filtered.service.connectBle(); filtered.device.send('100,0,0');
+    sendGlove(filtered, timestamp, [1000, 1000, 1000, 1000, 1000]);
+    await filtered.clock.advance(80); filtered.device.send('180,0,4095');
+    assert.ok(Math.abs(filtered.service.getForce() - 63.212055882855765) < 1e-9);
+    filtered.service.disconnect();
+  });
+}
+
+test('an accepted sensor-channel change cancels capture and cannot reuse another channel calibration', async () => {
+  const h = setup(); await connect(h);
+  const rest = await capture(h, 500), squeeze = await capture(h, 2500, 2000);
+  h.service.saveBleCalibration(rest, squeeze);
+  const pending = h.service.captureBaseline();
+  const rejected = assert.rejects(pending, /입력 종류/);
+  sendGlove(h, 3000, [500, 500, 500, 500, 500]);
+  await rejected;
+  assert.equal(h.service.getCalibration(), null);
+  assert.equal(h.service.isReady(), false);
+  assert.throws(() => h.service.saveBleCalibration(rest, squeeze), /입력 종류/);
+  const read = h.service.getRawSample(); read.fingerRaw[0] = 4095;
+  assert.equal(h.service.getRawSample().fingerRaw[0], 500);
   h.service.disconnect();
 });
 

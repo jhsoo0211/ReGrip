@@ -1,6 +1,6 @@
 # ReGrip 아키텍처
 
-**2026-09-05 코드 기준.** 현재 제품은 정적 HTML 13개와 공통 JavaScript, FastAPI API, SQLite 개발 DB로 구성됩니다. ESP32 BLE의 FSR 압력으로 게임을 조작하며, 가변저항으로 모사한 flex 값은 진단용으로만 표시합니다. 기존 제품 디자인을 유지하고 `design-review/` 목업은 제품과 분리합니다.
+**2026-09-23 코드 기준.** 현재 제품은 정적 HTML 13개와 공통 JavaScript, FastAPI API, SQLite 개발 DB로 구성됩니다. ESP32 BLE의 FSR 압력 또는 XIAO ESP32-S3 장갑의 다섯 손가락 평균 입력으로 게임을 조작합니다. 기존 FSR 보드의 가변저항 flex 모사값은 진단용으로만 표시합니다. 기존 제품 디자인을 유지하고 `design-review/` 목업은 제품과 분리합니다.
 
 이 문서가 현재 구현의 기준입니다. 이전 설계 문서의 WebSocket 우선 전송, 12개 페이지, 향후 시계열·확장 계획은 현재 구현과 구분해서 읽습니다. 실행·테스트 증거는 [검증 기록](docs/VERIFICATION.md), 사용자 연결 절차는 [센서 가이드](docs/SENSOR_GUIDE.md)에 있습니다.
 
@@ -13,6 +13,7 @@ flowchart TB
         P["가변저항 · GPIO35"] --> ADC
         ADC --> BLE["BLE notify · 최신 샘플 20Hz"]
     end
+    XIAO["XIAO ESP32-S3 · 다섯 손가락 ADC"] -->|"18바이트 BLE · 20Hz"| SS
     subgraph Browser["Windows Chrome / Edge"]
         BLE --> SS["sensor-service.js · 수신 검증 / 보정 / 필터 / 신선도"]
         WS["기존 WebSocket"] --> SS
@@ -36,13 +37,14 @@ flowchart TB
 |---|---|
 | 루트 HTML 13개 | `index`, `login`, `profile`, `settings`, `calibration`, `training`, 게임 4개, `history`, `achievements`, `level` |
 | `sensor-service.js` | BLE·WebSocket·시뮬레이션의 입력 인터페이스, 보정, 필터, 재연결, 수신 상태 |
-| `sensor-ui.js` | 설정·게임 준비 화면의 연결 UI와 FSR/flex 모사 원시값 그래프 |
+| `sensor-ui.js` | 설정·게임 준비 화면의 연결 UI와 FSR/flex 또는 다섯 손가락 원시값 그래프 |
 | `shared.js` | DataService, GameShell, 난이도, 공통 UI·보상·기록 유틸리티 |
 | `game-*.html` | DOM/SVG 렌더링과 게임별 판정·점수·세트 상세; rAF 루프 |
 | `backend/src/api`, `schemas` | HTTP 경계, 인증·소유권·입력 검증 |
 | `backend/src/services` | 세션 트랜잭션, 보상·업적 계산, 아바타 저장 |
 | `backend/src/models`, `migrations` | ORM 모델과 PostgreSQL SQL 마이그레이션 |
 | `firmware/esp32-ble-sensor` | 현재 BLE 2채널 원시 ADC 펌웨어 |
+| `firmware/xiao-glove` | XIAO ESP32-S3 5채널 원시 ADC, BLE 바이너리·USB CSV 펌웨어 |
 | `firmware/esp32-grip-sensor` | 기존 Wi-Fi WebSocket 펌웨어 |
 | `backend/scripts/ml` | 제품과 연결되지 않은 오프라인 EMG 연구 |
 
@@ -50,22 +52,24 @@ flowchart TB
 
 ## 센서 입력과 보정
 
-BLE 패킷은 `timestamp_ms,flex_raw,fsr_raw`의 ASCII CSV입니다. ADC는 0~4095이고 장치 타임스탬프는 uint32 밀리초입니다. ESP32는 채널별 50Hz로 측정하고 최신 샘플을 BLE로 20Hz 전송합니다. USB 시리얼은 기존 수집 형식인 `sample_id,timestamp_ms,flex_raw,fsr_raw` 4열로 50Hz 출력하며, 브라우저 Web Serial 연결은 구현하지 않았습니다. `scripts/replay-sensor.cjs`는 이 로그를 20Hz 패킷으로 읽어 실제 센서 서비스와 게임 코드를 실행하는 개발용 검사 도구이며, 저장은 메모리 경계에서 관찰합니다.
+기존 FSR 보드의 BLE 패킷은 `timestamp_ms,flex_raw,fsr_raw`의 ASCII CSV입니다. ADC는 0~4095이고 장치 타임스탬프는 uint32 밀리초입니다. ESP32는 채널별 50Hz로 측정하고 최신 샘플을 BLE로 20Hz 전송합니다. USB 시리얼은 기존 수집 형식인 `sample_id,timestamp_ms,flex_raw,fsr_raw` 4열로 50Hz 출력하며, 브라우저 Web Serial 연결은 구현하지 않았습니다. `scripts/replay-sensor.cjs`는 이 로그를 20Hz 패킷으로 읽어 실제 센서 서비스와 게임 코드를 실행하는 개발용 검사 도구이며, 저장은 메모리 경계에서 관찰합니다.
 
-서비스는 형식·범위를 벗어난 패킷과 중복·역순 타임스탬프를 거부하고, uint32 롤오버는 허용합니다. 거부한 패킷으로 수신 신선도를 갱신하지 않습니다. 유효 패킷 수신 후 500ms가 지나면 `stale` 상태가 됩니다.
+XIAO 장갑은 엄지 D0(GPIO1), 검지 D1(GPIO2), 중지 D3(GPIO4), 약지 D4(GPIO5), 소지 D5(GPIO6)를 같은 측정·전송 주기로 읽습니다. BLE는 `52 47 01 05` 헤더, little-endian uint32 시각, uint16 ADC 5개로 구성된 18바이트 패킷입니다. USB는 표본 번호·시각·손가락 5개의 7열 CSV이며 기존 3·4열 재생 CLI의 대상이 아닙니다. 정확한 계약은 [장갑 펌웨어 안내](firmware/xiao-glove/README.md)에 있습니다.
 
-BLE 게임 입력은 FSR만 사용합니다. 보정 결과를 다음 식으로 0~100%로 변환한 뒤 시간 상수 80ms의 지수 필터를 적용합니다.
+서비스는 형식·범위를 벗어난 패킷과 중복·역순 타임스탬프를 거부하고, uint32 롤오버는 허용합니다. 거부한 패킷으로 수신 신선도·필터·진행 중인 보정을 변경하지 않습니다. 유효 패킷 수신 후 500ms가 지나면 `stale` 상태가 됩니다.
+
+기존 보드의 게임 입력은 FSR이고, XIAO 장갑은 다섯 ADC의 산술평균입니다. 이를 `input_raw`로 두고 보정 결과를 다음 식으로 0~100%로 변환한 뒤 시간 상수 80ms의 지수 필터를 적용합니다. 장갑 평균은 압력이나 손가락 각도의 물리 측정값이 아닙니다.
 
 ```text
-normalized = clamp((fsr_raw - baseline0) / (baseline100 - baseline0) × 100, 0, 100)
+normalized = clamp((input_raw - baseline0) / (baseline100 - baseline0) × 100, 0, 100)
 filtered += (normalized - filtered) × (1 - exp(-deltaMs / 80))
 ```
 
 `baseline0`은 손에 힘을 뺀 상태, `baseline100`은 편안하게 쥔 상태의 기준입니다. 압력 증가 시 ADC가 증가하거나 감소하는 회로를 모두 지원합니다. 이 값은 개인 보정 기준 대비 비율이며, 절대 힘 단위로 환산한 값은 아닙니다.
 
-각 기준은 버튼을 누른 뒤 1초 동안 새로 수신한 FSR 표본의 중앙값입니다. 단계당 유효 표본 15개 이상, 수신 간격 150ms 이하를 요구합니다. 두 중앙값의 차이는 절댓값 64 ADC 이상이고, 각 단계의 P95-P5 폭은 기준 차이의 20% 이하여야 합니다. 연결·사용자·기기가 바뀌거나 수신이 중단되면 캡처를 취소합니다. 로컬 저장에 실패하면 보정 완료로 처리하지 않습니다.
+각 기준은 버튼을 누른 뒤 1초 동안 새로 수신한 게임 입력 표본의 중앙값입니다. 단계당 유효 표본 15개 이상, 수신 간격 150ms 이하를 요구합니다. 두 중앙값의 차이는 절댓값 64 ADC 이상이고, 각 단계의 P95-P5 폭은 기준 차이의 20% 이하여야 합니다. 연결·사용자·기기·입력 채널이 바뀌거나 수신이 중단되면 캡처를 취소합니다. 로컬 저장에 실패하면 보정 완료로 처리하지 않습니다.
 
-보정은 브라우저 사용자와 BLE 기기 ID별로 저장합니다. 기존 `regrip_calibration`의 논리값 보정을 BLE 원시 ADC에 재사용하지 않습니다. 본편에 보관하는 스냅샷은 다음과 같습니다.
+보정은 브라우저 사용자와 BLE 기기 ID별로 저장합니다. 현재 패킷의 채널과 보정의 `channel`이 일치해야 게임을 시작할 수 있습니다. 기존 `regrip_calibration`의 논리값 보정을 BLE 원시 ADC에 재사용하지 않습니다. 본편에 보관하는 FSR 스냅샷은 다음과 같으며, 장갑은 같은 구조에 `channel: finger_mean`을 저장합니다. 증가·감소하는 평균을 모두 지원하지만 손가락마다 극성이 반대인 회로에는 별도의 개별 보정 모델이 필요합니다.
 
 ```json
 {

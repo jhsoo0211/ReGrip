@@ -16,10 +16,13 @@ function runtime(initialMode = 'ble', calibrationPage = false) {
       this.style = {}; this.textContent = ''; this.hidden = false; this.disabled = false; this.value = '';
       this.classes = new Set(); this.selectors = new Map(); this.width = 520; this.height = 116;
       this.classList = { add: (...a) => a.forEach(v => this.classes.add(v)), remove: (...a) => a.forEach(v => this.classes.delete(v)), contains: v => this.classes.has(v), toggle: (v, on) => on ? this.classes.add(v) : this.classes.delete(v) };
-      this.lines = []; this.context = { clearRect() {}, beginPath() {}, moveTo: (...p) => this.lines.push(p), lineTo: (...p) => this.lines.push(p), stroke() {} };
+      this.attributes = new Map();
+      this.lines = []; this.context = { clearRect: () => { this.lines.length = 0; }, beginPath() {}, moveTo: (...p) => this.lines.push(p), lineTo: (...p) => this.lines.push(p), stroke() {} };
     }
     querySelector(selector) { if (!this.selectors.has(selector)) this.selectors.set(selector, new Element()); return this.selectors.get(selector); }
     getContext() { return this.context; }
+    setAttribute(name, value) { this.attributes.set(name, value); }
+    getAttribute(name) { return this.attributes.get(name); }
     removeAttribute() {}
   }
   const document = { getElementById: id => { if (!elements.has(id)) elements.set(id, new Element()); return elements.get(id); } };
@@ -61,13 +64,41 @@ function runtime(initialMode = 'ble', calibrationPage = false) {
     calls, sensor, host, elements, context, document,
     emitStatus, setMode(value) { mode = value; emitStatus('connecting'); },
     emit(event, details = {}) { for (const f of [...(events.get(event) || [])]) f(details); },
-    sample(value) { now += 50; force = value; raw = mode === 'websocket' ? { forceRaw: value, fsrRaw: null, flexRaw: null, receivedAt: now } : { fsrRaw: value, flexRaw: 1000, receivedAt: now }; for (const f of [...rawListeners]) f(raw); for (const f of [...forceListeners]) f(force); },
+    sample(value, fingerRaw = null) { now += 50; force = value; raw = mode === 'websocket' ? { forceRaw: value, fsrRaw: null, flexRaw: null, receivedAt: now } : fingerRaw ? { fingerRaw, gripRaw: fingerRaw.reduce((sum, v) => sum + v, 0) / 5, receivedAt: now } : { fsrRaw: value, flexRaw: 1000, receivedAt: now }; for (const f of [...rawListeners]) f(raw); for (const f of [...forceListeners]) f(force); },
     finishTimer() { const due = timers.filter(t => t.at <= now); for (const timer of due) { timers.splice(timers.indexOf(timer), 1); timer.f(); } },
     capture(n) { return sandbox.captureBaseline(n); },
     element: id => document.getElementById(id),
   };
 }
 const flush = async () => { for (let i = 0; i < 6; i++) await Promise.resolve(); };
+
+test('glove diagnostics retain channel labels through status updates and reset for FSR and Wi-Fi', async () => {
+  const r = runtime('ble'); await flush();
+  const el = selector => r.host.querySelector(selector);
+  r.sample(50, [100, 200, 300, 400, 500]);
+  assert.equal(el('[data-fsr]').textContent, '300');
+  assert.match(el('[data-finger-readings]').textContent, /엄지 D0: 100.*소지 D5: 500/);
+  assert.equal(el('[data-flex-reading]').hidden, true);
+  assert.equal(el('canvas').lines.length, 5);
+  for (const status of ['connected', 'stale', 'disconnected']) {
+    r.emitStatus(status);
+    assert.match(el('[data-plot-help]').textContent, /다섯 입력/);
+    assert.equal(el('canvas').getAttribute('aria-label'), '다섯 손가락 센서 입력 그래프');
+  }
+  r.emitStatus('connected'); r.sample(1200);
+  assert.match(el('[data-plot-help]').textContent, /게임 조작에는 압력만/);
+  assert.equal(el('canvas').getAttribute('aria-label'), '압력 센서와 가변 저항 입력 그래프');
+  assert.equal(el('[data-finger-readings]').hidden, true);
+  assert.equal(el('[data-flex-reading]').hidden, false);
+  assert.equal(el('canvas').lines.length, 2, 'Previous glove frames must not join the FSR plot');
+  r.sample(50, [100, 200, 300, 400, 500]);
+  r.setMode('websocket'); r.sample(60);
+  assert.equal(el('[data-input-label]').textContent, '압력');
+  assert.equal(el('[data-fsr-unit]').textContent, '%');
+  assert.equal(el('[data-flex-reading]').hidden, true);
+  assert.equal(el('canvas').getAttribute('aria-label'), 'Wi-Fi 센서 압력 입력 그래프');
+  assert.match(el('[data-plot-help]').textContent, /Wi-Fi/);
+});
 
 test('Wi-Fi diagnostics and calibration use forceRaw in percent, before legacy normalization', async () => {
   const r = runtime('websocket', true); await flush();

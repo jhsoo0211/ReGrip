@@ -24,6 +24,22 @@ function assertSavedBle(h, calibration) {
 }
 
 for (const game of GAMES) {
+  test(`${game}: five-finger glove packets drive actual game force after measured calibration`, async t => {
+    const h = createBleGameRuntime(game, { fiveFingers: true });
+    t.after(() => h.dispose());
+    await h.connect();
+    const calibration = await h.calibrate();
+    assert.equal(calibration.channel, 'finger_mean');
+    await h.start();
+    await h.feed(800, SQUEEZE_RAW);
+    assert.ok(h.r.run('gripForce') > 99);
+    assert.equal(h.r.run('gripForce'), h.r.sensor.getForce());
+    assert.deepEqual(h.r.sensor.getRawSample().fingerRaw, Array(5).fill(SQUEEZE_RAW));
+    await h.feed(1000, REST_RAW);
+    assert.ok(h.r.run('gripForce') < 0.01);
+    assert.equal(assertSavedBle(h, calibration).calibrationSnapshot.channel, 'finger_mean');
+  });
+
   test(`${game}: real BLE service gates start and maps decreasing FSR, while flex and keyboard cannot supply force`, async t => {
     const h = setup(game, t), { r } = h;
     await r.sensor.connectBle();

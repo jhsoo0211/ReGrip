@@ -69,7 +69,7 @@ function bleBoundary() {
       getDevices: async () => [device],
     } },
     send(csv) {
-      characteristic.value = new DataView(new TextEncoder().encode(csv).buffer);
+      characteristic.value = csv instanceof DataView ? csv : new DataView(new TextEncoder().encode(csv).buffer);
       characteristic.dispatchEvent(new Event('characteristicvaluechanged'));
     },
   };
@@ -103,7 +103,13 @@ function createBleGameRuntime(game, options = {}) {
   });
   const emit = (fsr, flex = 1024) => {
     lastCsv = `${clock.now()},${flex},${fsr}`;
-    ble.send(lastCsv);
+    if (options.fiveFingers) {
+      const view = new DataView(new ArrayBuffer(18));
+      [0x52, 0x47, 1, 5].forEach((v, i) => view.setUint8(i, v));
+      view.setUint32(4, clock.now(), true);
+      for (let i = 0; i < 5; i++) view.setUint16(8 + i * 2, fsr, true);
+      ble.send(view);
+    } else ble.send(lastCsv);
   };
   // One notification and one animation frame per 50ms. This deliberately models
   // a supported low-FPS browser without accelerating the 20Hz firmware stream.
