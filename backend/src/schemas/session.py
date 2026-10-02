@@ -7,7 +7,8 @@ from pydantic import Field, field_validator, model_validator
 
 from .base import CamelModel
 from .provenance import (
-    CalibrationSnapshot, Difficulty, ForcePercent, Hand, InputSource, UUIDString, normalize_difficulty,
+    SENSOR_SOURCES, CalibrationSnapshot, Difficulty, ForcePercent, Hand, InputSource, UUIDString,
+    normalize_difficulty,
 )
 
 
@@ -50,10 +51,14 @@ class SessionCreate(CamelModel):
 
     @model_validator(mode="after")
     def validate_provenance(self):
-        if self.input_source == "ble" and self.calibration_snapshot is None:
-            raise ValueError("BLE 세션에는 calibrationSnapshot이 필요합니다.")
-        if self.input_source != "ble" and self.calibration_snapshot is not None:
-            raise ValueError("calibrationSnapshot은 BLE 세션에만 사용할 수 있습니다.")
+        snapshot = self.calibration_snapshot
+        if self.input_source in SENSOR_SOURCES:
+            if snapshot is None:
+                raise ValueError("BLE/USB 센서 세션에는 calibrationSnapshot이 필요합니다.")
+            if snapshot.source != self.input_source:
+                raise ValueError("calibrationSnapshot.source는 inputSource와 같아야 합니다.")
+        elif snapshot is not None:
+            raise ValueError("calibrationSnapshot은 BLE/USB 센서 세션에만 사용할 수 있습니다.")
         return self
 
     @model_validator(mode="after")

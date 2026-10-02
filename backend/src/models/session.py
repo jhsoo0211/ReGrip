@@ -78,7 +78,7 @@ class Session(Base, TimestampMixin):
         ),
         CheckConstraint("stars BETWEEN 1 AND 3", name="ck_sessions_stars"),
         CheckConstraint(
-            "input_source IN ('ble','websocket','simulation','unknown')",
+            "input_source IN ('ble','usb','websocket','simulation','unknown')",
             name="ck_sessions_input_source",
         ),
     )

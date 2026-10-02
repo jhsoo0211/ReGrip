@@ -59,8 +59,8 @@ start http://127.0.0.1:8000/docs
 python -m scripts.seed_achievements
 ```
 
-`create_all`은 기존 테이블에 컬럼을 추가하지 않는다. 기존 SQLite DB에 세션 출처 컬럼이 없으면
-기동 시 업그레이드 안내와 함께 중단한다. **기존 DB를 삭제하지 말고**, API를 중지한 뒤 다음을 실행한다:
+`create_all`은 기존 테이블에 컬럼을 추가하거나 CHECK를 바꾸지 않는다. 기존 SQLite DB에 세션 출처
+컬럼이 없거나 `input_source` CHECK가 `usb`를 허용하지 않으면 기동 시 업그레이드 안내와 함께 중단한다. **기존 DB를 삭제하지 말고**, API를 중지한 뒤 다음을 실행한다:
 
 ```powershell
 .\venv\Scripts\python.exe -m scripts.upgrade_sqlite --database .\regrip_dev.db --dry-run
@@ -68,9 +68,12 @@ python -m scripts.seed_achievements
 ```
 
 이 명령은 SQLite backup API로 WAL의 커밋된 데이터까지 `.backups`에 백업하고, 트랜잭션으로
-`input_source`와 `calibration_snapshot` 중 없는 컬럼만 추가한다. 재실행은 변경 없이 종료한다.
-이전 기록은 `unknown`이며 XP·보상·점수는 수정하지 않는다. 실패하면 DDL을 롤백하고 백업 경로를 안내한다.
-이 도구의 범위는 004의 두 컬럼 추가이며, 이전 버전의 다른 스키마 차이를 자동 수정하지 않는다.
+`input_source`와 `calibration_snapshot` 중 없는 컬럼만 추가한다(004). 004 시점의 `input_source`
+CHECK가 남아 있으면 SQLite 공식 `writable_schema` 절차로 `usb`만 추가해 넓히고 `integrity_check`로
+검증한다(005, 테이블 재생성 없음). 재실행은 변경 없이 종료한다. `--dry-run`은 `missingColumns`와
+`staleInputSourceCheck`만 보고한다. 이전 기록은 `unknown`이며 XP·보상·점수는 수정하지 않는다.
+실패하면 변경을 롤백하고 백업 경로를 안내한다. 이 도구의 범위는 004 두 컬럼과 005 CHECK 확장이며,
+인식할 수 없는 CHECK나 이전 버전의 다른 스키마 차이를 추측해 수정하지 않는다.
 
 ## 3. 테스트
 
@@ -90,6 +93,7 @@ python -m scripts.seed_achievements
    psql "$env:DATABASE_URL" -f migrations/002_game_types.sql
    psql "$env:DATABASE_URL" -f migrations/003_signal_catalog.sql
    psql "$env:DATABASE_URL" -f migrations/004_session_provenance.sql
+   psql "$env:DATABASE_URL" -f migrations/005_usb_input_source.sql
    ```
 
 3. PostgreSQL 드라이버를 설치한다(psycopg 3 권장):
@@ -185,8 +189,9 @@ src/
 ## 8. 입력 출처와 BLE 보정 스냅샷
 
 정규 세션 POST와 목록·상세 응답에 `inputSource`와 `calibrationSnapshot`이 추가된다.
-`inputSource`는 `ble | websocket | simulation | unknown`이며 누락된 기존 클라이언트·기록은 `unknown`이다.
-BLE 세션은 아래 스냅샷이 필수이고 다른 입력 출처의 스냅샷은 null이다.
+`inputSource`는 `ble | usb | websocket | simulation | unknown`이며 누락된 기존 클라이언트·기록은 `unknown`이다.
+센서 세션(`ble`, `usb`)은 스냅샷이 필수이고 `calibrationSnapshot.source`가 `inputSource`와 같아야 한다.
+다른 입력 출처의 스냅샷은 null이다. 스냅샷은 `version`으로 구분한다. version 2(BLE 단일 채널):
 
 ```json
 {
@@ -203,13 +208,32 @@ BLE 세션은 아래 스냅샷이 필수이고 다른 입력 출처의 스냅샷
 }
 ```
 
-ADC는 증가·감소 방향을 모두 지원한다. 두 기준값은 유한한 0~4095이고 차이의 절댓값은 64 이상이어야 한다.
+version 3(5채널 손가락 flex, `source`는 `ble | usb`)은 `fingers`에 엄지·검지·중지·약지·소지 순서로 정확히
+5개 항목을 담는다. 각 항목은 null 또는 `{open, closed, use}`이며 최소 한 손가락은 `use: true`여야 한다.
+
+```json
+{
+  "inputSource": "usb",
+  "calibrationSnapshot": {
+    "version": 3,
+    "source": "usb",
+    "unit": "adc_12bit",
+    "channel": "finger_flex",
+    "fingers": [{"open": 1780, "closed": 2780, "use": true}, null, null,
+                {"open": 1825, "closed": 2825, "use": false}, null],
+    "capturedAt": "2026-10-02T00:00:00Z"
+  }
+}
+```
+
+ADC는 증가·감소 방향을 모두 지원한다. 기준값(`baseline0/100`, `open/closed`)은 유한한 0~4095이고 쌍의 차이
+절댓값은 64 이상이어야 한다. `use`는 JSON boolean만 허용한다.
 게임 시작 시 사용한 보정을 스냅샷으로 고정하고, 로컬 기록·아웃박스·재전송에서도 그대로 유지한다.
 기존 `/calibrations` API는 레거시 보정용이며 BLE 보정은 사용자·장치별 로컬 캐시와 세션 스냅샷을 사용한다.
 `avgForce`, `maxForce`, `forceSeries`는 ADC 원시값이 아닌 정규화된 0~100 값이다.
 
 `GET /users/me/sessions`와 `GET /users/me/stats`는 `source=all|real|simulation|unknown`을 받는다.
-API 기본값은 호환성을 위해 `all`이고, `real`은 `ble`과 `websocket`이다. 실제 측정 화면은 반드시 `source=real`을
+API 기본값은 호환성을 위해 `all`이고, `real`은 `ble`, `usb`, `websocket`이다. 실제 측정 화면은 반드시 `source=real`을
 명시한다. 통계의 `totalSessions`, `bestMaxForce`, `chart`는 선택한 출처만 포함한다. `totalXp`, 레벨, 티어,
 streak는 전체 정규 세션 기준으로 유지하며, `allSessionCount`와 `sourceCounts`는 출처별 전체 기간 횟수를 제공한다.
 측정이 없는 경우 `bestMaxForce`와 차트 평균은 null이다. 날짜 필터·차트는 사용자의 타임존 기준이다.
