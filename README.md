@@ -36,7 +36,7 @@ The frontend needs no build step or backend for simulation and local records. Ta
 
 Use Windows Chrome or Edge on HTTPS or localhost. Follow the [sensor guide](docs/SENSOR_GUIDE.md) to build and upload the BLE firmware, connect the device, and calibrate open-hand and comfortable-grip input.
 
-The original board uses the **FSR pressure channel** for games; its second potentiometer channel is diagnostic only. The [XIAO ESP32-S3 glove](firmware/xiao-glove/README.md) displays D0/D1/D3/D4/D5 separately and uses their **calibrated arithmetic mean** for game input. Glove sessions preserve `channel: finger_mean`, distinct from FSR pressure; the values are not physical force or finger angles. Sensor input is processed in the browser; the backend is optional for both paths.
+The original board uses the **FSR pressure channel** for games; its second potentiometer channel is diagnostic only. The team-verified [XIAO ESP32-S3 sensor PCB](firmware/xiao-glove/README.md) (`ReGrip-5CH`, BLE protocol v3 at 100 Hz) displays D0–D4 separately and uses their **calibrated arithmetic mean** for game input. Glove sessions preserve `channel: finger_mean`, distinct from FSR pressure; the values are not physical force or finger angles. Sensor input is processed in the browser; the backend is optional for both paths.
 
 For the original FSR board, prepare the [PlatformIO environment](firmware/esp32-ble-sensor/README.md), then run from the repository root:
 
@@ -45,7 +45,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\flash-sensor.ps1 -
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\flash-sensor.ps1 -Port COM7
 ```
 
-Replace COM7 with the actual USB port. Use `-BuildOnly` instead of `-Port COM7` to compile without a board. The XIAO glove uses its own build/upload commands linked above. The [CSV replay guide](docs/SENSOR_GUIDE.md#측정-csv로-게임-입력-재현) covers the original FSR board's 3/4-column recordings; the glove's 7-column USB logs are not supported by that replay tool.
+Replace COM7 with the actual USB port. Use `-BuildOnly` instead of `-Port COM7` to compile without a board. The XIAO sensor PCB firmware is uploaded with the Arduino IDE (ESP32 core 3.3.11) as described in its README; the [5-channel monitor](tools/flex-monitor/README_5CH.md) checks each channel over USB or BLE. The [CSV replay guide](docs/SENSOR_GUIDE.md#측정-csv로-게임-입력-재현) covers the original FSR board's 3/4-column recordings; the glove's 7-column USB logs are not supported by that replay tool.
 
 ### Enable accounts and server sync
 
@@ -100,9 +100,9 @@ See the [experiment report](docs/backend/09-ml-training.md) for variable handlin
 
 ## Validation status
 
-The [verification record](docs/VERIFICATION.md), updated September 23, 2026, reports **122 frontend tests** and **146 backend tests** passing, a successful XIAO firmware build, and syntax/local-asset checks for 13 pages. Earlier records cover the original ESP32 firmware, local server startup, and the SQLite upgrade.
+The [verification record](docs/VERIFICATION.md), updated October 2, 2026, reports **126 frontend tests** and **146 backend tests** passing, including a byte-level cross-check of the app parser against the team-verified sensor PCB monitor, plus syntax checks and a headless browser smoke test. Earlier records cover the original ESP32 firmware, local server startup, and the SQLite upgrade.
 
-On September 6, the original ESP32 board was flashed and its USB/BLE transport and reconnection were checked without attached sensors. Chrome game checks used synthetic GATT input. Physical XIAO glove response, complete Chrome/Edge sessions with real hand input, and PostgreSQL execution remain to be verified. This is a development prototype; clinical effectiveness has not been established. The server recalculates rewards but does not authenticate sensor input. The separate EMG research code is not integrated into the games.
+On September 6, the original ESP32 board was flashed and its USB/BLE transport and reconnection were checked without attached sensors. Chrome game checks used synthetic GATT input. The team verified the XIAO sensor PCB firmware on hardware; connecting that board to this app for a complete Chrome/Edge session with real hand input, and PostgreSQL execution, remain to be verified. This is a development prototype; clinical effectiveness has not been established. The server recalculates rewards but does not authenticate sensor input. The separate EMG research code is not integrated into the games.
 
 To run all software tests after setting up the backend (Node.js is also required), install the optional ingestion-test dependencies first:
 

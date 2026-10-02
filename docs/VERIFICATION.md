@@ -1,6 +1,24 @@
 # ReGrip 구현 검증 기록
 
-최신 검증일: **2026-09-23**. 기존 본편 디자인을 유지한다. `design-review/`의 세 가지 HTML은 참고용이며 제품 테마로 적용하지 않았다.
+최신 검증일: **2026-10-02**. 기존 본편 디자인을 유지한다. `design-review/`의 세 가지 HTML은 참고용이며 제품 테마로 적용하지 않았다.
+
+## 2026-10-02 팀 검증 5채널 센서 PCB 연결·수신 반영
+
+팀에서 전달받은 `ReGrip_USB_BLE`(XIAO ESP32-S3 + Re:Grip Sensor PCB Rev B2/B3)의 펌웨어와 USB·BLE 모니터를 SHA-256이 원본과 같은 상태로 `firmware/xiao-glove/regrip_sensor_pcb_5ch/`와 `tools/flex-monitor/`에 넣었다. 팀 기록에 따르면 이 펌웨어는 Arduino ESP32 core 3.3.11로 컴파일·실기기 업로드했고 USB 측정 간격 10ms를 확인했다. 앱의 BLE 연결과 수신을 이 계약에 맞췄다.
+
+- 장치 선택: 이름 `ReGrip-Sensor` 필터에서 검증 모니터와 같은 서비스 UUID 필터로 변경. `ReGrip-5CH`와 기존 FSR 보드가 함께 나타난다.
+- 수신: 20바이트 protocol v3(`0x52`, 버전 3, 표본 번호, 시각, ADC 5개, 연결 마스크, 오류 코드)를 해석한다. 실기기 검증이 없던 18바이트 v1 장갑 형식과 그 펌웨어(D0·D1·D3·D4·D5)는 삭제했다.
+- 화면: 핀 표기를 D0~D4로 바꾸고 마스크로 `(미연결)` 채널을 표시한다. 100Hz 입력에서도 진단 그래프가 약 4초를 보이도록 40ms 간격으로 그린다. 기존 BLE 진단 페이지는 5채널 보드의 손가락 평균을 입력 칸에 표시한다.
+
+| 범위 | 실행 결과 | 검증 경계 |
+|---|---|---|
+| 프런트엔드 전체 | `node --test tests/*.test.js` **126개 통과**, 실패·건너뜀 0 | 신규: v3 해석, 검증 모니터 파서와 2,001개 패킷 교차 비교, 펌웨어 UUID·패킷 구조 대조, 100Hz 보정, `(미연결)` 표시·그래프 간격 |
+| 검증 모니터 파서 | `node tools/flex-monitor/regrip-flex-core.test.mjs` 통과 | 팀이 작성한 단위 테스트를 저장소 위치에서 재실행 |
+| 백엔드 전체 | `backend/`에서 `../.tools/backend-check/Scripts/python.exe -m pytest tests/` **146개 통과** | 백엔드 코드 변경 없음. `channel: finger_mean` 계약 유지 |
+| 정적 검사 | 루트 HTML과 BLE 진단 페이지의 inline script 14개, 모니터 module script, JS 4개 구문 검사 통과 | |
+| 브라우저 스모크 | headless Chrome에서 모니터(`server.mjs`) 로드·데모 수신, BLE 진단·보정 페이지 로드와 v3 패킷 해석 확인. 오류는 favicon 404뿐 | 실제 Web Bluetooth·Web Serial 연결은 미실행 |
+
+이번 작업에서 펌웨어를 다시 컴파일하거나 보드에 업로드하지 않았다. 저장소 PlatformIO 고정 환경(Arduino core 2.0.17)에는 이 펌웨어가 쓰는 `requestConnParams`가 없어 Arduino IDE와 core 3.3.11 절차만 안내한다. Python `http.server`는 이 PC에서 `.mjs`를 `text/plain`으로 보내므로 모니터는 `server.mjs`로 연다. 실제 센서 PCB를 앱에 연결해 보정→게임→기록까지 진행하는 흐름은 별도 확인이 필요하다.
 
 ## 2026-09-23 XIAO 장갑 통합과 회귀 검사
 

@@ -36,7 +36,7 @@ py -3.11 -m http.server 3000 --bind 127.0.0.1
 
 Windows Chrome 또는 Edge에서 HTTPS나 localhost로 접속합니다. [센서 가이드](docs/SENSOR_GUIDE.md)에 따라 BLE 펌웨어 빌드·업로드, 기기 연결, 손을 편 상태와 편안하게 쥔 상태의 센서 보정을 진행합니다.
 
-기존 보드는 **FSR 압력 채널**로 게임을 조작하고 두 번째 가변저항 채널은 진단에만 사용합니다. [XIAO ESP32-S3 장갑](firmware/xiao-glove/README.md)은 D0·D1·D3·D4·D5 원본값을 각각 표시하고 **다섯 입력의 평균**을 손 펴기·쥐기 기준으로 보정해 게임을 조작합니다. 장갑 세션은 `channel: finger_mean`으로 FSR 압력과 구분하며 물리적인 힘·각도 측정값으로 해석하지 않습니다. 두 입력 모두 브라우저에서 처리하므로 백엔드는 필수가 아닙니다.
+기존 보드는 **FSR 압력 채널**로 게임을 조작하고 두 번째 가변저항 채널은 진단에만 사용합니다. 팀이 실기기로 검증한 [XIAO ESP32-S3 센서 PCB](firmware/xiao-glove/README.md)(`ReGrip-5CH`, BLE protocol v3·100Hz)는 D0~D4 원본값을 각각 표시하고 **다섯 입력의 평균**을 손 펴기·쥐기 기준으로 보정해 게임을 조작합니다. 장갑 세션은 `channel: finger_mean`으로 FSR 압력과 구분하며 물리적인 힘·각도 측정값으로 해석하지 않습니다. 두 입력 모두 브라우저에서 처리하므로 백엔드는 필수가 아닙니다.
 
 기존 FSR 보드는 [PlatformIO 도구 환경](firmware/esp32-ble-sensor/README.md)을 준비한 뒤 저장소 루트에서 실행합니다.
 
@@ -45,7 +45,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\flash-sensor.ps1 -
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\flash-sensor.ps1 -Port COM7
 ```
 
-`COM7`은 실제 USB 포트로 바꿉니다. 보드 없이 컴파일하려면 `-Port COM7` 대신 `-BuildOnly`를 사용합니다. XIAO 장갑은 위에 연결한 별도 빌드·업로드 명령을 따릅니다. [CSV 재생 도구](docs/SENSOR_GUIDE.md#측정-csv로-게임-입력-재현)는 기존 FSR 보드의 3·4열 기록용이며 장갑의 7열 USB 로그는 지원하지 않습니다.
+`COM7`은 실제 USB 포트로 바꿉니다. 보드 없이 컴파일하려면 `-Port COM7` 대신 `-BuildOnly`를 사용합니다. XIAO 센서 PCB 펌웨어는 해당 안내에 따라 Arduino IDE(ESP32 core 3.3.11)로 업로드하고, 채널별 USB·BLE 수신은 [5채널 모니터](tools/flex-monitor/README_5CH.md)로 확인합니다. [CSV 재생 도구](docs/SENSOR_GUIDE.md#측정-csv로-게임-입력-재현)는 기존 FSR 보드의 3·4열 기록용이며 장갑의 7열 USB 로그는 지원하지 않습니다.
 
 ### 계정·서버 동기화 사용하기
 
@@ -100,9 +100,9 @@ py -3.11 -m venv backend/venv
 
 ## 검증 현황
 
-2026년 9월 23일 [검증 기록](docs/VERIFICATION.md)에는 **프런트엔드 122개·백엔드 146개 테스트 통과**, XIAO 펌웨어 빌드 성공, 13개 페이지의 구문·로컬 자산 경로 검사 결과가 정리되어 있습니다. 기존 ESP32 펌웨어, 로컬 서버 실행, SQLite 업그레이드 증거도 날짜별로 구분했습니다.
+2026년 10월 2일 [검증 기록](docs/VERIFICATION.md)에는 **프런트엔드 126개·백엔드 146개 테스트 통과**, 팀 검증 센서 PCB 모니터 파서와 앱 파서의 바이트 단위 교차 검사, 구문 검사와 headless 브라우저 스모크 결과가 정리되어 있습니다. 기존 ESP32 펌웨어, 로컬 서버 실행, SQLite 업그레이드 증거도 날짜별로 구분했습니다.
 
-9월 6일에는 센서가 없는 기존 ESP32 보드의 업로드·USB/BLE 수신·재연결을 확인했습니다. Chrome 게임 화면 검사는 GATT 테스트 입력을 사용했습니다. XIAO 장갑의 실제 센서 반응, 실제 손 입력으로 하는 Chrome/Edge 전체 흐름, PostgreSQL 실행은 별도 확인이 필요합니다. 현재는 개발용 프로토타입이며 임상적 효과는 확인되지 않았습니다. 서버는 보상을 재계산하지만 센서 입력의 진위를 인증하지 않습니다. 별도 EMG 연구 코드는 게임에 연결되어 있지 않습니다.
+9월 6일에는 센서가 없는 기존 ESP32 보드의 업로드·USB/BLE 수신·재연결을 확인했습니다. Chrome 게임 화면 검사는 GATT 테스트 입력을 사용했습니다. XIAO 센서 PCB 펌웨어는 팀이 실기기로 검증했으며, 이 보드를 앱에 연결해 실제 손 입력으로 하는 Chrome/Edge 전체 흐름과 PostgreSQL 실행은 별도 확인이 필요합니다. 현재는 개발용 프로토타입이며 임상적 효과는 확인되지 않았습니다. 서버는 보상을 재계산하지만 센서 입력의 진위를 인증하지 않습니다. 별도 EMG 연구 코드는 게임에 연결되어 있지 않습니다.
 
 백엔드 설치 후 선택적 적재 테스트 의존성을 추가하고 전체 소프트웨어 테스트를 실행합니다. Node.js도 필요합니다.
 
