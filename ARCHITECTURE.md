@@ -14,11 +14,13 @@ flowchart TB
         ADC --> BLE["BLE notify · 최신 샘플 20Hz"]
     end
     XIAO["XIAO ESP32-S3 센서 PCB · 다섯 손가락 ADC"] -->|"20바이트 BLE v3 · 100Hz"| SS
+    XIAO -->|"USB Web Serial · 7열 CSV · 100Hz"| SS
     subgraph Browser["Windows Chrome / Edge"]
         BLE --> SS["sensor-service.js · 수신 검증 / 보정 / 필터 / 신선도"]
         WS["기존 WebSocket"] --> SS
         SIM["시뮬레이션 선택"] --> SS
         SS --> UI["sensor-ui.js · 연결 / 상태 / 원시값 그래프"]
+        SS --> CAL["calibration.html · 손가락별 보정 / 사용 손가락 선택"]
         SS --> GS["GameShell · 준비 / 연습 / 중단 / 결과"]
         GS --> GAME["풍선 / 크레인 / 리듬 / 잠수함"]
         GAME --> DS["DataService · 본편 세션"]
@@ -53,13 +55,13 @@ flowchart TB
 
 ## 센서 입력과 보정
 
-기존 FSR 보드의 BLE 패킷은 `timestamp_ms,flex_raw,fsr_raw`의 ASCII CSV입니다. ADC는 0~4095이고 장치 타임스탬프는 uint32 밀리초입니다. ESP32는 채널별 50Hz로 측정하고 최신 샘플을 BLE로 20Hz 전송합니다. USB 시리얼은 기존 수집 형식인 `sample_id,timestamp_ms,flex_raw,fsr_raw` 4열로 50Hz 출력하며, 브라우저 Web Serial 연결은 구현하지 않았습니다. `scripts/replay-sensor.cjs`는 이 로그를 20Hz 패킷으로 읽어 실제 센서 서비스와 게임 코드를 실행하는 개발용 검사 도구이며, 저장은 메모리 경계에서 관찰합니다.
+기존 FSR 보드의 BLE 패킷은 `timestamp_ms,flex_raw,fsr_raw`의 ASCII CSV입니다. ADC는 0~4095이고 장치 타임스탬프는 uint32 밀리초입니다. ESP32는 채널별 50Hz로 측정하고 최신 샘플을 BLE로 20Hz 전송합니다. USB 시리얼은 기존 수집 형식인 `sample_id,timestamp_ms,flex_raw,fsr_raw` 4열로 50Hz 출력하며, 이 보드의 브라우저 USB 연결은 구현하지 않았습니다. `scripts/replay-sensor.cjs`는 이 로그를 20Hz 패킷으로 읽어 실제 센서 서비스와 게임 코드를 실행하는 개발용 검사 도구이며, 저장은 메모리 경계에서 관찰합니다.
 
-XIAO 센서 PCB는 엄지 D0, 검지 D1, 중지 D2, 약지 D3, 소지 D4를 100Hz로 읽어 USB와 BLE로 함께 보냅니다. BLE 장치 이름은 `ReGrip-5CH`이며 브라우저는 장치 이름이 아니라 서비스 UUID로 두 보드를 찾습니다. BLE는 `0x52`·버전 3, uint16 표본 번호, little-endian uint32 시각, uint16 ADC 5개, 연결 채널 마스크, 오류 코드로 구성된 20바이트 패킷입니다. 앱 파서는 팀 검증 모니터의 파서와 같은 바이트에서 같은 결과를 내도록 테스트합니다. USB는 표본 번호·시각·손가락 5개의 7열 CSV이며 기존 3·4열 재생 CLI의 대상이 아닙니다. 정확한 계약은 [센서 PCB 펌웨어 안내](firmware/xiao-glove/README.md)에 있습니다.
+XIAO 센서 PCB는 엄지 D0, 검지 D1, 중지 D2, 약지 D3, 소지 D4를 100Hz로 읽어 USB와 BLE로 함께 보냅니다. BLE 장치 이름은 `ReGrip-5CH`이며 브라우저는 장치 이름이 아니라 서비스 UUID로 두 보드를 찾습니다. BLE는 `0x52`·버전 3, uint16 표본 번호, little-endian uint32 시각, uint16 ADC 5개, 연결 채널 마스크, 오류 코드로 구성된 20바이트 패킷입니다. 앱 파서는 팀 검증 모니터의 파서와 같은 바이트에서 같은 결과를 내도록 테스트합니다. USB는 표본 번호·시각·손가락 5개의 7열 CSV입니다. 앱은 Web Serial(115200 baud, 검증 모니터와 같은 포트 설정)로 이 줄을 읽고, 마스크는 펌웨어와 같은 4090 기준으로 계산합니다. 7열 로그는 기존 3·4열 재생 CLI의 대상이 아닙니다. 정확한 계약은 [센서 PCB 펌웨어 안내](firmware/xiao-glove/README.md)에 있습니다.
 
 서비스는 형식·범위를 벗어난 패킷과 중복·역순 타임스탬프를 거부하고, uint32 롤오버는 허용합니다. 거부한 패킷으로 수신 신선도·필터·진행 중인 보정을 변경하지 않습니다. 유효 패킷 수신 후 500ms가 지나면 `stale` 상태가 됩니다.
 
-기존 보드의 게임 입력은 FSR이고, XIAO 센서 PCB는 미연결 채널을 포함한 다섯 ADC의 산술평균입니다. 이를 `input_raw`로 두고 보정 결과를 다음 식으로 0~100%로 변환한 뒤 시간 상수 80ms의 지수 필터를 적용합니다. 장갑 평균은 압력이나 손가락 각도의 물리 측정값이 아닙니다.
+기존 보드의 게임 입력은 FSR입니다. 이를 `input_raw`로 두고 보정 결과를 다음 식으로 0~100%로 변환한 뒤 시간 상수 80ms의 지수 필터를 적용합니다. XIAO 센서 PCB는 같은 식을 손가락마다 적용하고, 게임에 쓰도록 선택한 손가락 값의 평균을 필터에 넣습니다. 선택한 손가락이 미연결이면 값을 만들지 않고 준비 상태를 해제해 게임을 멈춥니다. 이 값은 압력이나 손가락 각도의 물리 측정값이 아닙니다.
 
 ```text
 normalized = clamp((input_raw - baseline0) / (baseline100 - baseline0) × 100, 0, 100)
@@ -70,7 +72,7 @@ filtered += (normalized - filtered) × (1 - exp(-deltaMs / 80))
 
 각 기준은 버튼을 누른 뒤 1초 동안 새로 수신한 게임 입력 표본의 중앙값입니다. 단계당 유효 표본 15개 이상, 수신 간격 150ms 이하를 요구합니다. 두 중앙값의 차이는 절댓값 64 ADC 이상이고, 각 단계의 P95-P5 폭은 기준 차이의 20% 이하여야 합니다. 연결·사용자·기기·입력 채널이 바뀌거나 수신이 중단되면 캡처를 취소합니다. 로컬 저장에 실패하면 보정 완료로 처리하지 않습니다.
 
-보정은 브라우저 사용자와 BLE 기기 ID별로 저장합니다. 현재 패킷의 채널과 보정의 `channel`이 일치해야 게임을 시작할 수 있습니다. 기존 `regrip_calibration`의 논리값 보정을 BLE 원시 ADC에 재사용하지 않습니다. 본편에 보관하는 FSR 스냅샷은 다음과 같으며, 장갑은 같은 구조에 `channel: finger_mean`을 저장합니다. 증가·감소하는 평균을 모두 지원하지만 손가락마다 극성이 반대인 회로에는 별도의 개별 보정 모델이 필요합니다.
+보정은 브라우저 사용자와 기기(Bluetooth 기기 ID 또는 USB 제조사·제품 ID)별로 저장합니다. 현재 패킷의 채널과 보정의 `channel`이 일치해야 게임을 시작할 수 있습니다. 기존 `regrip_calibration`의 논리값 보정을 원시 ADC에 재사용하지 않습니다. 본편에 보관하는 FSR 스냅샷은 다음과 같습니다.
 
 ```json
 {
@@ -84,11 +86,24 @@ filtered += (normalized - filtered) × (1 - exp(-deltaMs / 80))
 }
 ```
 
+센서 PCB는 version 3 스냅샷을 저장합니다. `fingers`는 엄지→소지 순서의 5개 항목이며, 보정에서 제외된 손가락(측정 중 미연결, 기준 차이 64 ADC 미만, 흔들림 20% 초과)은 `null`입니다. 손가락마다 증가·감소 방향을 따로 처리합니다. `use`는 게임 입력에 쓰는 손가락이며 기본값은 보정된 손가락 전체입니다. 사용자는 다시 측정하지 않고 선택만 바꿀 수 있으며 최소 한 개가 필요합니다. 이전 `finger_mean` 스냅샷은 새 입력에 재사용하지 않습니다.
+
+```json
+{
+  "version": 3,
+  "source": "usb",
+  "unit": "adc_12bit",
+  "channel": "finger_flex",
+  "fingers": [{"open": 1780, "closed": 2780, "use": true}, null, null, {"open": 1825, "closed": 2825, "use": true}, null],
+  "capturedAt": "2026-10-02T12:00:00Z"
+}
+```
+
 ### 연결과 게임 상태
 
-첫 BLE 연결은 사용자의 연결 버튼에서 기기 선택창을 엽니다. 기존 권한 복원은 저장한 정확한 기기 ID만 사용합니다. 다른 동명 기기로 자동 대체하지 않습니다. 자동 재연결은 1·2·4·8초 간격으로 최대 4회 시도하고, 이후에는 수동 재연결을 기다립니다. 명시적 연결 해제는 자동 재연결을 중단합니다.
+첫 연결은 사용자의 Bluetooth 또는 USB 연결 버튼에서 기기·포트 선택창을 엽니다. 기존 권한 복원은 저장한 정확한 기기만 사용합니다. Bluetooth는 기기 ID, USB는 제조사·제품 ID로 찾고 Bluetooth 가상 COM 포트는 거절합니다. 다른 동명 기기로 자동 대체하지 않습니다. USB 포트를 연 것만으로는 연결로 보지 않고 첫 유효 CSV 줄을 기다리며, 같은 보드를 다시 꽂으면 자동으로 이어 연결합니다. 자동 재연결은 1·2·4·8초 간격으로 최대 4회 시도하고, 이후에는 수동 재연결을 기다립니다. 명시적 연결 해제는 자동 재연결을 중단합니다.
 
-BLE 준비 완료는 최신 유효 패킷과 현재 사용자·기기 보정이 모두 있어야 합니다. WebSocket은 최신 수신이 필요하며 기존 보정 경로를 유지합니다. 시뮬레이션은 사용자가 선택하고, 센서 단절 시 자동으로 시뮬레이션으로 전환하지 않습니다.
+Bluetooth·USB 준비 완료는 최신 유효 패킷, 현재 사용자·기기 보정, 선택한 손가락의 연결이 모두 필요합니다. WebSocket은 최신 수신이 필요하며 기존 보정 경로를 유지합니다. 시뮬레이션은 사용자가 선택하고, 센서 단절 시 자동으로 시뮬레이션으로 전환하지 않습니다.
 
 GameShell은 본편 시작 때 입력 출처·보정 스냅샷을 복사해 고정하고 종료 결과에도 같은 값을 사용합니다. 진행 중 모드나 보정이 달라지면 이어서 혼합 기록하지 않습니다. `stale`, 연결 해제, 탭 숨김 뒤에는 일시정지하고 준비가 회복되어야 사용자가 직접 재개할 수 있습니다.
 
@@ -121,14 +136,15 @@ GameShell은 본편 시작 때 입력 출처·보정 스냅샷을 복사해 고�
 
 | 필드·필터 | 의미 |
 |---|---|
-| `inputSource: ble` | BLE를 선택한 본편; 보정 스냅샷 필수 |
+| `inputSource: ble` | Bluetooth를 선택한 본편; 보정 스냅샷 필수 |
+| `inputSource: usb` | 센서 PCB를 USB로 연결한 본편; 손가락별(version 3) 보정 스냅샷 필수 |
 | `inputSource: websocket` | 기존 WebSocket을 선택한 본편 |
 | `inputSource: simulation` | 시뮬레이션 본편 |
 | `inputSource: unknown` | 이전 기록 또는 출처를 알 수 없는 기록 |
-| `source=real` | BLE와 WebSocket 세션의 측정 통계 |
+| `source=real` | Bluetooth·USB·WebSocket 세션의 측정 통계 |
 | `source=all`, `simulation`, `unknown` | 전체 또는 해당 출처별 목록·측정 통계 |
 
-과거 기록에 센서 출처를 추정해서 붙이지 않습니다. BLE 외 출처는 BLE 보정 스냅샷을 제출할 수 없습니다. 브라우저의 BLE 기기 ID를 서버 `devices.id` UUID로 대신 사용하지 않습니다.
+과거 기록에 센서 출처를 추정해서 붙이지 않습니다. Bluetooth·USB 외 출처는 보정 스냅샷을 제출할 수 없고, 스냅샷의 `source`는 `inputSource`와 같아야 합니다. 브라우저의 BLE 기기 ID나 USB 제조사·제품 ID를 서버 `devices.id` UUID로 대신 사용하지 않습니다.
 
 홈의 측정 요약은 실제 센서 세션을 기준으로 계산하고, 기록 화면은 출처별 목록과 통계를 함께 필터링합니다. XP·레벨·연속 훈련은 필터에 관계없이 모든 본편 기록을 기준으로 유지합니다. `real`은 입력 경로 분류이며 서버가 물리 센서의 진위를 증명했다는 뜻은 아닙니다.
 
@@ -148,9 +164,9 @@ API 경계는 힘 비율의 유한값·0~100 범위, 점수·시도 수 범위, 
 
 정적 파일 공개 범위는 `/static/avatars`의 아바타 디렉터리이며 DB·백업을 포함한 전체 저장소를 공개하지 않습니다.
 
-PostgreSQL은 `001_init` → `002_game_types` → `003_signal_catalog` → `004_session_provenance` 순서입니다. 002는 이전 CHECK를 제거한 뒤 `normal`을 `medium`으로 바꾸고 새 제약을 추가합니다. 004는 `input_source`와 `calibration_snapshot`을 추가하며 기존 기록은 `unknown`으로 유지합니다.
+PostgreSQL은 `001_init` → `002_game_types` → `003_signal_catalog` → `004_session_provenance` → `005_usb_input_source` 순서입니다. 002는 이전 CHECK를 제거한 뒤 `normal`을 `medium`으로 바꾸고 새 제약을 추가합니다. 004는 `input_source`와 `calibration_snapshot`을 추가하며 기존 기록은 `unknown`으로 유지합니다. 005는 `input_source` CHECK에 `usb`를 더합니다. 스냅샷은 JSON 열이므로 version 3 형식에 DB 변경이 필요하지 않습니다.
 
-새 SQLite DB는 앱 시작 시 생성합니다. 기존 DB는 `create_all`로 컬럼을 갱신하지 않으므로, API를 중지한 뒤 `backend/scripts/upgrade_sqlite.py`를 사용합니다. 도구는 기존 ReGrip DB 경로·무결성을 확인하고 SQLite backup API로 백업한 다음, 트랜잭션에서 누락된 004 컬럼만 추가합니다. 재실행은 변경 없이 종료하며 기존 점수·XP·기록을 삭제하거나 재계산하지 않습니다.
+새 SQLite DB는 앱 시작 시 생성합니다. 기존 DB는 `create_all`로 컬럼을 갱신하지 않으므로, API를 중지한 뒤 `backend/scripts/upgrade_sqlite.py`를 사용합니다. 도구는 기존 ReGrip DB 경로·무결성을 확인하고 SQLite backup API로 백업한 다음, 한 트랜잭션에서 누락된 004 컬럼을 추가하고 `usb`가 없는 `input_source` CHECK를 넓힙니다. SQLite는 CHECK를 ALTER할 수 없으므로 제약을 완화하는 공식 `writable_schema` 절차로 테이블 정의만 고치고, 인식하지 못한 CHECK는 바꾸지 않고 거절합니다. API는 `usb`를 허용하지 않는 DB로는 시작하지 않고 이 도구를 안내합니다. 재실행은 변경 없이 종료하며 기존 점수·XP·기록을 삭제하거나 재계산하지 않습니다.
 
 2026-09-05에는 기존 개발 DB의 실제 업그레이드와 두 번째 dry-run의 변경 없음 결과를 확인했습니다. 백업은 `backend/.backups/regrip_dev.db.pre-004.20260905T123028898409Z.bak`입니다. PostgreSQL 마이그레이션의 실제 DB 실행은 이번에 확인하지 않았습니다.
 

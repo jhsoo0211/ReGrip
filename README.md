@@ -36,7 +36,7 @@ The frontend needs no build step or backend for simulation and local records. Ta
 
 Use Windows Chrome or Edge on HTTPS or localhost. Follow the [sensor guide](docs/SENSOR_GUIDE.md) to build and upload the BLE firmware, connect the device, and calibrate open-hand and comfortable-grip input.
 
-The original board uses the **FSR pressure channel** for games; its second potentiometer channel is diagnostic only. The team-verified [XIAO ESP32-S3 sensor PCB](firmware/xiao-glove/README.md) (`ReGrip-5CH`, BLE protocol v3 at 100 Hz) displays D0–D4 separately and uses their **calibrated arithmetic mean** for game input. Glove sessions preserve `channel: finger_mean`, distinct from FSR pressure; the values are not physical force or finger angles. Sensor input is processed in the browser; the backend is optional for both paths.
+The original board uses the **FSR pressure channel** for games; its second potentiometer channel is diagnostic only. The team-verified [XIAO ESP32-S3 sensor PCB](firmware/xiao-glove/README.md) (`ReGrip-5CH`, 100 Hz) connects over **Bluetooth or a USB cable**. The calibration page shows each finger D0–D4 with its receive rate, calibrates every finger separately, and lets you choose which fingers drive the game (all calibrated fingers by default); game input is the mean bend of the selected fingers. Its sessions record `inputSource: ble` or `usb` with a per-finger `channel: finger_flex` snapshot, distinct from FSR pressure; the values are not physical force or finger angles. Sensor input is processed in the browser; the backend is optional for both paths.
 
 For the original FSR board, prepare the [PlatformIO environment](firmware/esp32-ble-sensor/README.md), then run from the repository root:
 
@@ -100,7 +100,7 @@ See the [experiment report](docs/backend/09-ml-training.md) for variable handlin
 
 ## Validation status
 
-The [verification record](docs/VERIFICATION.md), updated October 2, 2026, reports **126 frontend tests** and **146 backend tests** passing, including a byte-level cross-check of the app parser against the team-verified sensor PCB monitor, plus syntax checks and a headless browser smoke test. Earlier records cover the original ESP32 firmware, local server startup, and the SQLite upgrade.
+The [verification record](docs/VERIFICATION.md), updated October 2, 2026, reports **142 frontend tests** and **190 backend tests** passing, including byte- and line-level cross-checks of the app's BLE and USB parsers against the team-verified sensor PCB monitor, and a headless browser run of USB connect → per-finger calibration → game play with a simulated serial port. Earlier records cover the original ESP32 firmware, local server startup, and the SQLite upgrade.
 
 On September 6, the original ESP32 board was flashed and its USB/BLE transport and reconnection were checked without attached sensors. Chrome game checks used synthetic GATT input. The team verified the XIAO sensor PCB firmware on hardware; connecting that board to this app for a complete Chrome/Edge session with real hand input, and PostgreSQL execution, remain to be verified. This is a development prototype; clinical effectiveness has not been established. The server recalculates rewards but does not authenticate sensor input. The separate EMG research code is not integrated into the games.
 

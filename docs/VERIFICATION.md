@@ -1,6 +1,25 @@
 # ReGrip 구현 검증 기록
 
-최신 검증일: **2026-10-02**. 기존 본편 디자인을 유지한다. `design-review/`의 세 가지 HTML은 참고용이며 제품 테마로 적용하지 않았다.
+최신 검증일: **2026-10-02**(2차). 기존 본편 디자인을 유지한다. `design-review/`의 세 가지 HTML은 참고용이며 제품 테마로 적용하지 않았다.
+
+## 2026-10-02 (2차) 게임 앱의 USB 연결·손가락별 보정·사용 손가락 선택
+
+센서 PCB를 게임 앱에서 끝까지 쓰도록 연결 방식과 보정을 확장했다. 데이터 수신부는 1차와 같이 팀 검증 모니터와 같은 바이트·줄에서 같은 값을 내는지 교차 검사한다.
+
+- 연결: Bluetooth에 더해 **USB(Web Serial)** 연결을 추가했다. 포트 설정은 검증 모니터와 같은 115200 baud, bufferSize 65536이다. 7열 CSV를 읽고 마스크는 펌웨어의 4090 기준으로 계산한다. Bluetooth 가상 COM 포트는 거절하고, 저장한 USB 제조사·제품 ID로 연결을 복원하며, 같은 보드를 다시 꽂으면 자동으로 이어 연결한다.
+- 보정: 센서 PCB는 손가락별 펴짐·쥐기 기준을 저장한다(스냅샷 version 3, `channel: finger_flex`). 미연결·변화 64 ADC 미만·흔들림 20% 초과 손가락은 이유와 함께 제외하고, 손가락마다 극성을 따로 처리한다.
+- 사용 손가락: 기본은 보정된 손가락 전체다. 보정 화면 체크 상자로 바꿀 수 있고 최소 1개가 필요하다. 게임 입력은 선택한 손가락 굽힘의 평균이다. 선택한 손가락이 빠지면 입력을 막고 게임을 일시정지한다.
+- 화면: 보정 화면에 손가락별 실시간 막대·값·상태와 수신 Hz를, 센서 패널에 Bluetooth/USB 버튼과 수신 Hz를 추가했다.
+- 백엔드: `inputSource: usb`, version 3 스냅샷 검증(스냅샷 `source` = `inputSource`), `real` 필터에 `usb`를 추가했다. PostgreSQL `005_usb_input_source.sql`을 추가했고, SQLite는 `scripts/upgrade_sqlite.py`가 백업 후 `input_source` CHECK를 넓힌다. 이 작업이 되지 않은 DB로는 API를 시작하지 않는다.
+
+| 범위 | 실행 결과 | 검증 경계 |
+|---|---|---|
+| 프런트엔드 전체 | `node --test tests/*.test.js` **142개 통과** | 신규: USB 파서·검증 모니터 교차 비교 1,000줄, USB 연결·청크 분할·헤더/상태 줄·포트 점유·가상 COM 거절·뽑기 후 재연결·복원, 손가락별 보정·극성·제외 사유·선택·미연결 차단, 네 게임 × BLE/USB 센서 PCB 실제 게임 루프, 보정 화면 손가락 표·선택 |
+| 백엔드 전체 | `backend/`에서 `../.tools/backend-check/Scripts/python.exe -m pytest tests/` **190개 통과** | 신규: usb·v3 저장·멱등 재전송·거부 사례, real 필터, SQLite CHECK 확장(열 수준·테이블 수준, WAL, 롤백, 인식 불가 CHECK 거절), 기동 가드 |
+| 검증 모니터 파서 | `node tools/flex-monitor/regrip-flex-core.test.mjs` 통과 | |
+| 브라우저 E2E | headless Chrome에 100Hz CSV를 보내는 가짜 Web Serial 포트를 주입. USB 연결(포트 설정 확인), 손가락 표(약 80Hz 수신), 2개 손가락 보정, 약지 해제 후 50% 입력, 마지막 손가락 해제 거절, 풍선 게임에서 USB 자동 복원·시작·엄지 굽힘 100·엄지 미연결 시 일시정지·복귀 후 재개, 360px 화면 가로 넘침 없음. 콘솔 오류 없음 | 실제 XIAO·Web Serial·Web Bluetooth 장치 연결은 미실행. 가짜 포트의 수신 속도는 headless 타이머 지터로 100Hz보다 낮음 |
+
+defensive 모드에서 `writable_schema`가 막히는 경우는 백엔드 테스트 환경(Python 3.11)에서 재현할 수 없어 Python 3.13으로 수동 확인했다. 오류에 백업 경로가 표시되고 스키마·추가 열이 롤백된다. PostgreSQL 005는 실제 서버에서 실행하지 않았다. 기존 개발 SQLite DB가 있으면 API를 중지한 뒤 `python -m scripts.upgrade_sqlite --database <DB 경로>`를 한 번 실행해야 한다.
 
 ## 2026-10-02 팀 검증 5채널 센서 PCB 연결·수신 반영
 
