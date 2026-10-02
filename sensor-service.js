@@ -18,12 +18,14 @@
     if (ArrayBuffer.isView(payload) || payload instanceof ArrayBuffer) {
       const view = ArrayBuffer.isView(payload)
         ? new DataView(payload.buffer, payload.byteOffset, payload.byteLength) : new DataView(payload);
-      if (view.byteLength === 18 && view.getUint8(0) === 0x52 && view.getUint8(1) === 0x47) {
-        if (view.getUint8(2) !== 1 || view.getUint8(3) !== 5) return null;
+      // Sensor PCB protocol v3 (hardware-verified, tools/flex-monitor): 'R', version 3,
+      // uint16 sample id, uint32 ms, five uint16 ADC values, connected-channel mask, error code.
+      if (view.byteLength === 20 && view.getUint8(0) === 0x52 && view.getUint8(1) === 3) {
         const fingerRaw = Array.from({ length: 5 }, (_, i) => view.getUint16(8 + i * 2, true));
         if (fingerRaw.some(value => value > 4095)) return null;
-        return { timestampMs: view.getUint32(4, true), fingerRaw,
-          gripRaw: fingerRaw.reduce((sum, value) => sum + value, 0) / 5 };
+        return { sampleId: view.getUint16(2, true), timestampMs: view.getUint32(4, true), fingerRaw,
+          gripRaw: fingerRaw.reduce((sum, value) => sum + value, 0) / 5,
+          connectedMask: view.getUint8(18), errorCode: view.getUint8(19) };
       }
     }
     let text;
@@ -354,7 +356,8 @@
         try {
           if (!secure() || typeof nav.bluetooth?.requestDevice !== 'function') throw new Error('Windows Chrome/Edge에서 HTTPS 또는 localhost 주소로 열어 주세요.');
           // Do not await anything before this call: preserve the button's user activation.
-          choice = nav.bluetooth.requestDevice({ filters: [{ name: 'ReGrip-Sensor' }], optionalServices: [SERVICE_UUID] });
+          // Both boards advertise the service UUID (ReGrip-5CH sensor PCB, ReGrip-Sensor FSR board).
+          choice = nav.bluetooth.requestDevice({ filters: [{ services: [SERVICE_UUID] }], optionalServices: [SERVICE_UUID] });
         } catch (error) { setStatus('disconnected'); return Promise.reject(error); }
         return choice.then(selected => {
           if (generation !== expectedGeneration) throw new Error('연결 요청이 취소되었습니다.');

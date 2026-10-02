@@ -6,26 +6,95 @@ const { createSensorService, parseBlePacket } = require('../sensor-service');
 const SERVICE = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
 const TX = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
 const flush = async () => { for (let n = 0; n < 12; n++) await Promise.resolve(); };
-function glovePacket(timestamp, fingers) {
-  const bytes = new Uint8Array(18), view = new DataView(bytes.buffer);
-  bytes.set([0x52, 0x47, 1, 5]); view.setUint32(4, timestamp, true);
+// Sensor PCB protocol v3, as sent by firmware/xiao-glove/regrip_sensor_pcb_5ch.
+function glovePacket(timestamp, fingers, { sampleId = timestamp & 0xffff, connectedMask = 0x1f, errorCode = 0 } = {}) {
+  const bytes = new Uint8Array(20), view = new DataView(bytes.buffer);
+  bytes.set([0x52, 3]); view.setUint16(2, sampleId, true); view.setUint32(4, timestamp, true);
   fingers.forEach((value, i) => view.setUint16(8 + i * 2, value, true));
+  view.setUint8(18, connectedMask); view.setUint8(19, errorCode);
   return view;
 }
-function sendGlove(h, timestamp, fingers) {
-  h.device.characteristic.value = glovePacket(timestamp, fingers);
+function sendGlove(h, timestamp, fingers, extra) {
+  h.device.characteristic.value = glovePacket(timestamp, fingers, extra);
   h.device.characteristic.dispatchEvent(new Event('characteristicvaluechanged'));
 }
 
-test('XIAO five-finger packet preserves every raw channel without inventing pressure', () => {
-  const bytes = glovePacket(4294967295, [100, 200, 300, 400, 500]);
-  const offset = new Uint8Array(22); offset.set(new Uint8Array(bytes.buffer), 2);
-  assert.deepEqual(parseBlePacket(new DataView(offset.buffer, 2, 18)), {
-    timestampMs: 4294967295, fingerRaw: [100, 200, 300, 400, 500], gripRaw: 300,
+test('sensor PCB v3 packet preserves every raw channel without inventing pressure', () => {
+  const bytes = glovePacket(4294967295, [100, 200, 300, 400, 500], { sampleId: 65535, connectedMask: 0b01001 });
+  const offset = new Uint8Array(24); offset.set(new Uint8Array(bytes.buffer), 2);
+  assert.deepEqual(parseBlePacket(new DataView(offset.buffer, 2, 20)), {
+    sampleId: 65535, timestampMs: 4294967295, fingerRaw: [100, 200, 300, 400, 500], gripRaw: 300,
+    connectedMask: 0b01001, errorCode: 0,
   });
   assert.equal(parseBlePacket(glovePacket(1, [0, 0, 4096, 0, 0])), null);
-  assert.equal(parseBlePacket(new DataView(bytes.buffer, 0, 17)), null);
-  bytes.setUint8(2, 2); assert.equal(parseBlePacket(bytes), null);
+  assert.equal(parseBlePacket(new DataView(bytes.buffer, 0, 19)), null);
+  bytes.setUint8(1, 2); assert.equal(parseBlePacket(bytes), null);
+  bytes.setUint8(1, 3); bytes.setUint8(0, 0x53); assert.equal(parseBlePacket(bytes), null);
+  // The unverified v1 glove format ("RG", 18 bytes) is no longer produced by any firmware here.
+  const v1 = new Uint8Array(18); v1.set([0x52, 0x47, 1, 5]);
+  assert.equal(parseBlePacket(v1), null);
+});
+
+test('app parser matches the hardware-verified monitor parser on the same bytes', async () => {
+  const { pathToFileURL } = require('node:url'), path = require('node:path');
+  const core = await import(pathToFileURL(path.join(__dirname, '..', 'tools', 'flex-monitor', 'regrip-flex-core.mjs')).href);
+  let seed = 7;
+  const next = limit => { seed = (seed * 1103515245 + 12345) >>> 0; return seed % limit; };
+  const packets = [glovePacket(123456, [1780, 4095, 4095, 1825, 4095], { sampleId: 65535, connectedMask: 0b01001 })];
+  for (let n = 0; n < 2000; n++) {
+    const view = glovePacket(next(4294967296), Array.from({ length: 5 }, () => next(4200)),
+      { sampleId: next(65536), connectedMask: next(256), errorCode: next(4) });
+    view.setUint8(1, [2, 3, 3, 3, 4][next(5)]);
+    packets.push(view);
+  }
+  let valid = 0;
+  for (const view of packets) {
+    const ours = parseBlePacket(view), verified = core.parseBleFlexPacket(view);
+    if (!verified) { assert.equal(ours, null); continue; }
+    valid++;
+    assert.deepEqual(ours, {
+      sampleId: verified.sampleId, timestampMs: verified.timestampMs,
+      fingerRaw: core.FINGERS.map(({ key }) => verified.raw[key]),
+      gripRaw: core.FINGERS.reduce((sum, { key }) => sum + verified.raw[key], 0) / 5,
+      connectedMask: verified.connectedMask, errorCode: verified.errorCode,
+    });
+  }
+  assert.ok(valid > 100 && valid < packets.length, 'Both accepted and rejected packets must be compared');
+});
+
+test('firmware advertises the UUIDs and v3 packet shape the app parses', () => {
+  const fs = require('node:fs'), path = require('node:path');
+  const sketch = fs.readFileSync(path.join(__dirname, '..', 'firmware', 'xiao-glove', 'regrip_sensor_pcb_5ch', 'regrip_sensor_pcb_5ch.ino'), 'utf8');
+  assert.match(sketch, new RegExp(`BLE_SERVICE_UUID\\[\\] = "${SERVICE}"`, 'i'));
+  assert.match(sketch, new RegExp(`BLE_TX_UUID\\[\\] = "${TX}"`, 'i'));
+  assert.match(sketch, /advertising->addServiceUUID\(BLE_SERVICE_UUID\)/);
+  assert.match(sketch, /uint8_t packet\[20\]/);
+  assert.match(sketch, /packet\[0\] = 0x52;/);
+  assert.match(sketch, /packet\[1\] = 3;/);
+  assert.match(sketch, /FLEX_PINS\[\] = \{D0, D1, D2, D3, D4\}/);
+});
+
+test('100Hz sensor PCB stream stays fresh and calibrates from about one second of packets', async () => {
+  const h = setup(); await h.service.connectBle();
+  let timestamp = 1000;
+  sendGlove(h, timestamp, [1780, 4095, 4095, 1825, 4095], { connectedMask: 0b01001 });
+  async function stream(fingers, ms) {
+    for (let elapsed = 0; elapsed < ms; elapsed += 10) {
+      await h.clock.advance(10); timestamp += 10; sendGlove(h, timestamp, fingers, { connectedMask: 0b01001 });
+    }
+  }
+  async function captureAt(fingers) { const pending = h.service.captureBaseline(); await stream(fingers, 1010); return pending; }
+  const rest = await captureAt([1780, 4095, 4095, 1825, 4095]);
+  const grip = await captureAt([2780, 4095, 4095, 2825, 4095]);
+  assert.ok(rest.sampleCount >= 95 && grip.sampleCount >= 95, `${rest.sampleCount}/${grip.sampleCount}`);
+  const cal = h.service.saveBleCalibration(rest, grip);
+  assert.equal(cal.channel, 'finger_mean');
+  assert.equal(h.service.getStatus(), 'connected');
+  assert.equal(h.service.getForce(), 100);
+  assert.equal(h.service.getRawSample().connectedMask, 0b01001);
+  await stream([1780, 4095, 4095, 1825, 4095], 500);
+  assert.ok(h.service.getForce() < 0.5);
+  h.service.disconnect();
 });
 
 test('five-finger BLE input uses measured calibration and records finger_mean provenance', async () => {
@@ -103,7 +172,8 @@ function setup(options = {}) {
   const storage = { getItem: key => map.get(key) ?? null, setItem: (key, value) => map.set(key, value), removeItem: key => map.delete(key) };
   let user = 'user-1', chooserCalls = 0;
   const bluetooth = {
-    requestDevice(args) { chooserCalls++; assert.deepEqual(args, { filters: [{ name: 'ReGrip-Sensor' }], optionalServices: [SERVICE] }); return Promise.resolve(device); },
+    // Same chooser filter as the hardware-verified monitor; covers ReGrip-5CH and the FSR board.
+    requestDevice(args) { chooserCalls++; assert.deepEqual(args, { filters: [{ services: [SERVICE] }], optionalServices: [SERVICE] }); return Promise.resolve(device); },
     getDevices: async () => [device],
   };
   const service = createSensorService({

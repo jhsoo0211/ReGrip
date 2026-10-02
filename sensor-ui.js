@@ -29,7 +29,7 @@
     const $ = s => host.querySelector(s);
     const error = $('[data-sensor-error]');
     const frames = [];
-    let destroyed = false, busy = false, plotMode = sensor.getMode(), plotChannel = null;
+    let destroyed = false, busy = false, plotMode = sensor.getMode(), plotChannel = null, plottedAt = -Infinity;
     const canvas = $('canvas'), context = canvas.getContext('2d');
     function describeInput(sample) {
       const wifi = sensor.getMode() === 'websocket';
@@ -38,9 +38,11 @@
       $('[data-fsr-unit]').textContent = wifi ? '%' : 'ADC';
       $('[data-flex-reading]').hidden = glove || wifi;
       $('[data-finger-readings]').hidden = !glove;
-      const names = ['엄지 D0', '검지 D1', '중지 D3', '약지 D4', '소지 D5'];
+      const names = ['엄지 D0', '검지 D1', '중지 D2', '약지 D3', '소지 D4'];
+      // The sensor PCB reports pulled-up (~4095) inputs as unconnected in connectedMask.
+      const unplugged = i => Number.isInteger(sample.connectedMask) && !(sample.connectedMask & (1 << i));
       $('[data-finger-readings]').textContent = glove
-        ? sample.fingerRaw.map((v, i) => `${names[i]}: ${v}`).join(' · ') : '';
+        ? sample.fingerRaw.map((v, i) => `${names[i]}: ${v}${unplugged(i) ? ' (미연결)' : ''}`).join(' · ') : '';
       $('[data-plot-help]').textContent = glove
         ? '엄지: 파랑 · 검지: 초록 · 중지: 주황 · 약지: 보라 · 소지: 분홍. 다섯 입력의 평균을 보정해 게임을 조작합니다.'
         : wifi ? '파랑: Wi-Fi 센서의 보정 전 압력(%). 이 센서는 가변 저항 값을 전송하지 않습니다.'
@@ -53,7 +55,7 @@
       const mode = sensor.getMode(), current = sensor.getStatus();
       const resetPlot = mode !== plotMode || current === 'connecting' || current === 'simulation';
       if (resetPlot) {
-        frames.length = 0; plotMode = mode; plotChannel = null;
+        frames.length = 0; plotMode = mode; plotChannel = null; plottedAt = -Infinity;
         $('[data-fsr]').textContent = '—'; $('[data-flex]').textContent = '—';
         if (context) context.clearRect(0, 0, canvas.width, canvas.height);
       }
@@ -63,7 +65,7 @@
       const needsCal = mode === 'ble' && current === 'connected' && !sensor.isReady();
       $('[data-sensor-help]').textContent = needsCal ? '연결됐습니다. 게임 시작 전 내 손에 맞게 보정해 주세요.'
         : sensor.isReady() ? (mode === 'simulation' ? '센서 없이 연습할 수 있습니다. 기록은 시뮬레이션으로 구분됩니다.' : '준비됐습니다. 편안하게 쥐고 힘을 조절해 보세요.')
-        : current === 'connecting' ? '센서를 연결 중입니다. 장치 목록에서 ReGrip-Sensor를 선택해 주세요.'
+        : current === 'connecting' ? '센서를 연결 중입니다. 장치 목록에서 ReGrip-5CH(기존 보드는 ReGrip-Sensor)를 선택해 주세요.'
         : '센서 입력이 멈추면 게임도 멈춥니다. 연결을 확인한 뒤 직접 재개해 주세요.';
       $('[data-ble-connect]').disabled = busy;
       $('[data-ble-connect]').textContent = mode !== 'simulation' && current !== 'connected' ? '센서 다시 연결' : '센서 연결';
@@ -76,10 +78,13 @@
       const glove = Array.isArray(sample.fingerRaw);
       const pressure = sensor.getMode() === 'websocket' ? sample.forceRaw : glove ? sample.gripRaw : sample.fsrRaw;
       const channel = glove ? 'finger_mean' : sensor.getMode();
-      if (channel !== plotChannel) { frames.length = 0; plotChannel = channel; }
+      if (channel !== plotChannel) { frames.length = 0; plotChannel = channel; plottedAt = -Infinity; }
       describeInput(sample);
       $('[data-fsr]').textContent = pressure == null ? '—' : String(Math.round(pressure));
       $('[data-flex]').textContent = sample.flexRaw == null ? '—' : String(Math.round(sample.flexRaw));
+      // 100 frames at 100Hz would show only one second; plot at most every 40ms instead.
+      if (sample.receivedAt - plottedAt < 40) return;
+      plottedAt = sample.receivedAt;
       frames.push({ pressure, flex: sample.flexRaw, ...(glove ? Object.fromEntries(sample.fingerRaw.map((v, i) => ['finger'+i, v])) : {}) }); if (frames.length > 100) frames.shift();
       if (!context) return;
       context.clearRect(0, 0, canvas.width, canvas.height);

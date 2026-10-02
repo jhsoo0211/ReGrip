@@ -63,7 +63,7 @@ function bleBoundary() {
     device,
     navigator: { bluetooth: {
       requestDevice(options) {
-        assert.deepEqual(options, { filters: [{ name: 'ReGrip-Sensor' }], optionalServices: [SERVICE_UUID] });
+        assert.deepEqual(options, { filters: [{ services: [SERVICE_UUID] }], optionalServices: [SERVICE_UUID] });
         return Promise.resolve(device);
       },
       getDevices: async () => [device],
@@ -104,10 +104,13 @@ function createBleGameRuntime(game, options = {}) {
   const emit = (fsr, flex = 1024) => {
     lastCsv = `${clock.now()},${flex},${fsr}`;
     if (options.fiveFingers) {
-      const view = new DataView(new ArrayBuffer(18));
-      [0x52, 0x47, 1, 5].forEach((v, i) => view.setUint8(i, v));
+      // Sensor PCB protocol v3: 'R', version 3, uint16 sample id, uint32 ms, 5 x uint16, mask, error.
+      const view = new DataView(new ArrayBuffer(20));
+      view.setUint8(0, 0x52); view.setUint8(1, 3);
+      view.setUint16(2, clock.now() & 0xffff, true);
       view.setUint32(4, clock.now(), true);
       for (let i = 0; i < 5; i++) view.setUint16(8 + i * 2, fsr, true);
+      view.setUint8(18, 0x1f);
       ble.send(view);
     } else ble.send(lastCsv);
   };

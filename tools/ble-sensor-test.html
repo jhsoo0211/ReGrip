@@ -48,7 +48,8 @@
 <body>
 <div class="wrap">
   <h1>ReGrip BLE 센서 수신 시험 🔧</h1>
-  <p class="sub">펌웨어 계약: 장치명 <code>ReGrip-Sensor</code> · NUS 서비스 <code>6e400001-…</code> · TX notify <code>6e400003-…</code> · 페이로드 ASCII CSV <code>timestamp_ms,flex_raw,fsr_raw</code> (raw 0~4095, 20Hz)</p>
+  <p class="sub">펌웨어 계약: 장치명 <code>ReGrip-Sensor</code> · NUS 서비스 <code>6e400001-…</code> · TX notify <code>6e400003-…</code> · 페이로드 ASCII CSV <code>timestamp_ms,flex_raw,fsr_raw</code> (raw 0~4095, 20Hz)<br>
+  5채널 센서 PCB(<code>ReGrip-5CH</code>, 100Hz)는 손가락 평균을 게임 입력 칸에 표시합니다. 채널별 값과 USB 수신은 <a href="flex-monitor/README_5CH.md">5채널 모니터</a>로 확인하세요.</p>
 
   <div id="support" class="warn" hidden></div>
 
@@ -65,11 +66,11 @@
     </div>
     <div class="grid">
       <div class="stat"><div class="k">가변저항 raw (flex 모사)</div><div class="v" id="flexVal">–</div></div>
-      <div class="stat"><div class="k">FSR raw</div><div class="v" id="fsrVal">–</div></div>
+      <div class="stat"><div class="k">게임 입력 raw (FSR·손가락 평균)</div><div class="v" id="fsrVal">–</div></div>
       <div class="stat"><div class="k">수신 패킷</div><div class="v" id="pktCount">0</div></div>
       <div class="stat"><div class="k">간격 이상(&gt;75ms)</div><div class="v" id="gapCount">0</div></div>
       <div class="stat"><div class="k">끊김 횟수</div><div class="v" id="dropCount">0</div></div>
-      <div class="stat"><div class="k">FSR min~max</div><div class="v" id="fsrRange"><small>–</small></div></div>
+      <div class="stat"><div class="k">입력 min~max</div><div class="v" id="fsrRange"><small>–</small></div></div>
     </div>
     <div class="warn" style="margin-top:10px; font-size:12.5px">
       <b>수신 확인</b>: 먼저 센서 가까이에서 시험하세요. 500ms 동안 새 유효 패킷이 없으면 수신 중단으로 표시합니다.
@@ -118,7 +119,7 @@
 const $ = id => document.getElementById(id);
 const ring = [], rateWindow = [], recorded = [];
 let packets = 0, gaps = 0, drops = 0, lastReceived = null, fsrMin = Infinity, fsrMax = -Infinity;
-let recording = false, restCapture = null, capturing = false, previousStatus = 'simulation';
+let recording = false, restCapture = null, capturing = false, previousStatus = 'simulation', recordedInput = 'fsr_raw';
 const supported = !!navigator.bluetooth && window.isSecureContext;
 function log(message) {
   const lines = ($('log').textContent + `[${new Date().toLocaleTimeString('ko-KR')}] ${message}\n`).split('\n');
@@ -149,18 +150,22 @@ function renderStatus(status) {
 SensorService.onStatusChange(renderStatus);
 SensorService.onRawSample(sample => {
   if (SensorService.getMode() !== 'ble') return;
+  // The 5-channel sensor PCB has no FSR/flex pair: show its game input (finger mean) instead.
+  const input = sample.fingerRaw ? Math.round(sample.gripRaw) : sample.fsrRaw;
+  const flex = sample.fingerRaw ? null : sample.flexRaw;
   const t = sample.receivedAt;
   if (lastReceived !== null && t - lastReceived > 75) gaps++;
   lastReceived = t; packets++;
-  fsrMin = Math.min(fsrMin, sample.fsrRaw); fsrMax = Math.max(fsrMax, sample.fsrRaw);
-  ring.push({ t, flex: sample.flexRaw, fsr: sample.fsrRaw });
+  fsrMin = Math.min(fsrMin, input); fsrMax = Math.max(fsrMax, input);
+  ring.push({ t, flex, fsr: input });
   while (ring.length && t - ring[0].t > 10000) ring.shift();
   rateWindow.push(t);
-  $('flexVal').textContent = sample.flexRaw; $('fsrVal').textContent = sample.fsrRaw;
+  $('flexVal').textContent = flex ?? '–'; $('fsrVal').textContent = input;
   $('pktCount').textContent = packets; $('gapCount').textContent = gaps;
   $('fsrRange').textContent = `${fsrMin}~${fsrMax}`;
   if (recording) {
-    recorded.push([new Date().toISOString(), sample.timestampMs, sample.flexRaw, sample.fsrRaw]);
+    if (!recorded.length) recordedInput = sample.fingerRaw ? 'finger_mean_raw' : 'fsr_raw';
+    recorded.push([new Date().toISOString(), sample.timestampMs, flex ?? '', input]);
     if (recorded.length >= 72000) { recording = false; log('72,000행에 도달해 기록을 마쳤습니다. CSV를 저장하세요.'); }
     updateRecording();
   }
@@ -199,7 +204,7 @@ $('btnCal0').onclick = () => capture(0);
 $('btnCal100').onclick = () => capture(1);
 $('btnRec').onclick = () => { recording = !recording; if (recording) recorded.length = 0; updateRecording(); };
 $('btnCsv').onclick = () => {
-  const csv = 'recv_iso,timestamp_ms,flex_raw,fsr_raw\n' + recorded.map(row => row.join(',')).join('\n');
+  const csv = `recv_iso,timestamp_ms,flex_raw,${recordedInput}\n` + recorded.map(row => row.join(',')).join('\n');
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   const anchor = document.createElement('a'); anchor.href = url; anchor.download = `regrip-ble-${Date.now()}.csv`; anchor.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -213,7 +218,12 @@ function draw() {
   while (ring.length && now - ring[0].t > 10000) ring.shift();
   for (const [key, color] of [['flex', '#2563EB'], ['fsr', '#994626']]) {
     context.beginPath(); context.strokeStyle = color; context.lineWidth = 2;
-    ring.forEach((p, i) => { const x = w - (now - p.t) / 10000 * w, y = h - 4 - p[key] / 4095 * (h - 8); if (i) context.lineTo(x, y); else context.moveTo(x, y); });
+    let started = false;
+    ring.forEach(p => {
+      if (p[key] == null) return;
+      const x = w - (now - p.t) / 10000 * w, y = h - 4 - p[key] / 4095 * (h - 8);
+      if (started) context.lineTo(x, y); else { context.moveTo(x, y); started = true; }
+    });
     context.stroke();
   }
   frame = requestAnimationFrame(draw);

@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Re:Grip 5채널 플렉스 모니터</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #171717;
+      --muted: #6b7280;
+      --line: #dedede;
+      --surface: #fff;
+      --background: #f5f5f3;
+      --ok: #16794a;
+      --warn: #9a6700;
+      --bad: #b42318;
+      --thumb: #2563eb;
+      --index: #0f9f75;
+      --middle: #8b5cf6;
+      --ring: #e07a1f;
+      --little: #d94678;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--background); color: var(--ink); font-family: Pretendard, "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif; }
+    button { font: inherit; border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; background: #fff; cursor: pointer; font-weight: 750; }
+    button:hover:not(:disabled) { background: #f0f0ee; }
+    button:disabled { opacity: .42; cursor: not-allowed; }
+    button.primary { color: #fff; background: #202020; border-color: #202020; }
+    button.danger { color: var(--bad); }
+    .shell { width: min(1180px, calc(100% - 28px)); margin: auto; padding: 28px 0 50px; }
+    .eyebrow { color: var(--muted); font-size: 12px; font-weight: 800; letter-spacing: .08em; }
+    h1 { margin: 5px 0 6px; font-size: clamp(28px, 4vw, 44px); }
+    .lead { margin: 0; color: var(--muted); }
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: 15px; padding: 17px; }
+    .section-title { margin: 26px 0 10px; display: flex; align-items: baseline; gap: 10px; }
+    .section-title h2 { margin: 0; font-size: 18px; }
+    .section-title small { color: var(--muted); }
+    .toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
+    .push { flex: 1; }
+    .status { display: inline-flex; align-items: center; gap: 8px; font-weight: 800; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: #aaa; }
+    .dot.on { background: var(--ok); box-shadow: 0 0 0 4px #dff5e9; }
+    .dot.busy { background: var(--warn); }
+    .dot.error { background: var(--bad); }
+    .summary { margin-top: 12px; display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 9px; }
+    .summary > div { padding: 11px 12px; border-radius: 10px; background: #f7f7f5; }
+    .summary span { display: block; color: var(--muted); font-size: 11px; font-weight: 800; }
+    .summary b { display: block; margin-top: 3px; font-size: 21px; font-variant-numeric: tabular-nums; }
+    .fingers { display: grid; grid-template-columns: repeat(5, minmax(150px, 1fr)); gap: 10px; }
+    .finger { --accent: #555; position: relative; overflow: hidden; }
+    .finger::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--accent); }
+    .finger-head { display: flex; justify-content: space-between; align-items: center; }
+    .finger h3 { margin: 0; font-size: 16px; }
+    .channel-state { color: var(--muted); font-size: 11px; font-weight: 800; }
+    .channel-state.on { color: var(--ok); }
+    .raw { margin-top: 13px; font-size: 31px; font-weight: 850; font-variant-numeric: tabular-nums; }
+    .raw small { color: var(--muted); font-size: 11px; }
+    .percent { margin-top: 2px; color: var(--muted); font-size: 13px; }
+    .track { height: 8px; margin-top: 10px; border-radius: 99px; overflow: hidden; background: #ececea; }
+    .track i { display: block; height: 100%; width: 0; background: var(--accent); }
+    .chart-wrap { height: 330px; }
+    canvas { width: 100%; height: 100%; display: block; }
+    .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 8px; font-size: 12px; font-weight: 750; }
+    .legend i { display: inline-block; width: 10px; height: 10px; margin-right: 5px; border-radius: 50%; }
+    .actions { display: flex; flex-wrap: wrap; gap: 9px; }
+    .hint { margin: 10px 0 0; color: var(--muted); font-size: 13px; }
+    pre { height: 160px; margin: 0; overflow: auto; padding: 12px; border-radius: 10px; background: #1e1e1e; color: #e5e5e5; font: 12px/1.55 Consolas, monospace; }
+    footer { margin-top: 28px; color: var(--muted); font-size: 12px; }
+    @media (max-width: 920px) { .fingers { grid-template-columns: repeat(2, 1fr); } .summary { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 520px) { .fingers { grid-template-columns: 1fr; } .push { display: none; } .toolbar button { flex: 1; } }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <div class="eyebrow">RE:GRIP · SENSOR PCB REV B2/B3</div>
+    <h1>5채널 플렉스 센서 모니터</h1>
+    <p class="lead">XIAO ESP32-S3의 센서 데이터를 USB 또는 Bluetooth LE로 수신해 손가락별 굽힘 변화를 확인합니다.</p>
+
+    <div class="section-title"><h2>기기 연결</h2><small>Chrome 또는 Edge · USB/BLE 목표 100Hz</small></div>
+    <section class="card">
+      <div class="toolbar">
+        <div class="status"><span class="dot" id="statusDot"></span><span id="statusText">연결 대기</span></div>
+        <span class="push"></span>
+        <button class="primary" id="connectButton">USB 센서 연결</button>
+        <button class="primary" id="connectBleButton">BLE 센서 연결</button>
+        <button id="disconnectButton" disabled>연결 해제</button>
+        <button id="demoButton">데모</button>
+      </div>
+      <div class="summary">
+        <div><span>수신 속도</span><b><span id="sampleRate">0</span> Hz</b></div>
+        <div><span>수신 표본</span><b id="sampleCount">0</b></div>
+        <div><span>최근 Sample ID</span><b id="sampleId">-</b></div>
+        <div><span>기록 상태</span><b id="recordState">대기</b></div>
+      </div>
+    </section>
+
+    <div class="section-title"><h2>손가락별 측정값</h2><small>미연결 채널 4095 근처는 정상</small></div>
+    <section class="fingers" id="fingerCards"></section>
+
+    <div class="section-title"><h2>실시간 그래프</h2><small>최근 15초 · ADC 0~4095</small></div>
+    <section class="card">
+      <div class="legend" id="legend"></div>
+      <div class="chart-wrap"><canvas id="chart"></canvas></div>
+    </section>
+
+    <div class="section-title"><h2>사용자 캘리브레이션</h2><small>각 자세를 유지한 상태에서 측정</small></div>
+    <section class="card">
+      <div class="actions">
+        <button id="captureOpen">펴짐 기준 1.5초 측정</button>
+        <button id="captureClosed">굽힘 기준 1.5초 측정</button>
+        <button class="danger" id="resetCalibration">기준 초기화</button>
+      </div>
+      <p class="hint" id="calibrationHint">연결된 센서만 자동으로 저장합니다. 펴짐과 굽힘의 차이가 80 미만인 채널은 정규화하지 않습니다.</p>
+    </section>
+
+    <div class="section-title"><h2>데이터 기록</h2><small>원본 CSV 보존</small></div>
+    <section class="card">
+      <div class="actions">
+        <button class="primary" id="recordButton">기록 시작</button>
+        <button id="downloadButton" disabled>CSV 다운로드</button>
+      </div>
+    </section>
+
+    <div class="section-title"><h2>진단 로그</h2></div>
+    <section class="card"><pre id="log"></pre></section>
+    <footer>연구·교육용 MVP · 표시값은 임상적으로 검증된 관절 각도가 아닌 상대 센서값입니다.</footer>
+  </main>
+
+  <script type="module">
+    import { ADC_MAX, EmaBank, FINGERS, median, normalizeFlex, parseBleFlexPacket, parseFlexFrame } from "./regrip-flex-core.mjs";
+
+    const COLORS = { thumb: "#2563eb", index: "#0f9f75", middle: "#8b5cf6", ring: "#e07a1f", little: "#d94678" };
+    const CAL_KEY = "regrip-flex-5ch-calibration-v1";
+    const CSV_HEADER = "sample_id,timestamp_ms,thumb_raw,index_raw,middle_raw,ring_raw,little_raw";
+    const BLE_SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+    const BLE_TX_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
+    const $ = (id) => document.getElementById(id);
+    const ema = new EmaBank(0.7);
+    const decoder = new TextDecoder();
+
+    let port = null;
+    let reader = null;
+    let readTask = null;
+    let receiveBuffer = "";
+    let bleDevice = null;
+    let bleCharacteristic = null;
+    let connectionMode = null;
+    let sampleCount = 0;
+    let hostSampleTimes = [];
+    let chartSamples = [];
+    let recentFrames = [];
+    let latestFiltered = null;
+    let demoTimer = null;
+    let recording = false;
+    let recordedLines = [];
+    let calibration = loadCalibration();
+
+    function loadCalibration() {
+      try { return JSON.parse(localStorage.getItem(CAL_KEY)) ?? { open: {}, closed: {} }; }
+      catch { return { open: {}, closed: {} }; }
+    }
+
+    function saveCalibration() {
+      localStorage.setItem(CAL_KEY, JSON.stringify(calibration));
+    }
+
+    function setStatus(mode, text) {
+      $("statusDot").className = `dot${mode ? ` ${mode}` : ""}`;
+      $("statusText").textContent = text;
+    }
+
+    function addLog(message) {
+      const stamp = new Date().toLocaleTimeString("ko-KR", { hour12: false });
+      const lines = $("log").textContent.split("\n").filter(Boolean);
+      lines.push(`[${stamp}] ${message}`);
+      $("log").textContent = lines.slice(-80).join("\n");
+      $("log").scrollTop = $("log").scrollHeight;
+    }
+
+    function buildUi() {
+      $("fingerCards").innerHTML = FINGERS.map(({ key, label }) => `
+        <article class="card finger" style="--accent:${COLORS[key]}">
+          <div class="finger-head"><h3>${label}</h3><span class="channel-state" id="${key}State">대기</span></div>
+          <div class="raw" id="${key}Raw">- <small>ADC</small></div>
+          <div class="percent" id="${key}Percent">캘리브레이션 전</div>
+          <div class="track"><i id="${key}Bar"></i></div>
+        </article>`).join("");
+      $("legend").innerHTML = FINGERS.map(({ key, label }) => `<span><i style="background:${COLORS[key]}"></i>${label}</span>`).join("");
+    }
+
+    function setConnectionControls(connected) {
+      $("connectButton").disabled = connected;
+      $("connectBleButton").disabled = connected;
+      $("disconnectButton").disabled = !connected;
+    }
+
+    function processFrame(frame) {
+      const now = performance.now();
+      latestFiltered = ema.update(frame.raw);
+      sampleCount += 1;
+      hostSampleTimes.push(now);
+      hostSampleTimes = hostSampleTimes.filter((time) => now - time <= 1000);
+      recentFrames.push({ at: now, raw: { ...latestFiltered } });
+      recentFrames = recentFrames.filter((item) => now - item.at <= 2500);
+      chartSamples.push({ at: now, raw: { ...latestFiltered } });
+      chartSamples = chartSamples.filter((item) => now - item.at <= 15000);
+
+      $("sampleRate").textContent = hostSampleTimes.length;
+      $("sampleCount").textContent = sampleCount.toLocaleString();
+      $("sampleId").textContent = frame.sampleId;
+
+      for (const { key } of FINGERS) {
+        const raw = latestFiltered[key];
+        const disconnected = raw >= 4090;
+        $(`${key}Raw`).innerHTML = `${Math.round(raw)} <small>ADC</small>`;
+        $(`${key}State`).textContent = disconnected ? "미연결" : "측정 중";
+        $(`${key}State`).className = `channel-state${disconnected ? "" : " on"}`;
+        const percent = normalizeFlex(raw, calibration.open[key], calibration.closed[key]);
+        $(`${key}Percent`).textContent = percent === null ? "캘리브레이션 전" : `${Math.round(percent)}% 굽힘`;
+        $(`${key}Bar`).style.width = `${percent ?? 0}%`;
+      }
+
+      if (recording) recordedLines.push(frame.rawLine);
+    }
+
+    function processLine(line) {
+      const frame = parseFlexFrame(line);
+      if (!frame) {
+        if (line.trim().startsWith("#")) addLog(line.trim());
+        return;
+      }
+      processFrame(frame);
+    }
+
+    function handleBleNotification(event) {
+      const frame = parseBleFlexPacket(event.target.value);
+      if (!frame) {
+        addLog("BLE 패킷 형식 오류");
+        return;
+      }
+      if (frame.errorCode) addLog(`장치 오류 코드: ${frame.errorCode}`);
+      processFrame(frame);
+    }
+
+    async function readSerial() {
+      reader = port.readable.getReader();
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          receiveBuffer += decoder.decode(value, { stream: true });
+          const lines = receiveBuffer.split(/\r?\n/);
+          receiveBuffer = lines.pop() ?? "";
+          for (const line of lines) processLine(line);
+        }
+      } catch (error) {
+        if (port) addLog(`수신 오류: ${error.message}`);
+      } finally {
+        reader.releaseLock();
+        reader = null;
+      }
+    }
+
+    async function connectSerial() {
+      if (!("serial" in navigator)) {
+        setStatus("error", "Web Serial 미지원");
+        addLog("Chrome 또는 Edge에서 localhost 주소로 열어주세요.");
+        return;
+      }
+      try {
+        stopDemo();
+        setStatus("busy", "포트 선택 중");
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 115200, bufferSize: 65536 });
+        connectionMode = "usb";
+        setStatus("on", "USB 연결됨");
+        setConnectionControls(true);
+        addLog("USB 시리얼 연결 완료 · 115200 baud");
+        readTask = readSerial();
+      } catch (error) {
+        port = null;
+        connectionMode = null;
+        setStatus("error", "연결 실패");
+        setConnectionControls(false);
+        addLog(`연결 실패: ${error.message}`);
+      }
+    }
+
+    async function disconnectSerial() {
+      const activePort = port;
+      port = null;
+      if (reader) await reader.cancel().catch(() => {});
+      if (readTask) await readTask.catch(() => {});
+      if (activePort) await activePort.close().catch(() => {});
+      readTask = null;
+      receiveBuffer = "";
+      addLog("USB 연결 해제");
+    }
+
+    async function connectBle() {
+      if (!("bluetooth" in navigator)) {
+        setStatus("error", "Web Bluetooth 미지원");
+        addLog("Windows의 Chrome 또는 Edge에서 localhost 주소로 열어주세요.");
+        return;
+      }
+      try {
+        stopDemo();
+        setStatus("busy", "BLE 기기 선택 중");
+        bleDevice = await navigator.bluetooth.requestDevice({
+          filters: [{ services: [BLE_SERVICE_UUID] }],
+          optionalServices: [BLE_SERVICE_UUID],
+        });
+        bleDevice.addEventListener("gattserverdisconnected", handleBleDisconnected);
+        const server = await bleDevice.gatt.connect();
+        const service = await server.getPrimaryService(BLE_SERVICE_UUID);
+        bleCharacteristic = await service.getCharacteristic(BLE_TX_UUID);
+        bleCharacteristic.addEventListener("characteristicvaluechanged", handleBleNotification);
+        await bleCharacteristic.startNotifications();
+        connectionMode = "ble";
+        setStatus("on", "BLE 연결됨");
+        setConnectionControls(true);
+        addLog(`BLE 연결 완료 · ${bleDevice.name ?? "ReGrip-5CH"} · 목표 100Hz`);
+      } catch (error) {
+        if (bleCharacteristic) {
+          bleCharacteristic.removeEventListener("characteristicvaluechanged", handleBleNotification);
+        }
+        bleCharacteristic = null;
+        bleDevice = null;
+        connectionMode = null;
+        setStatus("error", "BLE 연결 실패");
+        setConnectionControls(false);
+        addLog(`BLE 연결 실패: ${error.message}`);
+      }
+    }
+
+    function handleBleDisconnected() {
+      if (connectionMode !== "ble") return;
+      if (bleCharacteristic) {
+        bleCharacteristic.removeEventListener("characteristicvaluechanged", handleBleNotification);
+      }
+      bleCharacteristic = null;
+      bleDevice = null;
+      connectionMode = null;
+      setStatus("", "BLE 연결 끊김");
+      setConnectionControls(false);
+      addLog("BLE 연결이 끊겼습니다.");
+    }
+
+    async function disconnectBle() {
+      const device = bleDevice;
+      connectionMode = null;
+      if (bleCharacteristic) {
+        bleCharacteristic.removeEventListener("characteristicvaluechanged", handleBleNotification);
+        await bleCharacteristic.stopNotifications().catch(() => {});
+      }
+      bleCharacteristic = null;
+      bleDevice = null;
+      if (device?.gatt?.connected) device.gatt.disconnect();
+      addLog("BLE 연결 해제");
+    }
+
+    async function disconnectConnection() {
+      const mode = connectionMode;
+      if (mode === "usb") {
+        connectionMode = null;
+        await disconnectSerial();
+      } else if (mode === "ble") {
+        await disconnectBle();
+      }
+      setStatus("", "연결 해제");
+      setConnectionControls(false);
+    }
+
+    function startDemo() {
+      if (demoTimer) return stopDemo();
+      let id = 0;
+      const started = performance.now();
+      setStatus("busy", "데모 실행 중");
+      $("demoButton").textContent = "데모 종료";
+      demoTimer = setInterval(() => {
+        const t = (performance.now() - started) / 1000;
+        const wave = (phase, low, high) => Math.round(low + (high - low) * (0.5 + 0.5 * Math.sin(t * 2.1 + phase)));
+        processLine(`${id},${id * 20},${wave(0,1600,2700)},${wave(.5,1700,2800)},${wave(1,1650,2750)},${wave(1.5,1500,2400)},${wave(2,1550,2500)}`);
+        id += 1;
+      }, 20);
+    }
+
+    function stopDemo() {
+      if (!demoTimer) return;
+      clearInterval(demoTimer);
+      demoTimer = null;
+      $("demoButton").textContent = "데모";
+      if (!connectionMode) setStatus("", "연결 대기");
+    }
+
+    async function capturePose(kind) {
+      if (!latestFiltered) return addLog("먼저 센서를 연결해 값을 수신하세요.");
+      const buttons = [$("captureOpen"), $("captureClosed"), $("resetCalibration")];
+      buttons.forEach((button) => button.disabled = true);
+      const label = kind === "open" ? "펴짐" : "굽힘";
+      $("calibrationHint").textContent = `${label} 자세를 1.5초 동안 유지하세요.`;
+      const started = performance.now();
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const frames = recentFrames.filter((frame) => frame.at >= started);
+      const result = {};
+      for (const { key } of FINGERS) {
+        const value = median(frames.map((frame) => frame.raw[key]).filter((raw) => raw < 4090));
+        if (value !== null) result[key] = Math.round(value);
+      }
+      calibration[kind] = result;
+      saveCalibration();
+      buttons.forEach((button) => button.disabled = false);
+      $("calibrationHint").textContent = `${label} 기준 저장 완료: ${Object.keys(result).length}채널`;
+      addLog(`${label} 기준 저장: ${JSON.stringify(result)}`);
+    }
+
+    function toggleRecording() {
+      recording = !recording;
+      if (recording) {
+        recordedLines = [CSV_HEADER];
+        $("recordButton").textContent = "기록 종료";
+        $("recordState").textContent = "기록 중";
+        $("downloadButton").disabled = true;
+        addLog("CSV 기록 시작");
+      } else {
+        $("recordButton").textContent = "기록 시작";
+        $("recordState").textContent = `${Math.max(0, recordedLines.length - 1)}행`;
+        $("downloadButton").disabled = recordedLines.length <= 1;
+        addLog("CSV 기록 종료");
+      }
+    }
+
+    function downloadCsv() {
+      const blob = new Blob([recordedLines.join("\n") + "\n"], { type: "text/csv;charset=utf-8" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `regrip-flex-${new Date().toISOString().replace(/[:.]/g, "-")}.csv`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    }
+
+    function drawChart() {
+      const canvas = $("chart");
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      if (canvas.width !== Math.round(rect.width * dpr) || canvas.height !== Math.round(rect.height * dpr)) {
+        canvas.width = Math.round(rect.width * dpr);
+        canvas.height = Math.round(rect.height * dpr);
+      }
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const width = rect.width;
+      const height = rect.height;
+      const pad = { left: 42, right: 10, top: 10, bottom: 24 };
+      const plotW = width - pad.left - pad.right;
+      const plotH = height - pad.top - pad.bottom;
+      ctx.clearRect(0, 0, width, height);
+      ctx.font = "11px system-ui";
+      ctx.fillStyle = "#777";
+      ctx.strokeStyle = "#e7e7e5";
+      ctx.lineWidth = 1;
+      for (const tick of [0, 1024, 2048, 3072, 4095]) {
+        const y = pad.top + plotH * (1 - tick / ADC_MAX);
+        ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(width - pad.right, y); ctx.stroke();
+        ctx.fillText(String(tick), 4, y + 4);
+      }
+      const now = performance.now();
+      for (const { key } of FINGERS) {
+        ctx.beginPath();
+        ctx.strokeStyle = COLORS[key];
+        ctx.lineWidth = 2;
+        let started = false;
+        for (const sample of chartSamples) {
+          const x = pad.left + plotW * (1 - (now - sample.at) / 15000);
+          const y = pad.top + plotH * (1 - sample.raw[key] / ADC_MAX);
+          if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+      requestAnimationFrame(drawChart);
+    }
+
+    buildUi();
+    $("connectButton").addEventListener("click", connectSerial);
+    $("connectBleButton").addEventListener("click", connectBle);
+    $("disconnectButton").addEventListener("click", disconnectConnection);
+    $("demoButton").addEventListener("click", startDemo);
+    $("captureOpen").addEventListener("click", () => capturePose("open"));
+    $("captureClosed").addEventListener("click", () => capturePose("closed"));
+    $("resetCalibration").addEventListener("click", () => {
+      calibration = { open: {}, closed: {} };
+      saveCalibration();
+      $("calibrationHint").textContent = "기준을 초기화했습니다.";
+      addLog("캘리브레이션 초기화");
+    });
+    $("recordButton").addEventListener("click", toggleRecording);
+    $("downloadButton").addEventListener("click", downloadCsv);
+    navigator.serial?.addEventListener("disconnect", async () => {
+      if (connectionMode !== "usb") return;
+      connectionMode = null;
+      await disconnectSerial();
+      setStatus("", "USB 연결 끊김");
+      setConnectionControls(false);
+    });
+    requestAnimationFrame(drawChart);
+    addLog("모니터 준비 완료");
+  </script>
+</body>
+</html>

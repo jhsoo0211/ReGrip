@@ -64,7 +64,7 @@ function runtime(initialMode = 'ble', calibrationPage = false) {
     calls, sensor, host, elements, context, document,
     emitStatus, setMode(value) { mode = value; emitStatus('connecting'); },
     emit(event, details = {}) { for (const f of [...(events.get(event) || [])]) f(details); },
-    sample(value, fingerRaw = null) { now += 50; force = value; raw = mode === 'websocket' ? { forceRaw: value, fsrRaw: null, flexRaw: null, receivedAt: now } : fingerRaw ? { fingerRaw, gripRaw: fingerRaw.reduce((sum, v) => sum + v, 0) / 5, receivedAt: now } : { fsrRaw: value, flexRaw: 1000, receivedAt: now }; for (const f of [...rawListeners]) f(raw); for (const f of [...forceListeners]) f(force); },
+    sample(value, fingerRaw = null, extra = {}, step = 50) { now += step; force = value; raw = mode === 'websocket' ? { forceRaw: value, fsrRaw: null, flexRaw: null, receivedAt: now } : fingerRaw ? { fingerRaw, gripRaw: fingerRaw.reduce((sum, v) => sum + v, 0) / 5, ...extra, receivedAt: now } : { fsrRaw: value, flexRaw: 1000, receivedAt: now }; for (const f of [...rawListeners]) f(raw); for (const f of [...forceListeners]) f(force); },
     finishTimer() { const due = timers.filter(t => t.at <= now); for (const timer of due) { timers.splice(timers.indexOf(timer), 1); timer.f(); } },
     capture(n) { return sandbox.captureBaseline(n); },
     element: id => document.getElementById(id),
@@ -77,7 +77,7 @@ test('glove diagnostics retain channel labels through status updates and reset f
   const el = selector => r.host.querySelector(selector);
   r.sample(50, [100, 200, 300, 400, 500]);
   assert.equal(el('[data-fsr]').textContent, '300');
-  assert.match(el('[data-finger-readings]').textContent, /엄지 D0: 100.*소지 D5: 500/);
+  assert.match(el('[data-finger-readings]').textContent, /엄지 D0: 100 · 검지 D1: 200 · 중지 D2: 300 · 약지 D3: 400 · 소지 D4: 500$/);
   assert.equal(el('[data-flex-reading]').hidden, true);
   assert.equal(el('canvas').lines.length, 5);
   for (const status of ['connected', 'stale', 'disconnected']) {
@@ -98,6 +98,18 @@ test('glove diagnostics retain channel labels through status updates and reset f
   assert.equal(el('[data-flex-reading]').hidden, true);
   assert.equal(el('canvas').getAttribute('aria-label'), 'Wi-Fi 센서 압력 입력 그래프');
   assert.match(el('[data-plot-help]').textContent, /Wi-Fi/);
+});
+
+test('sensor PCB diagnostics mark unconnected channels and thin 100Hz input for a multi-second plot', async () => {
+  const r = runtime('ble'); await flush();
+  const el = selector => r.host.querySelector(selector);
+  r.sample(50, [1780, 4095, 4095, 1825, 4095], { connectedMask: 0b01001 }, 10);
+  assert.equal(el('[data-finger-readings]').textContent,
+    '엄지 D0: 1780 · 검지 D1: 4095 (미연결) · 중지 D2: 4095 (미연결) · 약지 D3: 1825 · 소지 D4: 4095 (미연결)');
+  for (let i = 1; i < 10; i++) r.sample(50, [1780 + i, 4095, 4095, 1825, 4095], { connectedMask: 0b01001 }, 10);
+  assert.match(el('[data-finger-readings]').textContent, /^엄지 D0: 1789 /, 'Readings still update for every packet');
+  // Packets at 10, 20 ... 100 ms are plotted at 10, 50 and 90 ms: 3 frames x 5 traces.
+  assert.equal(el('canvas').lines.length, 15);
 });
 
 test('Wi-Fi diagnostics and calibration use forceRaw in percent, before legacy normalization', async () => {
