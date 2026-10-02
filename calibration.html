@@ -122,6 +122,32 @@
     100% { opacity: 0; }
   }
 
+  /* ── Sensor PCB: per-finger live input and game-use selection ── */
+  .finger-row {
+    display: grid; grid-template-columns: 7.25rem 1fr 3.5rem;
+    align-items: center; gap: 0.75rem; min-height: 48px;
+  }
+  .finger-row + .finger-row { border-top: 1px solid var(--glass-border); }
+  .finger-use { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; }
+  .finger-use input { width: 1.25rem; height: 1.25rem; accent-color: var(--primary); flex-shrink: 0; }
+  .finger-use input:disabled { cursor: not-allowed; }
+  .finger-name { display: block; font-weight: 700; line-height: 1.2; }
+  .finger-state { display: block; font-size: 0.7rem; color: var(--ink-muted); line-height: 1.3; }
+  .finger-state.is-off { color: #B45309; }
+  .finger-track {
+    height: 10px; border-radius: 9999px; overflow: hidden;
+    background: var(--bg-app); border: 1px solid var(--glass-border);
+  }
+  .finger-track i { display: block; height: 100%; width: 0; background: var(--primary); transition: width 80ms linear; }
+  .finger-track.is-raw i { background: var(--ink-muted); opacity: 0.45; }
+  .finger-value { text-align: right; font-weight: 700; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+  /* Phone widths: the bar takes its own full-width line under the name and value. */
+  @media (max-width: 480px) {
+    .finger-row { grid-template-columns: 1fr auto; row-gap: 0.35rem; padding: 0.4rem 0; }
+    .finger-track { grid-column: 1 / -1; grid-row: 2; }
+  }
+  @media (prefers-reduced-motion: reduce) { .finger-track i { transition: none; } }
+
   /* ── Existing-calibration info box ── */
   .cal-info-box {
     border: 1px solid var(--glass-border);
@@ -172,7 +198,7 @@
                 <div id="step-1-number" class="cal-step-num">01</div>
                 <div>
                   <h3 class="font-display text-lg font-bold mb-1">0% 기준 (힘 빼기)</h3>
-                  <p class="text-cool-gray text-sm">손에 힘을 완전히 빼세요.</p>
+                  <p class="text-cool-gray text-sm">손에 힘을 빼고 손가락을 편안하게 펴세요.</p>
                 </div>
               </div>
               <span class="material-symbols-outlined text-3xl text-cool-gray flex-shrink-0" style="font-variation-settings:'FILL' 0">front_hand</span>
@@ -200,6 +226,16 @@
           </div>
 
         </div>
+
+        <!-- Sensor PCB only: live bend per finger, receive rate, and which fingers drive the game -->
+        <section id="finger-panel" class="cal-info-box mt-6 hidden" aria-labelledby="finger-panel-title">
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <h3 id="finger-panel-title" class="font-display text-base font-bold">손가락별 입력</h3>
+            <span id="finger-rate" class="font-display text-xs font-bold text-cool-gray tabular">수신 0 Hz</span>
+          </div>
+          <div id="finger-rows"></div>
+          <p id="finger-help" class="text-xs text-cool-gray mt-2">보정을 마치면 게임에 쓸 손가락을 고를 수 있습니다. 기본은 보정된 손가락 전체입니다.</p>
+        </section>
       </div>
 
       <p id="calibration-error" class="calibration-error" role="alert"></p>
@@ -267,6 +303,52 @@
   const sensor=SensorService, $=id=>document.getElementById(id);
   let restCapture=null, busy=false, disposed=false, captureGeneration=0, lastMode=sensor.getMode();
   const cleanupPanel=ReGripSensorUI.mount($('calibration-sensor-controls'));
+  const isSensor=mode=>mode==='ble'||mode==='usb';
+  const FINGER_NAMES=['엄지','검지','중지','약지','소지'];
+  const REASONS={unplugged:'미연결로 제외',narrow:'굽힘 차이 부족',unstable:'값이 흔들려 제외'};
+  const assessFingers=typeof ReGripSensor!=='undefined'?ReGripSensor.assessFingerCalibration:null;
+  let fingerReport=null,fingerFrame=false,rowsBuilt=false;
+  function buildFingerRows(readings){
+    $('finger-rows').innerHTML=readings.map(f=>`<div class="finger-row">
+      <label class="finger-use" for="finger-${f.key}-use"><input type="checkbox" id="finger-${f.key}-use"><span><span class="finger-name">${f.label} <small class="text-cool-gray font-normal">${f.pin}</small></span><span id="finger-${f.key}-state" class="finger-state"></span></span></label>
+      <div id="finger-${f.key}-track" class="finger-track" aria-hidden="true"><i id="finger-${f.key}-bar"></i></div>
+      <span id="finger-${f.key}-value" class="finger-value">—</span></div>`).join('');
+    for(const f of readings)$(`finger-${f.key}-use`).onchange=selectFingers;
+    rowsBuilt=true;
+  }
+  function renderFingers(){
+    fingerFrame=false;
+    if(disposed)return;
+    const readings=typeof sensor.getFingerReadings==='function'?sensor.getFingerReadings():null;
+    $('finger-panel').classList.toggle('hidden',!readings);
+    if(!readings)return;
+    if(!rowsBuilt)buildFingerRows(readings);
+    $('finger-rate').textContent=`수신 ${sensor.getSampleRate()} Hz`;
+    readings.forEach((f,i)=>{
+      const reason=!f.calibrated&&fingerReport?REASONS[fingerReport[i].status]:null;
+      const off=!f.connected||(f.calibrated&&!f.use)||!!reason;
+      $(`finger-${f.key}-state`).textContent=!f.connected?'미연결':f.calibrated?(f.use?'게임에 사용':'사용 안 함'):reason||'보정 전';
+      $(`finger-${f.key}-state`).classList.toggle('is-off',off);
+      // Before calibration (or for excluded fingers) the bar shows the raw ADC share in grey.
+      $(`finger-${f.key}-value`).textContent=f.percent!==null?`${Math.round(f.percent)}%`:f.connected?String(f.raw):'—';
+      $(`finger-${f.key}-track`).classList.toggle('is-raw',f.percent===null);
+      $(`finger-${f.key}-bar`).style.width=`${f.percent!==null?f.percent:f.connected?f.raw/4095*100:0}%`;
+      const box=$(`finger-${f.key}-use`);
+      box.disabled=busy||!f.calibrated;box.checked=f.use;
+    });
+  }
+  function scheduleFingers(){
+    if(fingerFrame)return;
+    fingerFrame=true;
+    (typeof requestAnimationFrame==='function'?requestAnimationFrame:run=>run())(renderFingers);
+  }
+  function selectFingers(){
+    const readings=sensor.getFingerReadings();
+    if(!readings)return;
+    try{sensor.setFingerSelection(readings.map(f=>!!$(`finger-${f.key}-use`).checked));showError('');}
+    catch(e){showError(e.message||'손가락 선택을 저장하지 못했습니다.');}
+    renderFingers();sync();
+  }
   const error=$('calibration-error'), first=$('btn-cap-1'), second=$('btn-cap-2'), start=$('btn-start');
   const returnTo=new URLSearchParams(location.search).get('return');
   const gamePages=['game-balloon.html','game-crane.html','game-rhythm.html','game-glide.html'];
@@ -280,10 +362,13 @@
     start.disabled=busy||!sensor.isReady();
     start.textContent=mode==='simulation'?'시뮬레이션으로 연습하기':'운동 시작하기';
     start.classList.toggle('unlocked',!start.disabled);
-    $('sim-hint').textContent=mode==='simulation'?'센서 없이 조작을 연습할 수 있습니다. 센서 보정은 연결 후 진행해 주세요.':!connected?'센서 연결 후 입력값을 확인하고 보정해 주세요.':sensor.getRawSample()?.fingerRaw?'다섯 손가락 입력의 평균으로 쥐기를 조작합니다. 표시 값은 힘이나 각도 단위가 아닙니다.':'실제 압력 센서 입력입니다. 표시 값은 kg 단위가 아닙니다.';
+    $('sim-hint').textContent=mode==='simulation'?'센서 없이 조작을 연습할 수 있습니다. 센서 보정은 연결 후 진행해 주세요.':!connected?'센서 연결 후 입력값을 확인하고 보정해 주세요.':sensor.getRawSample()?.fingerRaw?'게임에 쓰는 손가락의 굽힘 평균으로 쥐기를 조작합니다. 표시 값은 힘이나 각도 단위가 아닙니다.':'실제 압력 센서 입력입니다. 표시 값은 kg 단위가 아닙니다.';
     const cal=sensor.getCalibration();
     $('existing-cal').classList.toggle('hidden',!cal);
-    if(cal)$('existing-cal-detail').textContent=`저장된 기준: 이완 ${Math.round(cal.baseline0)} / 편안한 쥐기 ${Math.round(cal.baseline100)} ${mode==='ble'?'ADC':'%'}`;
+    if(cal)$('existing-cal-detail').textContent=cal.version===3
+      ?`저장된 기준: 손가락 ${cal.fingers.filter(Boolean).length}개 보정 · 게임 사용 ${FINGER_NAMES.filter((_,i)=>cal.fingers[i]?.use).join('·')}`
+      :`저장된 기준: 이완 ${Math.round(cal.baseline0)} / 편안한 쥐기 ${Math.round(cal.baseline100)} ${isSensor(mode)?'ADC':'%'}`;
+    scheduleFingers();
   }
   function meter(sample){
     if(disposed)return;
@@ -291,8 +376,10 @@
     $('live-meter-fill').style.height=Math.max(0,Math.min(100,force))+'%';
     $('live-value').textContent=Math.round(force)+'%';
     if(sample && typeof sample==='object'){
-      const raw=sensor.getMode()==='websocket'?sample.forceRaw:sample.fingerRaw?sample.gripRaw:sample.fsrRaw;
-      $('calibration-raw').textContent=Number.isFinite(raw)?`${sample.fingerRaw?'손가락 평균':'압력 원본값'} ${Math.round(raw)} ${sensor.getMode()==='ble'?'ADC':'%'}`:'';
+      // Sensor PCB values are shown per finger in the finger panel instead.
+      const raw=sensor.getMode()==='websocket'?sample.forceRaw:sample.fsrRaw;
+      $('calibration-raw').textContent=!sample.fingerRaw&&Number.isFinite(raw)?`압력 원본값 ${Math.round(raw)} ${isSensor(sensor.getMode())?'ADC':'%'}`:'';
+      if(sample.fingerRaw)scheduleFingers();
     }
   }
   function mark(n){
@@ -301,7 +388,7 @@
     $('btn-cap-'+n).textContent='기록 완료';
   }
   function reset(message=''){
-    captureGeneration++;restCapture=null;showError(message);
+    captureGeneration++;restCapture=null;fingerReport=null;showError(message);
     for(const n of [1,2]){
       $('step-'+n).classList.remove('step-done','step-active','step-locked');
       $('step-'+n).classList.add(n===1?'step-active':'step-locked');
@@ -338,15 +425,18 @@
     const generation=++captureGeneration;
     try{
       const mode=sensor.getMode();
-      const capture=mode==='ble'?await sensor.captureBaseline():await captureLegacy();
+      const capture=isSensor(mode)?await sensor.captureBaseline():await captureLegacy();
       if(disposed||generation!==captureGeneration)return;
       if(n===1){
         restCapture={...capture,mode};
         mark(1);$('step-2').classList.remove('step-locked','step-done');$('step-2').classList.add('step-active');
-        $('baseline-info').classList.remove('hidden');$('b0-info').textContent=`이완 기준: ${Math.round(capture.baseline)}`;$('b100-info').textContent='';
+        $('baseline-info').classList.remove('hidden');$('b0-info').textContent=capture.fingers?'펴짐 기준: 손가락별 기록 완료':`이완 기준: ${Math.round(capture.baseline)}`;$('b100-info').textContent='';
       }else{
         if(!restCapture||restCapture.mode!==mode)throw new Error('입력 장치가 바뀌었습니다. 이완 기준부터 다시 측정해 주세요.');
-        if(mode==='ble')await sensor.saveBleCalibration(restCapture,capture);
+        if(isSensor(mode)){
+          if(capture.fingers&&assessFingers)fingerReport=assessFingers(restCapture,capture);
+          await sensor.saveSensorCalibration(restCapture,capture);
+        }
         else{
           const span=Math.abs(capture.baseline-restCapture.baseline);
           if(capture.baseline<=restCapture.baseline||span<1||restCapture.spread>span*.2||capture.spread>span*.2)throw new Error('두 기준이 너무 가깝거나 불안정합니다. 힘을 풀고 이완 기준부터 다시 측정해 주세요.');
@@ -354,8 +444,10 @@
           await DataService.saveCalibration(cal);sensor.setCalibration(cal);
         }
         if(disposed||generation!==captureGeneration)return;
-        mark(2);$('b100-info').textContent=`쥐기 기준: ${Math.round(capture.baseline)}`;
-        showToast('보정 기준을 저장했어요',{type:'success'});
+        const fingerCount=capture.fingers?sensor.getCalibration()?.fingers?.filter(Boolean).length:0;
+        mark(2);$('b100-info').textContent=fingerCount?`쥐기 기준: 손가락 ${fingerCount}개 보정`:`쥐기 기준: ${Math.round(capture.baseline)}`;
+        showToast(fingerCount?`손가락 ${fingerCount}개를 보정했어요`:'보정 기준을 저장했어요',{type:'success'});
+        renderFingers();
       }
     }catch(e){if(!disposed&&generation===captureGeneration){showError(e.message||'보정하지 못했습니다. 다시 측정해 주세요.');button.textContent='다시 측정';}}
     finally{busy=false;sync();}

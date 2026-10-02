@@ -127,7 +127,9 @@ function log(message) {
 }
 function updateCalibration() {
   const cal = SensorService.getCalibration();
-  $('calInfo').textContent = cal?.version === 2
+  $('calInfo').textContent = cal?.version === 3
+    ? `저장된 기준: 손가락별 보정 ${cal.fingers.filter(Boolean).length}개 · 상세는 캘리브레이션 화면에서 확인`
+    : cal?.version === 2
     ? `저장된 기준: 손 편 상태 ${cal.baseline0} · 편안하게 쥔 상태 ${cal.baseline100} (raw)`
     : restCapture ? `손 편 상태 ${restCapture.baseline} raw 측정됨 · 편안하게 쥔 기준을 측정하세요`
     : '보정 전 · ADC 전체 범위 비율 표시';

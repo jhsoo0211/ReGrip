@@ -7,10 +7,10 @@ const root = path.resolve(__dirname, '..');
 
 // The production UI scripts run unchanged; only DOM, clock, and sensor boundaries are mocked.
 function runtime(initialMode = 'ble', calibrationPage = false) {
-  let now = 0, mode = initialMode, status = 'connected', force = 0, calibration = null, raw = null;
+  let now = 0, mode = initialMode, status = 'connected', force = 0, calibration = null, raw = null, fingers = null, rate = 0, blocked = false;
   const timers = [], elements = new Map(), events = new Map();
   const statusListeners = new Set(), rawListeners = new Set(), forceListeners = new Set();
-  const calls = { saves: [], loads: 0, suspends: 0, reloads: 0, captures: [] };
+  const calls = { saves: [], loads: 0, suspends: 0, reloads: 0, captures: [], usb: 0, selections: [] };
   class Element {
     constructor() {
       this.style = {}; this.textContent = ''; this.hidden = false; this.disabled = false; this.value = '';
@@ -34,7 +34,12 @@ function runtime(initialMode = 'ble', calibrationPage = false) {
     onForceUpdate: f => forceListeners.add(f), offForceUpdate: f => forceListeners.delete(f),
     restoreConnection: async () => true, loadCalibration: async () => { calls.loads++; },
     connect: () => { mode = 'websocket'; emitStatus('connecting'); },
-    connectBle: async () => {}, reconnect: async () => {},
+    connectBle: async () => {}, reconnect: async () => {}, connectUsb: async () => { calls.usb++; mode = 'usb'; },
+    getFingerReadings: () => fingers, getSampleRate: () => rate, isInputBlocked: () => blocked,
+    setFingerSelection: use => {
+      if (!use.some(Boolean)) throw new Error('게임에 사용할 손가락을 하나 이상 선택하세요.');
+      calls.selections.push(use); fingers = fingers.map((f, i) => ({ ...f, use: f.calibrated && use[i] }));
+    },
     disconnect: () => emitStatus('disconnected'), useSimulation: () => { mode = 'simulation'; emitStatus('simulation'); },
     suspend: () => { calls.suspends++; emitStatus('disconnected'); },
     captureBaseline: () => new Promise((resolve, reject) => calls.captures.push({ resolve, reject })),
@@ -63,6 +68,7 @@ function runtime(initialMode = 'ble', calibrationPage = false) {
   return {
     calls, sensor, host, elements, context, document,
     emitStatus, setMode(value) { mode = value; emitStatus('connecting'); },
+    setFingers(value) { fingers = value; }, setRate(value) { rate = value; }, setBlocked(value) { blocked = value; },
     emit(event, details = {}) { for (const f of [...(events.get(event) || [])]) f(details); },
     sample(value, fingerRaw = null, extra = {}, step = 50) { now += step; force = value; raw = mode === 'websocket' ? { forceRaw: value, fsrRaw: null, flexRaw: null, receivedAt: now } : fingerRaw ? { fingerRaw, gripRaw: fingerRaw.reduce((sum, v) => sum + v, 0) / 5, ...extra, receivedAt: now } : { fsrRaw: value, flexRaw: 1000, receivedAt: now }; for (const f of [...rawListeners]) f(raw); for (const f of [...forceListeners]) f(force); },
     finishTimer() { const due = timers.filter(t => t.at <= now); for (const timer of due) { timers.splice(timers.indexOf(timer), 1); timer.f(); } },
@@ -82,7 +88,7 @@ test('glove diagnostics retain channel labels through status updates and reset f
   assert.equal(el('canvas').lines.length, 5);
   for (const status of ['connected', 'stale', 'disconnected']) {
     r.emitStatus(status);
-    assert.match(el('[data-plot-help]').textContent, /다섯 입력/);
+    assert.match(el('[data-plot-help]').textContent, /손가락별로 보정/);
     assert.equal(el('canvas').getAttribute('aria-label'), '다섯 손가락 센서 입력 그래프');
   }
   r.emitStatus('connected'); r.sample(1200);
@@ -110,6 +116,54 @@ test('sensor PCB diagnostics mark unconnected channels and thin 100Hz input for 
   assert.match(el('[data-finger-readings]').textContent, /^엄지 D0: 1789 /, 'Readings still update for every packet');
   // Packets at 10, 20 ... 100 ms are plotted at 10, 50 and 90 ms: 3 frames x 5 traces.
   assert.equal(el('canvas').lines.length, 15);
+});
+
+test('USB button connects through the service; the panel shows USB mode, receive rate and an unplugged-finger hint', async () => {
+  const r = runtime('ble'); await flush();
+  const el = selector => r.host.querySelector(selector);
+  await el('[data-usb-connect]').onclick();
+  assert.equal(r.calls.usb, 1);
+  r.emitStatus('connected');
+  assert.equal(el('[data-sensor-mode]').textContent, 'USB');
+  r.setRate(97); r.sample(50, [1780, 4095, 4095, 1825, 4095], { connectedMask: 0b01001 });
+  assert.equal(el('[data-sensor-rate]').textContent, '수신 97Hz');
+  assert.equal(el('[data-sensor-rate]').hidden, false);
+  r.setBlocked(true); r.emitStatus('stale'); r.emitStatus('connected');
+  assert.match(el('[data-sensor-help]').textContent, /손가락 센서가 빠졌/);
+  assert.equal(el('[data-usb-connect]').textContent, 'USB 연결');
+  r.emitStatus('disconnected');
+  assert.equal(el('[data-usb-connect]').textContent, 'USB 다시 연결');
+  assert.equal(el('[data-ble-connect]').textContent, 'Bluetooth 연결');
+  assert.equal(el('[data-sensor-rate]').hidden, true);
+});
+
+test('calibration page shows per-finger bars and receive rate, and saves the finger selection', async () => {
+  const r = runtime('usb', true); await flush();
+  const finger = (key, raw, connected, calibrated, use, percent) => ({ key, label: key, pin: 'D', raw, connected, calibrated, use, percent });
+  r.setRate(98);
+  r.setFingers([finger('thumb', 2280, true, true, true, 50), finger('index', 4095, false, false, false, null),
+    finger('middle', 2000, true, false, false, null), finger('ring', 1825, true, true, true, 0), finger('little', 4095, false, false, false, null)]);
+  assert.equal(r.element('finger-panel').classList.contains('hidden'), true, 'Hidden until sensor PCB samples arrive');
+  r.sample(30, [2280, 4095, 2000, 1825, 4095]);
+  assert.equal(r.element('finger-panel').classList.contains('hidden'), false);
+  assert.equal(r.element('finger-rate').textContent, '수신 98 Hz');
+  assert.equal(r.element('finger-thumb-value').textContent, '50%');
+  assert.equal(r.element('finger-thumb-bar').style.width, '50%');
+  assert.equal(r.element('finger-thumb-state').textContent, '게임에 사용');
+  assert.equal(r.element('finger-index-state').textContent, '미연결');
+  assert.equal(r.element('finger-index-value').textContent, '—');
+  assert.equal(r.element('finger-index-use').disabled, true);
+  assert.equal(r.element('finger-middle-value').textContent, '2000');
+  assert.equal(r.element('finger-middle-state').textContent, '보정 전');
+  assert.equal(r.element('finger-middle-track').classList.contains('is-raw'), true);
+  assert.equal(r.element('calibration-raw').textContent, '', 'Per-finger values replace the single raw readout');
+  r.element('finger-ring-use').checked = false; r.element('finger-ring-use').onchange();
+  assert.deepEqual(r.calls.selections.at(-1), [true, false, false, false, false]);
+  assert.equal(r.element('finger-ring-state').textContent, '사용 안 함');
+  assert.equal(r.element('finger-ring-use').disabled, false, 'A deselected calibrated finger can be selected again');
+  r.element('finger-thumb-use').checked = false; r.element('finger-thumb-use').onchange();
+  assert.match(r.element('calibration-error').textContent, /하나 이상/);
+  assert.equal(r.element('finger-thumb-use').checked, true, 'A rejected change is reverted on screen');
 });
 
 test('Wi-Fi diagnostics and calibration use forceRaw in percent, before legacy normalization', async () => {

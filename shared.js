@@ -111,15 +111,15 @@ function _feedbackContentFor(status) {
       icon: 'sensors', badge: '', title: '센서가 연결되어 있습니다.',
       body: '센서가 정상적으로 데이터를 수신하고 있습니다. 이대로 훈련을 진행하세요.',
       showReconnect: false,
-      hint: '문제가 있으면 기기의 전원과 네트워크 연결 상태를 확인하세요.',
+      hint: '문제가 있으면 센서 전원과 Bluetooth 또는 USB 케이블 연결을 확인하세요.',
     };
   }
   if (status === 'simulation') {
     return {
       icon: 'science', badge: '', title: '시뮬레이션 모드입니다.',
-      body: '실제 센서 없이 체험 중입니다. 게임 화면에서는 스페이스바 또는 화면 터치로 조작할 수 있습니다. 실기기를 연결하려면 설정에서 서버와 센서(ESP32) 주소를 등록하세요.',
+      body: '실제 센서 없이 체험 중입니다. 게임 화면에서는 스페이스바 또는 화면 터치로 조작할 수 있습니다. 센서를 쓰려면 설정이나 게임 준비 화면에서 Bluetooth 연결 또는 USB 연결을 누르세요.',
       showReconnect: false,
-      hint: 'ESP32가 같은 네트워크에서 WebSocket 서버(포트 8080)로 실행 중이어야 합니다.',
+      hint: 'Windows Chrome 또는 Edge에서 localhost나 HTTPS 주소로 열어야 센서를 연결할 수 있습니다.',
     };
   }
   // disconnected / connecting → 기존 문구 유지
@@ -127,7 +127,7 @@ function _feedbackContentFor(status) {
     icon: 'sensors_off', badge: '!', title: '연결이 끊어졌습니다.',
     body: '센서를 다시 확인해 주세요. 장치가 올바르게 착용되었는지, 배터리가 충분한지 확인하시기 바랍니다.',
     showReconnect: true,
-    hint: "센서 표시등이 파란색으로 깜빡이면 페어링 모드입니다. 기기의 설정에서 'ReGrip Sensor'를 선택하세요.",
+    hint: "Bluetooth는 장치 목록에서 'ReGrip-5CH'(기존 보드는 'ReGrip-Sensor')를, USB는 XIAO 포트를 선택하세요.",
   };
 }
 
@@ -344,12 +344,13 @@ const AuthService = {
 function escHtml(value) {
   return String(value == null ? '' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
-const INPUT_SOURCE_LABELS = {ble:'센서 · Bluetooth',websocket:'센서 · Wi-Fi',simulation:'시뮬레이션',unknown:'출처 미상'};
+const INPUT_SOURCE_LABELS = {ble:'센서 · Bluetooth',usb:'센서 · USB',websocket:'센서 · Wi-Fi',simulation:'시뮬레이션',unknown:'출처 미상'};
+const REAL_INPUT_SOURCES = ['ble','usb','websocket'];
 function sessionSource(session) { return Object.hasOwn(INPUT_SOURCE_LABELS, session && session.inputSource) ? session.inputSource : 'unknown'; }
 function sourceLabel(session) { return INPUT_SOURCE_LABELS[sessionSource(session)]; }
 function matchesSessionSource(session, source = 'all') {
   const actual = sessionSource(session);
-  return source === 'all' || (source === 'real' ? actual === 'ble' || actual === 'websocket' : actual === source);
+  return source === 'all' || (source === 'real' ? REAL_INPUT_SOURCES.includes(actual) : actual === source);
 }
 function filterSessionSource(sessions, source = 'all') {
   if (!['all','real','simulation','unknown'].includes(source)) throw new RangeError('Unknown session source filter');
@@ -357,7 +358,7 @@ function filterSessionSource(sessions, source = 'all') {
 }
 function countSessionSources(sessions) {
   const counts={real:0,simulation:0,unknown:0};
-  for (const s of sessions) {const actual=sessionSource(s);counts[actual==='ble'||actual==='websocket'?'real':actual]++;}
+  for (const s of sessions) {const actual=sessionSource(s);counts[REAL_INPUT_SOURCES.includes(actual)?'real':actual]++;}
   return counts;
 }
 const DataService = {

@@ -7,7 +7,9 @@ const SERVICE = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
 const TX = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
 const flush = async () => { for (let n = 0; n < 12; n++) await Promise.resolve(); };
 // Sensor PCB protocol v3, as sent by firmware/xiao-glove/regrip_sensor_pcb_5ch.
-function glovePacket(timestamp, fingers, { sampleId = timestamp & 0xffff, connectedMask = 0x1f, errorCode = 0 } = {}) {
+// Like the firmware, a channel at >= 4090 (pulled up) is reported as unconnected.
+const maskOf = fingers => fingers.reduce((mask, value, i) => value < 4090 ? mask | 1 << i : mask, 0);
+function glovePacket(timestamp, fingers, { sampleId = timestamp & 0xffff, connectedMask = maskOf(fingers), errorCode = 0 } = {}) {
   const bytes = new Uint8Array(20), view = new DataView(bytes.buffer);
   bytes.set([0x52, 3]); view.setUint16(2, sampleId, true); view.setUint32(4, timestamp, true);
   fingers.forEach((value, i) => view.setUint16(8 + i * 2, value, true));
@@ -87,8 +89,9 @@ test('100Hz sensor PCB stream stays fresh and calibrates from about one second o
   const rest = await captureAt([1780, 4095, 4095, 1825, 4095]);
   const grip = await captureAt([2780, 4095, 4095, 2825, 4095]);
   assert.ok(rest.sampleCount >= 95 && grip.sampleCount >= 95, `${rest.sampleCount}/${grip.sampleCount}`);
-  const cal = h.service.saveBleCalibration(rest, grip);
-  assert.equal(cal.channel, 'finger_mean');
+  const cal = h.service.saveSensorCalibration(rest, grip);
+  assert.equal(cal.channel, 'finger_flex');
+  assert.deepEqual(cal.fingers.map(Boolean), [true, false, false, true, false]);
   assert.equal(h.service.getStatus(), 'connected');
   assert.equal(h.service.getForce(), 100);
   assert.equal(h.service.getRawSample().connectedMask, 0b01001);
@@ -97,28 +100,93 @@ test('100Hz sensor PCB stream stays fresh and calibrates from about one second o
   h.service.disconnect();
 });
 
-test('five-finger BLE input uses measured calibration and records finger_mean provenance', async () => {
-  const h = setup(); await h.service.connectBle();
-  let timestamp = 1;
-  sendGlove(h, timestamp, [400, 500, 600, 700, 800]);
-  assert.equal(h.service.isReady(), false);
+const PCB_REST = [1780, 4095, 4095, 1825, 4095], PCB_GRIP = [2780, 4095, 4095, 2825, 4095];
+async function calibrateGlove(h, rest, grip, start = 1) {
+  let timestamp = start;
+  sendGlove(h, timestamp, rest);
   async function captureFingers(fingers) {
     const pending = h.service.captureBaseline();
     for (let i = 0; i < 20; i++) { await h.clock.advance(45); timestamp += 45; sendGlove(h, timestamp, fingers); }
     await h.clock.advance(100); return pending;
   }
-  const rest = await captureFingers([400, 500, 600, 700, 800]);
-  const grip = await captureFingers([1400, 1500, 1600, 1700, 1800]);
-  h.service.saveBleCalibration(rest, grip);
-  assert.equal(h.service.getCalibration().channel, 'finger_mean');
-  assert.equal(h.service.getCalibration().baseline0, 600);
+  const restCapture = await captureFingers(rest), gripCapture = await captureFingers(grip);
+  return { rest: restCapture, grip: gripCapture, timestamp: () => timestamp, next: (fingers, extra) => { timestamp += 45; sendGlove(h, timestamp, fingers, extra); } };
+}
+
+test('sensor PCB calibration is per finger and excludes unplugged channels', async () => {
+  const h = setup(); await h.service.connectBle();
+  sendGlove(h, 1, PCB_REST);
+  assert.equal(h.service.isReady(), false);
+  const run = await calibrateGlove(h, PCB_REST, PCB_GRIP, 2);
+  assert.deepEqual(run.rest.fingers.map(f => f.connected), [true, false, false, true, false]);
+  const cal = h.service.saveSensorCalibration(run.rest, run.grip);
+  assert.deepEqual(cal, {
+    version: 3, source: 'ble', unit: 'adc_12bit', channel: 'finger_flex',
+    fingers: [{ open: 1780, closed: 2780, use: true }, null, null, { open: 1825, closed: 2825, use: true }, null],
+    capturedAt: '2026-09-05T00:00:00.000Z',
+  });
   assert.equal(h.service.getForce(), 100);
   assert.equal(h.service.isReady(), true);
-  assert.equal(h.service.getRawSample().fsrRaw, undefined);
-  assert.equal(h.service.getSessionContext().calibrationSnapshot.channel, 'finger_mean');
-  // A different wire format must not inherit a five-finger calibration.
-  h.device.send(`${timestamp + 100},100,1600`);
+  // Thumb at 50% and ring at 0% average to 25%; unplugged channels never count.
+  run.next([2280, 4095, 4095, 1825, 4095]); await h.clock.advance(1000); run.next([2280, 4095, 4095, 1825, 4095]);
+  assert.ok(Math.abs(h.service.getForce() - 25) < 1e-6, String(h.service.getForce()));
+  const readings = h.service.getFingerReadings();
+  assert.deepEqual(readings.map(f => [f.key, f.connected, f.calibrated, f.use, f.percent]), [
+    ['thumb', true, true, true, 50], ['index', false, false, false, null], ['middle', false, false, false, null],
+    ['ring', true, true, true, 0], ['little', false, false, false, null]]);
+  assert.deepEqual(h.service.getSessionContext(), { inputSource: 'ble', calibrationSnapshot: cal });
+  // A different wire format must not inherit a per-finger calibration.
+  h.device.send(`${run.timestamp() + 100},100,1600`);
   assert.equal(h.service.isReady(), false);
+  h.service.disconnect();
+});
+
+test('each finger keeps its own polarity and noisy or narrow fingers are excluded', async () => {
+  const h = setup(); await h.service.connectBle();
+  const run = await calibrateGlove(h, [1000, 3000, 2000, 2000, 1500], [2000, 2000, 2030, 2000, 1500]);
+  const cal = h.service.saveSensorCalibration(run.rest, { ...run.grip, fingers: run.grip.fingers.map((f, i) => i === 4 ? { ...f, baseline: 1800, spread: 200 } : f) });
+  assert.deepEqual(cal.fingers, [{ open: 1000, closed: 2000, use: true }, { open: 3000, closed: 2000, use: true }, null, null, null]);
+  assert.deepEqual(require('../sensor-service').assessFingerCalibration(run.rest, run.grip).map(f => f.status),
+    ['ok', 'ok', 'narrow', 'narrow', 'narrow']);
+  run.next([1500, 2500, 2000, 2000, 1500]); await h.clock.advance(1000); run.next([1500, 2500, 2000, 2000, 1500]);
+  assert.ok(Math.abs(h.service.getForce() - 50) < 1e-6);
+  assert.throws(() => h.service.saveSensorCalibration(run.rest, run.rest), /보정할 수 있는 손가락/);
+  h.service.disconnect();
+});
+
+test('finger selection limits game input, persists per device, and rejects invalid choices', async () => {
+  const map = new Map(), h = setup({ map }); await h.service.connectBle();
+  const run = await calibrateGlove(h, PCB_REST, PCB_GRIP);
+  h.service.saveSensorCalibration(run.rest, run.grip);
+  assert.throws(() => h.service.setFingerSelection([false, true, false, false, false]), /보정되지 않은/);
+  assert.throws(() => h.service.setFingerSelection([false, false, false, false, false]), /하나 이상/);
+  const thumbOnly = h.service.setFingerSelection([true, false, false, false, false]);
+  assert.deepEqual(thumbOnly.fingers.map(f => f?.use ?? null), [true, null, null, false, null]);
+  run.next([2280, 4095, 4095, 2825, 4095]); await h.clock.advance(1000); run.next([2280, 4095, 4095, 2825, 4095]);
+  assert.ok(Math.abs(h.service.getForce() - 50) < 1e-6, 'Ring at 100% is ignored while deselected');
+  assert.equal(h.service.getSessionContext().calibrationSnapshot.fingers[3].use, false);
+  h.service.disconnect();
+  const again = setup({ map }); await again.service.connectBle(); sendGlove(again, 5000, PCB_REST);
+  assert.deepEqual(again.service.getCalibration().fingers.map(f => f?.use ?? null), [true, null, null, false, null]);
+  again.service.disconnect();
+});
+
+test('an unplugged selected finger blocks input until it returns', async () => {
+  const h = setup(); await h.service.connectBle();
+  const run = await calibrateGlove(h, PCB_REST, PCB_GRIP);
+  h.service.saveSensorCalibration(run.rest, run.grip);
+  let statusEvents = 0; h.service.onStatusChange(() => statusEvents++);
+  run.next([4095, 4095, 4095, 2825, 4095], { connectedMask: 0b01000 });
+  assert.equal(h.service.isReady(), false);
+  assert.equal(h.service.isInputBlocked(), true);
+  assert.equal(statusEvents, 1, 'Listeners are told that readiness changed');
+  run.next([1780, 4095, 4095, 1825, 4095], { connectedMask: 0b01001 });
+  assert.equal(h.service.isReady(), true);
+  assert.equal(h.service.getForce(), 0, 'Recovered input starts from the measured value, not a filtered guess');
+  // Deselecting the unplugged finger is enough to continue with the remaining one.
+  h.service.setFingerSelection([false, false, false, true, false]);
+  run.next([4095, 4095, 4095, 2825, 4095], { connectedMask: 0b01000 });
+  assert.equal(h.service.isReady(), true);
   h.service.disconnect();
 });
 function makeClock() {
@@ -450,4 +518,150 @@ test('browser script order initializes the owner only after shared REST bootstra
   map.set('regrip_user', JSON.stringify({ id: 'user-2' }));
   assert.equal(vm.runInContext('SensorService.isReady()', context), false);
   assert.equal(vm.runInContext('SensorService.getForce()', context), 0);
+});
+
+// ── USB (Web Serial) transport for the same sensor PCB firmware ──
+const settle = () => new Promise(resolve => setImmediate(resolve));
+function makePort(info = { usbVendorId: 0x303a, usbProductId: 0x1001 }) {
+  const port = { info, readable: null, opens: [], closes: 0, busy: false };
+  port.getInfo = () => port.info;
+  port.open = async options => {
+    if (port.readable) throw new DOMException('The port is already open.', 'InvalidStateError');
+    if (port.busy) throw new DOMException('Failed to open serial port.', 'NetworkError');
+    port.opens.push(options);
+    port.readable = new ReadableStream({ start: controller => { port.controller = controller; } });
+  };
+  port.close = async () => {
+    if (port.readable?.locked) throw new TypeError('The readable stream is locked.');
+    port.readable = null; port.closes++;
+  };
+  port.write = text => port.controller.enqueue(new TextEncoder().encode(text));
+  port.unplug = () => { const controller = port.controller; port.readable = null; controller.error(new DOMException('The device has been lost.', 'NetworkError')); };
+  return port;
+}
+function setupUsb(options = {}) {
+  const port = options.port || makePort(), ports = options.ports || [port], listeners = {};
+  let chooserCalls = 0;
+  const serial = {
+    requestPort(...args) { chooserCalls++; assert.deepEqual(args, []); return Promise.resolve(port); },
+    getPorts: async () => [...ports],
+    addEventListener: (type, listener) => { listeners[type] = listener; },
+  };
+  const h = setup({ navigator: { serial }, ...options });
+  let id = 0, timestamp = 1000;
+  const line = fingers => { timestamp += 10; return `${id++},${timestamp},${fingers.join(',')}\n`; };
+  async function stream(fingers, ms, target = port) {
+    for (let elapsed = 0; elapsed < ms; elapsed += 10) { await h.clock.advance(10); target.write(line(fingers)); await settle(); }
+  }
+  return { ...h, port, ports, serial, listeners, line, stream, usbChooserCalls: () => chooserCalls };
+}
+
+test('USB CSV parser matches the hardware-verified monitor and derives the connected mask', async () => {
+  const { parseSerialLine } = require('../sensor-service');
+  const { pathToFileURL } = require('node:url'), path = require('node:path');
+  const core = await import(pathToFileURL(path.join(__dirname, '..', 'tools', 'flex-monitor', 'regrip-flex-core.mjs')).href);
+  assert.deepEqual(parseSerialLine('7,140,1780,4095,4095,1825,4095\r'), {
+    sampleId: 7, timestampMs: 140, fingerRaw: [1780, 4095, 4095, 1825, 4095], gripRaw: 3178, connectedMask: 0b01001, errorCode: 0,
+  });
+  for (const invalid of ['sample_id,timestamp_ms,thumb_raw,index_raw,middle_raw,ring_raw,little_raw', '# READY', '1,20,100,200,300,400',
+    '1,20,100,200,300,400,5000', '1,20,100,200,300,400,1.5', '-1,20,1,2,3,4,5', '1,4294967296,1,2,3,4,5', '1,2,3,4,5,6,7,8']) {
+    assert.equal(parseSerialLine(invalid), null, invalid);
+  }
+  let seed = 11;
+  const next = limit => { seed = (seed * 1103515245 + 12345) >>> 0; return seed % limit; };
+  for (let n = 0; n < 1000; n++) {
+    const text = [next(100000), next(4294967296), ...Array.from({ length: 5 }, () => next(4200))].join(',');
+    const ours = parseSerialLine(text), verified = core.parseFlexFrame(text);
+    if (!verified) { assert.equal(ours, null, text); continue; }
+    assert.deepEqual([ours.sampleId, ours.timestampMs, ours.fingerRaw], [verified.sampleId, verified.timestampMs, core.FINGERS.map(({ key }) => verified.raw[key])]);
+  }
+});
+
+test('USB chooser opens in the click call, uses the verified port settings, and waits for a valid line', async () => {
+  const h = setupUsb(), pending = h.service.connectUsb();
+  assert.equal(h.usbChooserCalls(), 1);
+  await pending;
+  assert.deepEqual(h.port.opens, [{ baudRate: 115200, bufferSize: 65536 }]);
+  assert.equal(h.service.getMode(), 'usb');
+  assert.equal(h.service.getStatus(), 'connecting');
+  h.port.write('sample_id,timestamp_ms,thumb_raw,index_raw,middle_raw,ring_raw,little_raw\r\n# BLE_READY,ReGrip-5CH,protocol_v3,100Hz\r\n12,1');
+  await settle();
+  assert.equal(h.service.getStatus(), 'connecting', 'Header, status lines and a partial line are not data');
+  h.port.write('20,1780,4095,4095,1825,4095\r\n13,130,1781,4095,4095,1826,4095\n');
+  await settle();
+  assert.equal(h.service.getStatus(), 'connected');
+  assert.deepEqual(h.service.getRawSample(), {
+    sampleId: 13, timestampMs: 130, fingerRaw: [1781, 4095, 4095, 1826, 4095], gripRaw: 3178.4, connectedMask: 0b01001, errorCode: 0, receivedAt: 1,
+  });
+  assert.equal(h.service.getSampleRate(), 2);
+  assert.equal(h.service.getSessionContext().inputSource, 'usb');
+  h.service.disconnect(); await settle();
+  assert.equal(h.port.closes, 1, 'The port closes after the reader lock is released');
+  assert.equal(h.service.getStatus(), 'disconnected');
+});
+
+test('USB rejects Bluetooth virtual COM ports and explains a busy port', async () => {
+  const bluetoothPort = setupUsb({ port: makePort({}) });
+  await assert.rejects(bluetoothPort.service.connectUsb(), /USB 장치/);
+  assert.equal(bluetoothPort.service.getStatus(), 'disconnected');
+  const busy = makePort(); busy.busy = true;
+  const h = setupUsb({ port: busy });
+  await assert.rejects(h.service.connectUsb(), /포트를 쓰는 프로그램/);
+  assert.equal(h.service.getStatus(), 'disconnected');
+  busy.busy = false;
+  await h.clock.advance(1000); await settle();
+  assert.equal(busy.opens.length, 1, 'The remembered port is retried once it is free');
+  h.service.disconnect(); await settle();
+});
+
+test('USB per-finger calibration at 100Hz drives force and records usb provenance', async () => {
+  const h = setupUsb(); await h.service.connectUsb();
+  await h.stream(PCB_REST, 10);
+  const capture = async fingers => { const pending = h.service.captureBaseline(); await h.stream(fingers, 1010); return pending; };
+  const rest = await capture(PCB_REST), grip = await capture(PCB_GRIP);
+  assert.ok(rest.sampleCount >= 95, String(rest.sampleCount));
+  const cal = h.service.saveSensorCalibration(rest, grip);
+  assert.equal(cal.source, 'usb');
+  assert.deepEqual(cal.fingers.map(Boolean), [true, false, false, true, false]);
+  assert.equal(h.service.getForce(), 100);
+  assert.equal(h.service.isReady(), true);
+  assert.ok(h.service.getSampleRate() >= 99, String(h.service.getSampleRate()));
+  assert.deepEqual(h.service.getSessionContext(), { inputSource: 'usb', calibrationSnapshot: cal });
+  await h.stream(PCB_REST, 500);
+  assert.ok(h.service.getForce() < 0.5);
+  h.service.disconnect(); await settle();
+});
+
+test('an unplugged USB board retries and resumes when the same board is plugged back in', async () => {
+  const h = setupUsb(); await h.service.connectUsb(); await h.stream(PCB_REST, 20);
+  assert.equal(h.service.getStatus(), 'connected');
+  h.ports.length = 0; h.port.unplug(); await settle();
+  assert.equal(h.service.getStatus(), 'disconnected');
+  await h.clock.advance(1000); await settle();
+  assert.equal(h.service.getStatus(), 'disconnected', 'Retry cannot find an unplugged port');
+  const replugged = makePort(); h.ports.push(replugged);
+  h.listeners.connect({ target: makePort({ usbVendorId: 0x1234, usbProductId: 1 }) });
+  await settle(); assert.equal(h.service.getStatus(), 'disconnected', 'Another USB device is ignored');
+  h.listeners.connect({ target: replugged }); await settle();
+  assert.equal(replugged.opens.length, 1);
+  await h.stream(PCB_REST, 20, replugged);
+  assert.equal(h.service.getStatus(), 'connected');
+  h.service.disconnect(); await settle();
+  h.listeners.connect({ target: replugged }); await settle();
+  assert.equal(replugged.opens.length, 1, 'An explicit disconnect stops automatic resumption');
+});
+
+test('restoration reopens the saved USB board without a chooser and ignores other boards', async () => {
+  const h = setupUsb(); await h.service.connectUsb(); await h.stream(PCB_REST, 20);
+  h.service.suspend(); await settle();
+  assert.equal(h.port.closes, 1);
+  const other = makePort({ usbVendorId: 0x303a, usbProductId: 0x0002 });
+  const restored = setupUsb({ map: h.map, port: h.port, ports: [other, h.port] });
+  restored.serial.requestPort = () => { throw new Error('unexpected chooser'); };
+  assert.equal(await restored.service.restoreConnection(), true);
+  assert.equal(other.opens.length, 0);
+  assert.equal(h.port.opens.length, 2);
+  await restored.stream(PCB_REST, 20);
+  assert.equal(restored.service.getStatus(), 'connected');
+  restored.service.disconnect(); await settle();
 });

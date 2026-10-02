@@ -5,40 +5,44 @@ const assert = require('node:assert/strict');
 // Synthetic data only. No private capture, recorded subject, COM port, or board is
 // needed in CI. The mock ends at GATT notifications; normalization, calibration,
 // freshness, the production GameShell, and each page script execute unchanged.
-const { createBleGameRuntime, REST_RAW, SQUEEZE_RAW, rawFor } = require('./helpers/ble-game-runtime');
+const { createBleGameRuntime, REST_RAW, SQUEEZE_RAW, FINGER_REST, FINGER_GRIP, rawFor } = require('./helpers/ble-game-runtime');
 const GAMES = ['balloon', 'crane', 'rhythm', 'glide'];
 function setup(game, t) { const h = createBleGameRuntime(game); t.after(() => h.dispose()); return h; }
 
-function assertSavedBle(h, calibration) {
+function assertSavedBle(h, calibration, source = 'ble') {
   const externallyRead = h.r.sensor.getSessionContext();
   externallyRead.calibrationSnapshot.baseline0 = 0;
   h.finish();
   assert.equal(h.r.saves.length, 1);
   const result = h.r.saves[0];
-  assert.equal(result.inputSource, 'ble');
+  assert.equal(result.inputSource, source);
   assert.deepEqual(JSON.parse(JSON.stringify(result.calibrationSnapshot)), calibration);
-  assert.equal(result.calibrationSnapshot.baseline0, REST_RAW);
+  if (calibration.version === 2) assert.equal(result.calibrationSnapshot.baseline0, REST_RAW);
+  else assert.equal(result.calibrationSnapshot.fingers[0].open, FINGER_REST, 'A saved v3 snapshot is not shared with callers');
   assert.ok(result.durationSec > 0);
   assert.ok(result.avgForce >= 0 && result.avgForce <= result.maxForce && result.maxForce <= 100);
   return result;
 }
 
 for (const game of GAMES) {
-  test(`${game}: five-finger glove packets drive actual game force after measured calibration`, async t => {
-    const h = createBleGameRuntime(game, { fiveFingers: true });
-    t.after(() => h.dispose());
-    await h.connect();
-    const calibration = await h.calibrate();
-    assert.equal(calibration.channel, 'finger_mean');
-    await h.start();
-    await h.feed(800, SQUEEZE_RAW);
-    assert.ok(h.r.run('gripForce') > 99);
-    assert.equal(h.r.run('gripForce'), h.r.sensor.getForce());
-    assert.deepEqual(h.r.sensor.getRawSample().fingerRaw, Array(5).fill(SQUEEZE_RAW));
-    await h.feed(1000, REST_RAW);
-    assert.ok(h.r.run('gripForce') < 0.01);
-    assert.equal(assertSavedBle(h, calibration).calibrationSnapshot.channel, 'finger_mean');
-  });
+  for (const transport of ['ble', 'usb']) {
+    test(`${game}: sensor PCB over ${transport} drives actual game force after per-finger calibration`, async t => {
+      const h = createBleGameRuntime(game, { fiveFingers: true, transport });
+      t.after(() => h.dispose());
+      await h.connect();
+      const calibration = await h.calibrate();
+      assert.equal(calibration.channel, 'finger_flex');
+      assert.equal(calibration.source, transport);
+      await h.start();
+      await h.feed(800, FINGER_GRIP);
+      assert.ok(h.r.run('gripForce') > 99);
+      assert.equal(h.r.run('gripForce'), h.r.sensor.getForce());
+      assert.deepEqual(h.r.sensor.getRawSample().fingerRaw, Array(5).fill(FINGER_GRIP));
+      await h.feed(1000, FINGER_REST);
+      assert.ok(h.r.run('gripForce') < 0.01);
+      assert.equal(assertSavedBle(h, calibration, transport).calibrationSnapshot.channel, 'finger_flex');
+    });
+  }
 
   test(`${game}: real BLE service gates start and maps decreasing FSR, while flex and keyboard cannot supply force`, async t => {
     const h = setup(game, t), { r } = h;

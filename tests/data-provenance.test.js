@@ -138,3 +138,17 @@ test('late token refresh and unauthorized replies cannot restore a logged-out ow
  assert.deepEqual(calls,['Bearer fixture-A']);assert.equal(AuthService.getUser().id,'B');assert.equal(DataService._readOutbox().length,0);
  login('A');assert.equal(DataService._readOutbox().length,1);
 });
+test('USB sensor sessions count as real input and keep their per-finger snapshot through the outbox',async()=>{
+ const shared=require('../shared.js');
+ const fingerSnapshot={version:3,source:'usb',unit:'adc_12bit',channel:'finger_flex',fingers:[{open:1780,closed:2780,use:true},null,null,{open:1825,closed:2825,use:false},null],capturedAt:'2026-10-02T00:00:00Z'};
+ storage();
+ await DataService.saveSession({...row('usb',60),calibrationSnapshot:structuredClone(fingerSnapshot)});
+ await DataService.saveSession(row('simulation',100));
+ const real=await GamificationEngine.getStats('real');
+ assert.equal(real.totalSessions,1);assert.equal(real.maxForce,60);
+ const [saved]=await DataService.getSessions('real');
+ assert.equal(shared.sourceLabel(saved),'센서 · USB');
+ assert.deepEqual(saved.calibrationSnapshot,fingerSnapshot);
+ assert.deepEqual(shared.countSessionSources([saved,{inputSource:'ble'},{inputSource:'simulation'}]),{real:2,simulation:1,unknown:0});
+ assert.equal(shared.filterSessionSource([saved],'simulation').length,0);
+});
